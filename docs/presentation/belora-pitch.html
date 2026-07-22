@@ -1,0 +1,656 @@
+<title>Belora — Strategia V1</title>
+<style>
+  :root {
+    --serif: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif;
+    --sans: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    --mono: 'Cascadia Code', Consolas, 'SF Mono', ui-monospace, monospace;
+
+    /* light theme (default, deliberately chosen warm-paper neutrals biased toward the accent) */
+    --bg: #FAF6F3;
+    --bg-2: #F1E9E3;
+    --surface: #FFFFFF;
+    --surface-2: #FBF7F5;
+    --ink: #241A22;
+    --ink-2: #4C3F49;
+    --muted: #7C6F78;
+    --line: rgba(36, 26, 34, 0.11);
+    --line-strong: rgba(36, 26, 34, 0.18);
+    --alba: #E2506A;
+    --alba-ink: #C33C56;
+    --alba-soft: rgba(226, 80, 106, 0.10);
+    --notte: #3E2A55;
+    --amber: #EC9A5C;
+    --good: #1B9C80;
+    --good-soft: rgba(27, 156, 128, 0.12);
+    --gap: #B24359;
+    --shadow: 0 1px 2px rgba(36,26,34,.04), 0 12px 34px -14px rgba(62,42,85,.22);
+    --shadow-lg: 0 2px 6px rgba(36,26,34,.05), 0 30px 70px -28px rgba(62,42,85,.34);
+    --aur-1: rgba(226, 80, 106, .55);
+    --aur-2: rgba(236, 154, 92, .50);
+    --aur-3: rgba(93, 58, 128, .50);
+    --aur-alpha: .42;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141019;
+      --bg-2: #1A1522;
+      --surface: #201A2B;
+      --surface-2: #271F35;
+      --ink: #F5ECEF;
+      --ink-2: #CDC0CA;
+      --muted: #A093A2;
+      --line: rgba(245, 236, 239, 0.12);
+      --line-strong: rgba(245, 236, 239, 0.22);
+      --alba: #FF6E85;
+      --alba-ink: #FF849A;
+      --alba-soft: rgba(255, 110, 133, 0.14);
+      --notte: #B392D6;
+      --amber: #FFC08A;
+      --good: #52D2AF;
+      --good-soft: rgba(82, 210, 175, 0.16);
+      --gap: #FF7D93;
+      --shadow: 0 1px 2px rgba(0,0,0,.30), 0 14px 40px -16px rgba(0,0,0,.6);
+      --shadow-lg: 0 2px 8px rgba(0,0,0,.35), 0 34px 80px -30px rgba(0,0,0,.72);
+      --aur-1: rgba(255, 110, 133, .60);
+      --aur-2: rgba(255, 176, 116, .48);
+      --aur-3: rgba(150, 106, 205, .62);
+      --aur-alpha: .70;
+    }
+  }
+  /* explicit toggle must win in both directions */
+  :root[data-theme="light"] {
+    --bg: #FAF6F3; --bg-2: #F1E9E3; --surface: #FFFFFF; --surface-2: #FBF7F5;
+    --ink: #241A22; --ink-2: #4C3F49; --muted: #7C6F78;
+    --line: rgba(36,26,34,.11); --line-strong: rgba(36,26,34,.18);
+    --alba: #E2506A; --alba-ink: #C33C56; --alba-soft: rgba(226,80,106,.10);
+    --notte: #3E2A55; --amber: #EC9A5C; --good: #1B9C80; --good-soft: rgba(27,156,128,.12); --gap: #B24359;
+    --shadow: 0 1px 2px rgba(36,26,34,.04), 0 12px 34px -14px rgba(62,42,85,.22);
+    --shadow-lg: 0 2px 6px rgba(36,26,34,.05), 0 30px 70px -28px rgba(62,42,85,.34);
+    --aur-1: rgba(226,80,106,.55); --aur-2: rgba(236,154,92,.50); --aur-3: rgba(93,58,128,.50); --aur-alpha: .42;
+  }
+  :root[data-theme="dark"] {
+    --bg: #141019; --bg-2: #1A1522; --surface: #201A2B; --surface-2: #271F35;
+    --ink: #F5ECEF; --ink-2: #CDC0CA; --muted: #A093A2;
+    --line: rgba(245,236,239,.12); --line-strong: rgba(245,236,239,.22);
+    --alba: #FF6E85; --alba-ink: #FF849A; --alba-soft: rgba(255,110,133,.14);
+    --notte: #B392D6; --amber: #FFC08A; --good: #52D2AF; --good-soft: rgba(82,210,175,.16); --gap: #FF7D93;
+    --shadow: 0 1px 2px rgba(0,0,0,.30), 0 14px 40px -16px rgba(0,0,0,.6);
+    --shadow-lg: 0 2px 8px rgba(0,0,0,.35), 0 34px 80px -30px rgba(0,0,0,.72);
+    --aur-1: rgba(255,110,133,.60); --aur-2: rgba(255,176,116,.48); --aur-3: rgba(150,106,205,.62); --aur-alpha: .70;
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+
+  /* ---------- aurora atmosphere ---------- */
+  .aurora { position: fixed; inset: -20vh -10vw; z-index: 0; pointer-events: none; overflow: hidden; }
+  .aurora b {
+    position: absolute; display: block; border-radius: 50%;
+    filter: blur(70px); opacity: var(--aur-alpha); mix-blend-mode: normal;
+    will-change: transform;
+  }
+  .aurora .a1 { width: 56vw; height: 56vw; left: -8vw; top: -6vh; background: radial-gradient(circle at 30% 30%, var(--aur-1), transparent 62%); animation: drift1 26s ease-in-out infinite alternate; }
+  .aurora .a2 { width: 48vw; height: 48vw; right: -6vw; top: 2vh; background: radial-gradient(circle at 60% 40%, var(--aur-2), transparent 60%); animation: drift2 32s ease-in-out infinite alternate; }
+  .aurora .a3 { width: 60vw; height: 60vw; left: 18vw; top: 8vh; background: radial-gradient(circle at 50% 50%, var(--aur-3), transparent 64%); animation: drift3 38s ease-in-out infinite alternate; }
+  @keyframes drift1 { from { transform: translate3d(0,0,0) scale(1);} to { transform: translate3d(6vw,4vh,0) scale(1.12);} }
+  @keyframes drift2 { from { transform: translate3d(0,0,0) scale(1.05);} to { transform: translate3d(-5vw,5vh,0) scale(.95);} }
+  @keyframes drift3 { from { transform: translate3d(0,0,0) scale(.98);} to { transform: translate3d(-4vw,-3vh,0) scale(1.1);} }
+  .aurora::after { /* soften into the page below the fold */
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 40%;
+    background: linear-gradient(to bottom, transparent, var(--bg));
+  }
+  @media (prefers-reduced-motion: reduce) { .aurora b { animation: none !important; } }
+
+  /* ---------- shell ---------- */
+  .wrap { position: relative; z-index: 1; }
+  .container { width: min(1120px, 92vw); margin-inline: auto; }
+  .narrow { width: min(760px, 92vw); margin-inline: auto; }
+
+  /* ---------- top nav ---------- */
+  header.nav {
+    position: sticky; top: 0; z-index: 40;
+    backdrop-filter: saturate(1.4) blur(10px);
+    background: color-mix(in srgb, var(--bg) 78%, transparent);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-inner { display: flex; align-items: center; gap: 18px; height: 62px; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; font-family: var(--serif); font-size: 22px; letter-spacing: .01em; color: var(--ink); text-decoration: none; }
+  .brand .dawn { width: 18px; height: 18px; border-radius: 50%; background: conic-gradient(from 210deg, var(--notte), var(--alba), var(--amber), var(--notte)); box-shadow: 0 0 0 1px var(--line-strong) inset; }
+  .brand small { font-family: var(--mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); align-self: flex-start; margin-top: 3px; }
+  .nav-links { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+  .nav-links a { font-family: var(--mono); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); text-decoration: none; padding: 7px 10px; border-radius: 8px; }
+  .nav-links a:hover { color: var(--ink); background: var(--alba-soft); }
+  @media (max-width: 860px) { .nav-links a:not(.pill) { display: none; } }
+  .toggle {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink);
+    padding: 8px 12px; border-radius: 999px; cursor: pointer; display: inline-flex; gap: 8px; align-items: center;
+  }
+  .toggle:hover { border-color: var(--alba); color: var(--alba-ink); }
+  :focus-visible { outline: 2px solid var(--alba); outline-offset: 3px; border-radius: 6px; }
+
+  /* ---------- type ---------- */
+  h1, h2, h3 { font-family: var(--serif); font-weight: 600; color: var(--ink); text-wrap: balance; margin: 0; line-height: 1.1; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .2em; text-transform: uppercase; color: var(--alba-ink); display: inline-flex; align-items: center; gap: 10px; }
+  .eyebrow::before { content: ""; width: 26px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, var(--notte), var(--alba), var(--amber)); }
+  p { margin: 0 0 1em; color: var(--ink-2); }
+  .lede { font-size: 1.22rem; color: var(--ink-2); }
+  a.inline { color: var(--alba-ink); }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 74px 0 30px; }
+  .hero h1 { font-size: clamp(2.5rem, 6.4vw, 4.6rem); letter-spacing: -0.015em; margin: 20px 0 22px; }
+  .hero .lede { max-width: 40ch; }
+  .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
+  .chip { display: inline-flex; align-items: baseline; gap: 9px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 8px 15px; box-shadow: var(--shadow); }
+  .chip b { font-family: var(--mono); font-size: 15px; color: var(--alba-ink); font-variant-numeric: tabular-nums; }
+  .chip span { font-size: 13px; color: var(--muted); }
+  .hero-meta { margin-top: 34px; font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+  /* ---------- sections ---------- */
+  section { padding: 64px 0; position: relative; }
+  .band { background: var(--bg-2); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .sec-head { max-width: 62ch; margin-bottom: 34px; }
+  .sec-head h2 { font-size: clamp(1.7rem, 3.6vw, 2.5rem); margin: 14px 0 12px; }
+  .sec-head p { font-size: 1.05rem; }
+
+  /* wedge */
+  .wedge { display: grid; grid-template-columns: 1fr auto 1fr; gap: 16px; align-items: stretch; }
+  @media (max-width: 820px) { .wedge { grid-template-columns: 1fr; } .wedge .arrow { transform: rotate(90deg); } }
+  .wcol { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; box-shadow: var(--shadow); }
+  .wcol.win { border-color: color-mix(in srgb, var(--alba) 55%, var(--line)); background: linear-gradient(180deg, var(--alba-soft), var(--surface)); }
+  .wcol h3 { font-size: 1.2rem; margin-bottom: 8px; }
+  .wcol .tag { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .wcol.win .tag { color: var(--alba-ink); }
+  .wcol p { margin: 6px 0 0; font-size: .96rem; }
+  .arrow { align-self: center; color: var(--muted); font-size: 26px; font-family: var(--serif); }
+
+  /* advantage grid */
+  .grid { display: grid; gap: 16px; }
+  .g4 { grid-template-columns: repeat(4, 1fr); }
+  .g3 { grid-template-columns: repeat(3, 1fr); }
+  .g2 { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 980px) { .g4 { grid-template-columns: repeat(2, 1fr); } .g3 { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 620px) { .g4, .g3, .g2 { grid-template-columns: 1fr; } }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 15px; padding: 22px; box-shadow: var(--shadow); transition: transform .25s ease, box-shadow .25s ease, border-color .25s ease; }
+  .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); border-color: var(--line-strong); }
+  .card .num { font-family: var(--mono); font-size: 12px; color: var(--alba-ink); letter-spacing: .1em; }
+  .card h3 { font-size: 1.12rem; margin: 10px 0 8px; }
+  .card p { font-size: .94rem; margin: 0; }
+
+  /* steps */
+  .steps { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; }
+  @media (max-width: 980px) { .steps { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 560px) { .steps { grid-template-columns: 1fr; } }
+  .step { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; box-shadow: var(--shadow); position: relative; }
+  .step .n { font-family: var(--serif); font-size: 1.5rem; color: var(--alba); line-height: 1; }
+  .step h4 { font-family: var(--sans); font-weight: 700; font-size: .98rem; margin: 10px 0 6px; color: var(--ink); }
+  .step p { font-size: .86rem; margin: 0; color: var(--muted); }
+
+  /* tables */
+  .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 640px; }
+  th, td { text-align: left; padding: 13px 16px; border-bottom: 1px solid var(--line); font-size: .92rem; }
+  thead th { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); background: var(--surface-2); position: sticky; top: 0; }
+  tbody tr:last-child td { border-bottom: none; }
+  td.num, th.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  tr.us td:first-child { font-weight: 700; }
+  tr.us { background: var(--alba-soft); }
+  tr.us td:first-child { color: var(--alba-ink); }
+  .yes { color: var(--good); font-weight: 700; }
+  .no { color: var(--muted); opacity: .8; }
+  .mark { font-family: var(--mono); }
+
+  /* pricing */
+  .prices { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  @media (max-width: 980px) { .prices { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .prices { grid-template-columns: 1fr; } }
+  .price { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px; box-shadow: var(--shadow); display: flex; flex-direction: column; }
+  .price.reco { border-color: var(--alba); box-shadow: var(--shadow-lg); position: relative; }
+  .price.reco::before { content: "Consigliato"; position: absolute; top: -11px; left: 22px; font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #fff; background: linear-gradient(90deg, var(--alba), var(--amber)); padding: 4px 10px; border-radius: 999px; }
+  .price .name { font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .price .amt { font-family: var(--serif); font-size: 2.1rem; margin: 8px 0 2px; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .price .amt small { font-family: var(--mono); font-size: .82rem; color: var(--muted); }
+  .price ul { list-style: none; padding: 0; margin: 14px 0 0; display: flex; flex-direction: column; gap: 9px; }
+  .price li { font-size: .9rem; color: var(--ink-2); padding-left: 20px; position: relative; }
+  .price li::before { content: "›"; position: absolute; left: 4px; color: var(--alba); font-family: var(--serif); }
+  .price .credits { margin-top: 14px; font-family: var(--mono); font-size: 12px; color: var(--alba-ink); border-top: 1px dashed var(--line-strong); padding-top: 12px; }
+
+  .addons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+  .addon { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; box-shadow: var(--shadow); }
+  .addon b { display: block; font-size: .92rem; color: var(--ink); }
+  .addon span { font-family: var(--mono); font-size: 12px; color: var(--alba-ink); }
+
+  .note { background: var(--surface-2); border: 1px solid var(--line); border-left: 3px solid var(--alba); border-radius: 10px; padding: 14px 18px; font-size: .9rem; color: var(--ink-2); }
+  .note b { color: var(--ink); }
+
+  /* two-col explainer */
+  .cols2 { display: grid; grid-template-columns: 1.05fr .95fr; gap: 34px; align-items: start; }
+  @media (max-width: 860px) { .cols2 { grid-template-columns: 1fr; gap: 22px; } }
+  .feat { display: flex; flex-direction: column; gap: 14px; }
+  .feat .row { display: flex; gap: 14px; align-items: flex-start; }
+  .feat .k { font-family: var(--mono); font-size: 12px; color: var(--alba-ink); min-width: 92px; padding-top: 3px; letter-spacing: .04em; text-transform: uppercase; }
+  .feat .v { font-size: .96rem; color: var(--ink-2); }
+  .feat .v b { color: var(--ink); }
+
+  /* timeline */
+  .timeline { position: relative; margin-left: 8px; padding-left: 30px; border-left: 2px solid var(--line-strong); display: flex; flex-direction: column; gap: 26px; }
+  .tl { position: relative; }
+  .tl::before { content: ""; position: absolute; left: -39px; top: 4px; width: 14px; height: 14px; border-radius: 50%; background: var(--surface); border: 2px solid var(--alba); }
+  .tl.now::before { background: var(--alba); box-shadow: 0 0 0 5px var(--alba-soft); }
+  .tl .when { font-family: var(--mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--alba-ink); }
+  .tl h3 { font-size: 1.2rem; margin: 6px 0 6px; }
+  .tl p { font-size: .94rem; margin: 0; }
+
+  /* next steps / footer */
+  .steps-next { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 760px) { .steps-next { grid-template-columns: 1fr; } }
+  footer { padding: 46px 0 60px; border-top: 1px solid var(--line); background: var(--bg-2); }
+  .foot-inner { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; align-items: center; }
+  .foot-inner .brand { font-size: 20px; }
+  .foot-inner p { margin: 0; font-family: var(--mono); font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+
+  /* reveal */
+  html.js .reveal:not(.in) { opacity: 0; transform: translateY(18px); }
+  .reveal { transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+  @media (prefers-reduced-motion: reduce) { html.js .reveal:not(.in) { opacity: 1; transform: none; } }
+
+  .kicker { color: var(--muted); font-size: .82rem; font-family: var(--mono); letter-spacing: .04em; }
+  .hl { color: var(--alba-ink); font-weight: 600; }
+  strong { color: var(--ink); }
+</style>
+
+<div class="aurora" aria-hidden="true">
+  <b class="a1"></b><b class="a2"></b><b class="a3"></b>
+</div>
+
+<div class="wrap">
+  <header class="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="#top"><span class="dawn"></span>Belora <small>V1</small></a>
+      <nav class="nav-links">
+        <a href="#momento">Il momento</a>
+        <a href="#vantaggi">Vantaggi</a>
+        <a href="#prodotto">Prodotto</a>
+        <a href="#modello">Modello</a>
+        <a href="#crescita">Crescita</a>
+        <a href="#roadmap">Roadmap</a>
+        <button class="toggle" id="themeToggle" aria-label="Cambia tema">
+          <span id="themeIcon">◐</span><span id="themeLabel">Tema</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <a id="top"></a>
+  <section class="hero">
+    <div class="container">
+      <span class="eyebrow reveal">Piattaforma AI · Siti web per attività locali · IT · ES · LATAM</span>
+      <h1 class="reveal">Dal nome della tua attività<br>a un sito bellissimo, in pochi minuti.</h1>
+      <p class="lede reveal">Belora è la piattaforma AI che crea siti web <strong>sempre belli — non "a volte".</strong> Un Wix migliore, pensato per ristoranti, palestre, saloni e negozi in Italia, Spagna e America Latina.</p>
+      <div class="chips reveal">
+        <div class="chip"><b>15</b><span>competitor analizzati</span></div>
+        <div class="chip"><b>0</b><span>garantiscono la bellezza</span></div>
+        <div class="chip"><b>8</b><span>vantaggi difendibili</span></div>
+        <div class="chip"><b>3–5×</b><span>più economico da servire</span></div>
+      </div>
+      <div class="hero-meta reveal">Documento di strategia · V1 · 22 luglio 2026 · fondato su ricerca di mercato con verifica dei dati</div>
+    </div>
+  </section>
+
+  <!-- IL MOMENTO -->
+  <section id="momento" class="band">
+    <div class="container">
+      <div class="sec-head reveal">
+        <span class="eyebrow">La tesi</span>
+        <h2>Il mercato è spaccato in due. Nel mezzo, un vuoto.</h2>
+        <p>Abbiamo analizzato 15 costruttori di siti. Emerge una frattura netta — e nessuno la colma.</p>
+      </div>
+      <div class="wedge reveal">
+        <div class="wcol">
+          <span class="tag">Facile da usare</span>
+          <h3>→ risultato generico</h3>
+          <p>Durable, Hostinger, GoDaddy, 10Web: veloci, ma producono siti quasi identici e facili da rovinare.</p>
+        </div>
+        <div class="arrow" aria-hidden="true">✦</div>
+        <div class="wcol">
+          <span class="tag">Bello di potenziale</span>
+          <h3>→ difficile da usare</h3>
+          <p>Framer, Webflow, l'editor di Squarespace: alto potenziale estetico, ma richiedono competenze da designer.</p>
+        </div>
+      </div>
+      <div style="height:16px"></div>
+      <div class="wedge reveal" style="grid-template-columns:1fr;">
+        <div class="wcol win" style="text-align:center;">
+          <span class="tag">Il vuoto che occupiamo</span>
+          <h3 style="font-size:1.5rem; margin-top:6px;">Belora: bello <em>e</em> facile.</h3>
+          <p style="max-width:60ch; margin:8px auto 0;">Bellezza <strong>garantita</strong> a un non-designer, grazie a un motore a blocchi premium con vincoli di qualità. Nessun altro lo promette.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VANTAGGI -->
+  <section id="vantaggi">
+    <div class="container">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Perché vinciamo</span>
+        <h2>Otto vantaggi difendibili</h2>
+        <p>Ognuno è un "buco" reale del mercato, confermato dalla ricerca — non una feature qualsiasi.</p>
+      </div>
+      <div class="grid g4 reveal">
+        <div class="card"><div class="num">01</div><h3>Bellezza garantita</h3><p>Motore a blocchi premium + temi con guardrail: risultati brutti <strong>strutturalmente impossibili</strong>. È il cuore del posizionamento.</p></div>
+        <div class="card"><div class="num">02</div><h3>Scelta tra 5 mockup</h3><p>Nessun competitor lo fa. Tu scegli il tuo preferito tra 5 direzioni estetiche: controllo senza competenze.</p></div>
+        <div class="card"><div class="num">03</div><h3>WhatsApp-first</h3><p>In LATAM &gt;90% usa WhatsApp. Lo rendiamo la CTA primaria di conversione (prenota / ordina / contatta), non un widget.</p></div>
+        <div class="card"><div class="num">04</div><h3>Import automatico</h3><p>Da Google Business e Instagram importiamo orari, foto, recensioni e menu. Elimina la frizione #1: inserire i contenuti.</p></div>
+        <div class="card"><div class="num">05</div><h3>Vera localizzazione</h3><p>Prodotto e testi nativi in italiano e spagnolo, con default per-paese. I rivali sono US/EN-centrici o assenti in LATAM.</p></div>
+        <div class="card"><div class="num">06</div><h3>Prezzi PPP</h3><p>Adeguati al potere d'acquisto di MX, CO, AR, CL, PE. Tutti gli altri usano prezzi flat in USD. Equità <em>e</em> vantaggio di prezzo.</p></div>
+        <div class="card"><div class="num">07</div><h3>SEO locale integrata</h3><p>Debole o assente ovunque, specie in non-inglese. Ogni sito nasce ottimizzato per "vicino a me / cerca di mi".</p></div>
+        <div class="card"><div class="num">08</div><h3>Zero bill-shock</h3><p>Niente prezzi civetta che raddoppiano al rinnovo, né crediti opachi. Trasparente, flat, PPP.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRODOTTO -->
+  <section id="prodotto" class="band">
+    <div class="container">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Come funziona</span>
+        <h2>Dal nome dell'attività al sito pubblicato</h2>
+        <p>Un percorso guidato che insegna la struttura a chi non è tecnico, e la riempie con la magia dell'AI.</p>
+      </div>
+      <div class="steps reveal">
+        <div class="step"><div class="n">1</div><h4>Anteprima gratuita</h4><p>Scrivi il nome: vedi un'anteprima reale prima di iscriverti. Modello economico, zero costi.</p></div>
+        <div class="step"><div class="n">2</div><h4>Intervista guidata</h4><p>Wizard a step + chat AI + import da Google Business / Instagram.</p></div>
+        <div class="step"><div class="n">3</div><h4>5 mockup</h4><p>Il modello top genera 5 design distinti sugli stessi contenuti.</p></div>
+        <div class="step"><div class="n">4</div><h4>Scegli</h4><p>Selezioni il tuo preferito. Nessun risultato brutto possibile.</p></div>
+        <div class="step"><div class="n">5</div><h4>Modifica</h4><p>Editor inline + blocchi guidati: testi, foto, colori, sezioni.</p></div>
+        <div class="step"><div class="n">6</div><h4>Pubblica</h4><p>One-pager gratis o multi-pagina a pagamento, con WhatsApp e mappa.</p></div>
+      </div>
+      <div class="cols2" style="margin-top:34px;">
+        <div class="feat reveal">
+          <div class="row"><div class="k">Motore</div><div class="v"><b>Blocchi premium × temi.</b> I 5 mockup sono gli stessi contenuti in 5 estetiche — bellezza, varietà, velocità ed editabilità, senza i costi del codice generato da zero.</div></div>
+          <div class="row"><div class="k">Media</div><div class="v"><b>Foto reali prima di tutto</b> (upload o import da IG/Google Business) + stock curato. L'AI solo per ritocco e sfondi — mai per inventare piatti o prodotti.</div></div>
+          <div class="row"><div class="k">Conversione</div><div class="v"><b>WhatsApp + form + mappa</b> in V1. Prenotazioni e appuntamenti in arrivo con la V2.</div></div>
+          <div class="row"><div class="k">Modelli AI</div><div class="v"><b>Economico per l'anteprima pubblica</b>, top per la generazione completa dopo l'iscrizione. Costi sotto controllo, qualità dove conta.</div></div>
+        </div>
+        <div class="note reveal">
+          <b>Il funnel è anche la leva di prezzo.</b><br><br>
+          Il <span class="hl">one-pager gratuito</span> è prodotto d'ingresso <em>e</em> motore virale: ogni sito free porta il badge "Made with Belora".<br><br>
+          Il valore vero — <span class="hl">multi-pagina adattivo</span>, rimozione badge, dominio, add-on — vive dietro il paywall.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPETITIVO -->
+  <section id="competitivo">
+    <div class="container">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Panorama competitivo</span>
+        <h2>Dove gli altri si fermano</h2>
+        <p>Prezzi verificati (2026, annuale). Le colonne sono i nostri vantaggi: le caselle raccontano il vuoto.</p>
+      </div>
+      <div class="table-scroll reveal">
+        <table>
+          <thead>
+            <tr>
+              <th>Prodotto</th><th class="num">Prezzo entry</th><th>Sempre bello</th><th>5 mockup</th><th>WhatsApp-first</th><th>Import GBP/IG</th><th>Prezzi PPP</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Wix</td><td class="num">€14 → €25</td><td class="mark no">✕</td><td class="mark no">✕</td><td class="mark no">✕</td><td class="mark no">✕</td><td class="mark no">✕</td></tr>
+            <tr><td>Squarespace</td><td class="num">$16 → $23</td><td class="mark yes">~</td><td class="mark no">✕</td><td class="mark no">✕</td><td class="mark no">✕</td><td class="mark no">✕</td></tr>
+            <tr><td>Durable</td><td class="num">$22–25</td><td class="mark no">✕</td><td class="mark no">✕</td><td class="mark no">✕</td><td class="mark no">✕</td><td class="mark no">✕</td></tr>
+            <tr><td>Hostinger AI</td><td class="num">$2.99 → $11</td><td class="mark no">✕</td><td class="mark no">✕</td><td class="mark no">✕</td><td class="mark no">✕</td><td class="mark no">✕</td></tr>
+            <tr><td>GoDaddy Airo</td><td class="num">solo US/CA</td><td class="mark no">✕</td><td class="mark no">✕</td><td class="mark no">✕</td><td class="mark no">✕</td><td class="mark no">✕</td></tr>
+            <tr class="us"><td>Belora</td><td class="num">€9 → €19</td><td class="mark yes">✓</td><td class="mark yes">✓</td><td class="mark yes">✓</td><td class="mark yes">✓</td><td class="mark yes">✓</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="kicker reveal" style="margin-top:14px;">La verifica avversariale dei prezzi ha corretto al rialzo il costo reale di Wix (Light €14, Core €25/mese) — il che ci posiziona <span class="hl">sotto</span> Wix comunicando qualità superiore.</p>
+    </div>
+  </section>
+
+  <!-- MODELLO -->
+  <section id="modello" class="band">
+    <div class="container">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Modello di business</span>
+        <h2>Abbonamento + crediti, con add-on à-la-carte</h2>
+        <p>Prezzi baseline UE (Italia = 1.0×), fatturazione annuale come riferimento. Il mensile è ~+30%.</p>
+      </div>
+      <div class="prices reveal">
+        <div class="price">
+          <span class="name">Free</span>
+          <div class="amt">€0</div>
+          <ul><li>1 one-pager su sottodominio</li><li>Badge "Made with Belora"</li><li>Anteprima pubblica</li></ul>
+          <div class="credits">5 crediti di benvenuto</div>
+        </div>
+        <div class="price">
+          <span class="name">Starter</span>
+          <div class="amt">€9<small> /mese</small></div>
+          <ul><li>Sito multi-pagina adattivo</li><li>Nessun badge</li><li>Sottodominio</li></ul>
+          <div class="credits">30 crediti / mese</div>
+        </div>
+        <div class="price reco">
+          <span class="name">Pro</span>
+          <div class="amt">€19<small> /mese</small></div>
+          <ul><li>Pagine illimitate</li><li>Coda prioritaria</li><li>1 add-on incluso</li></ul>
+          <div class="credits">120 crediti / mese</div>
+        </div>
+        <div class="price">
+          <span class="name">Studio</span>
+          <div class="amt">€39<small> /mese</small></div>
+          <ul><li>Multi-sito</li><li>Add-on scontati</li><li>Export white-label</li></ul>
+          <div class="credits">400 crediti / mese (pool)</div>
+        </div>
+      </div>
+
+      <div class="addons reveal">
+        <div class="addon"><b>SEO premium (AI)</b><span>€6/mese</span></div>
+        <div class="addon"><b>Legale / cookie / GDPR</b><span>€5/mese</span></div>
+        <div class="addon"><b>Dominio custom (rivendita)</b><span>€15/anno · entrata #2</span></div>
+      </div>
+
+      <div class="cols2" style="margin-top:34px;">
+        <div class="reveal">
+          <h3 style="font-size:1.3rem; margin-bottom:10px;">Crediti semplici, senza ansia</h3>
+          <div class="feat">
+            <div class="row"><div class="k">1 credito</div><div class="v">= <b>1 design generato</b> dal modello top ("1 mockup").</div></div>
+            <div class="row"><div class="k">Build 5</div><div class="v">La generazione dei 5 mockup costa <b>5 crediti</b>.</div></div>
+            <div class="row"><div class="k">Gratis</div><div class="v"><b>Modifiche e pubblicazione sempre gratis.</b> I crediti non spengono mai un sito né bloccano i contenuti.</div></div>
+            <div class="row"><div class="k">Roll-over</div><div class="v">I crediti non usati si accumulano fino a 2× la dotazione mensile.</div></div>
+          </div>
+        </div>
+        <div class="reveal">
+          <h3 style="font-size:1.3rem; margin-bottom:10px;">Prezzi adeguati al mercato (PPP)</h3>
+          <div class="table-scroll">
+            <table style="min-width:420px;">
+              <thead><tr><th>Mercato</th><th class="num">Starter</th><th class="num">Pro</th></tr></thead>
+              <tbody>
+                <tr><td>Italia</td><td class="num">€9</td><td class="num">€19</td></tr>
+                <tr><td>Spagna</td><td class="num">€8,99</td><td class="num">€17,99</td></tr>
+                <tr><td>Messico</td><td class="num">$79–99 MXN</td><td class="num">$169–199</td></tr>
+                <tr><td>Colombia</td><td class="num">$14.900 COP</td><td class="num">$34.900</td></tr>
+                <tr><td>Cile</td><td class="num">$4.990 CLP</td><td class="num">$9.990</td></tr>
+                <tr><td>Argentina</td><td class="num">$4,99 USD</td><td class="num">$10,99</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="kicker" style="margin-top:10px;">Argentina fatturata in USD per via dell'inflazione. Moltiplicatori da validare con A/B sui prezzi.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TECNOLOGIA -->
+  <section id="tecnologia">
+    <div class="container">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Tecnologia & margini</span>
+        <h2>Un costo marginale per sito vicino allo zero</h2>
+        <p>La scelta di hosting è un vantaggio economico strutturale, non un dettaglio tecnico.</p>
+      </div>
+      <div class="cols2">
+        <div class="reveal">
+          <div class="table-scroll">
+            <table style="min-width:460px;">
+              <thead><tr><th>Siti pubblicati</th><th class="num">Vercel</th><th class="num">Cloudflare</th></tr></thead>
+              <tbody>
+                <tr><td class="num">1.000</td><td class="num">~$200–400/mo</td><td class="num">~$100/mo</td></tr>
+                <tr><td class="num">10.000</td><td class="num">~$3–6k/mo</td><td class="num">~$1–1,5k/mo</td></tr>
+                <tr class="us"><td class="num">100.000</td><td class="num">~$30–55k/mo</td><td class="num">~$10–13k/mo</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="kicker" style="margin-top:12px;">Siti pre-renderizzati statici su Cloudflare R2 (egress $0) + domini via Cloudflare for SaaS ($0,10/dominio). A volume, ~3–5× più economico.</p>
+        </div>
+        <div class="feat reveal">
+          <div class="row"><div class="k">Stack</div><div class="v"><b>Next.js + Supabase</b> (managed, poca manutenzione) — adatto a un fondatore non tecnico. AI: Claude (Haiku per anteprima, Opus/Sonnet per build).</div></div>
+          <div class="row"><div class="k">Pagamenti</div><div class="v"><b>Stripe</b> per Italia e Spagna (valutando un Merchant of Record per non gestire l'IVA). <b>dLocal</b> per il LATAM serio, senza aprire entità locali.</div></div>
+          <div class="row"><div class="k">Margine</div><div class="v">Egress gratuito → ogni nuovo sito pubblicato costa <b>quasi zero</b>, ogni dominio custom un prevedibile $0,10/mese.</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CRESCITA -->
+  <section id="crescita" class="band">
+    <div class="container">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Go-to-market</span>
+        <h2>Quattro canali che si rinforzano</h2>
+        <p>Ogni sito gratuito è pubblicità; ogni contenuto è trovabilità — su Google e sulle AI.</p>
+      </div>
+      <div class="grid g4 reveal">
+        <div class="card"><h3>Sito vetrina</h3><p><b>Demo-led:</b> "scrivi il nome, vedi l'anteprima" prima di iscriverti. + prova di ROI + confronto con Wix.</p></div>
+        <div class="card"><h3>Blog & SEO locale</h3><p>Guide per titolari + migliaia di pagine programmatiche <em>settore × città</em> in IT/ES.</p></div>
+        <div class="card"><h3>GEO</h3><p>Farsi <b>citare dalle AI</b> (ChatGPT, Claude, Perplexity, Google AI). Leva #1 provata: fonti + statistiche + citazioni = <span class="hl">+30–40%</span> di visibilità.</p></div>
+        <div class="card"><h3>Roadmap pubblica</h3><p>Stato feature + voti/feedback + changelog → community, hype e product-feedback.</p></div>
+      </div>
+      <div class="note reveal" style="margin-top:22px;">
+        <b>Qualità come difesa.</b> Il Google Spam Update di giugno 2026 ha fatto crollare le reti di pagine templatate in 24–48h. Per questo il generatore ha un <span class="hl">gate di qualità obbligatorio</span> (≥300 parole, ≥60% contenuto unico, ≥3 dati locali reali): le pagine sottili sono strutturalmente impossibili da pubblicare.
+      </div>
+    </div>
+  </section>
+
+  <!-- NAMING -->
+  <section id="naming">
+    <div class="container">
+      <div class="cols2">
+        <div class="reveal">
+          <span class="eyebrow">Identità</span>
+          <h2 style="font-size:clamp(1.7rem,3.6vw,2.5rem); margin:14px 0 12px;">Perché "Belora"</h2>
+          <p><strong>Belora</strong> nasce da <em>bella / bello</em> con un finale luminoso, da aurora. Dice esattamente la promessa — siti bellissimi — ed è premium, breve e brandabile. In italiano e spagnolo si legge identico: <span class="mark">be-LO-ra</span>.</p>
+          <p class="kicker">Alternativa più "pulita" sulle collisioni: <strong>Sitela</strong> (fonde "sito/sitio" + "stella"). ⚠️ I domini vanno verificati su registrar — la ricerca web non è definitiva — e va fatta una ricerca marchi (EUIPO, classe software).</p>
+        </div>
+        <div class="reveal" style="display:flex; align-items:center; justify-content:center; min-height:220px;">
+          <div style="text-align:center;">
+            <div class="dawn" style="width:64px; height:64px; margin:0 auto 18px; border-radius:50%; background:conic-gradient(from 210deg, var(--notte), var(--alba), var(--amber), var(--notte)); box-shadow:0 0 0 1px var(--line-strong) inset, var(--shadow-lg);"></div>
+            <div style="font-family:var(--serif); font-size:3rem; letter-spacing:.01em; color:var(--ink);">Belora</div>
+            <div style="font-family:var(--mono); font-size:12px; letter-spacing:.24em; text-transform:uppercase; color:var(--muted); margin-top:6px;">bella · aurora</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ROADMAP -->
+  <section id="roadmap" class="band">
+    <div class="container">
+      <div class="sec-head reveal">
+        <span class="eyebrow">La traiettoria</span>
+        <h2>Dai siti vetrina alle piattaforme intere</h2>
+        <p>Partiamo focalizzati sul "wow", poi allarghiamo per versioni.</p>
+      </div>
+      <div class="timeline reveal">
+        <div class="tl now"><div class="when">V1 · adesso</div><h3>Siti vetrina</h3><p>IT/ES. One-pager gratis / multi-pagina a pagamento, motore 5-mockup, editor inline, WhatsApp + form + mappa, SEO base, anteprima demo, billing Stripe, hosting Cloudflare, add-on (dominio / SEO / legale).</p></div>
+        <div class="tl"><div class="when">V1.x</div><h3>Crescita & LATAM leggero</h3><p>Import Google Business / Instagram maturo, pagine programmatiche, layer GEO, roadmap pubblica, primo ingresso LATAM.</p></div>
+        <div class="tl"><div class="when">V2</div><h3>Prenotazioni & LATAM serio</h3><p>Appuntamenti e prenotazioni integrati, email pro / hosting come upsell, più verticali, pagamenti locali LATAM (dLocal / Mercado Pago), prezzi PPP live.</p></div>
+        <div class="tl"><div class="when">V3+</div><h3>E-commerce & piattaforme</h3><p>Negozi online e, in prospettiva, intere piattaforme web professionali: la visione di lungo periodo.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROSSIMI PASSI -->
+  <section id="prossimi">
+    <div class="container">
+      <div class="sec-head reveal">
+        <span class="eyebrow">Prossimi passi</span>
+        <h2>Dalla strategia alla costruzione</h2>
+      </div>
+      <div class="steps-next reveal">
+        <div class="card"><div class="num">01</div><h3>Verifica identità</h3><p>Controllo domini su registrar e ricerca marchi per "Belora" (o "Sitela").</p></div>
+        <div class="card"><div class="num">02</div><h3>Decisione pagamenti</h3><p>Stripe diretto vs Merchant of Record per la Fase 0 (Italia + Spagna).</p></div>
+        <div class="card"><div class="num">03</div><h3>Blueprint tecnico</h3><p>Con la skill <em>trueline</em>, un sotto-progetto alla volta: prima le fondamenta, poi il "wow" intervista → 5 mockup.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container foot-inner">
+      <a class="brand" href="#top"><span class="dawn"></span>Belora <small>V1</small></a>
+      <p>Documento di strategia · 22 luglio 2026 · costruito con blueprint atomici verificabili</p>
+    </div>
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+    root.classList.add('js');
+
+    // ----- theme toggle -----
+    var btn = document.getElementById('themeToggle');
+    var icon = document.getElementById('themeIcon');
+    var label = document.getElementById('themeLabel');
+    function systemDark() { return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches; }
+    function currentIsDark() {
+      var t = root.getAttribute('data-theme');
+      if (t === 'dark') return true;
+      if (t === 'light') return false;
+      return systemDark();
+    }
+    function paint() {
+      var dark = currentIsDark();
+      icon.textContent = dark ? '☾' : '☀';
+      label.textContent = dark ? 'Scuro' : 'Chiaro';
+    }
+    btn.addEventListener('click', function () {
+      var next = currentIsDark() ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      paint();
+    });
+    if (window.matchMedia) {
+      try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paint); } catch (e) {}
+    }
+    paint();
+
+    // ----- scroll reveal -----
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var els = Array.prototype.slice.call(document.querySelectorAll('.reveal'));
+    if (reduce || !('IntersectionObserver' in window)) {
+      els.forEach(function (el) { el.classList.add('in'); });
+    } else {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+        });
+      }, { threshold: 0.12, rootMargin: '0px 0px -8% 0px' });
+      els.forEach(function (el) { io.observe(el); });
+    }
+  })();
+</script>
