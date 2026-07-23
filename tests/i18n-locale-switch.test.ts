@@ -26,6 +26,13 @@ vi.mock('@/i18n/navigation', () => ({
   redirect: redirectSpy,
 }));
 
+// T-083: setLocale ora persiste anche su profiles.locale (best-effort). La
+// mockiamo così il test resta hermetico (nessun accesso a Supabase); il
+// comportamento reale è coperto dai test runtime dedicati a updateProfileLocale.
+vi.mock('@/data/updateProfileLocale', () => ({
+  updateProfileLocale: vi.fn(async () => ({ ok: true })),
+}));
+
 // Import DOPO i mock (vi.mock è hoisted). Il middleware non tocca i moduli
 // mockati: gira con il vero next-intl per la risoluzione da cookie.
 import middleware from '@/middleware';

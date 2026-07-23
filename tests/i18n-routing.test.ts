@@ -28,6 +28,18 @@ vi.mock('next-intl/server', () => ({
   setRequestLocale: () => {},
 }));
 
+// Il layout (T-083) risolve il locale effettivo via resolveInitialLocale
+// (cookie/profilo/URL). Di default lo neutralizziamo all'identità (usa il locale
+// del segmento URL), così le asserzioni di routing/provider restano invariate; un
+// override consente di simularne l'esito 'es' (preferenza da profilo) per provare
+// il cablaggio del layout (AC-083-5).
+const { resolveHolder } = vi.hoisted(() => ({
+  resolveHolder: { override: undefined as string | undefined },
+}));
+vi.mock('@/i18n/resolveInitialLocale', () => ({
+  resolveInitialLocale: async (locale: string) => resolveHolder.override ?? locale,
+}));
+
 // Import DOPO i mock (vi.mock è hoisted): il middleware non tocca i moduli
 // mockati; il layout sì. Il path con parentesi quadre letterali deve risolvere.
 import middleware, { config } from '@/middleware';
@@ -101,5 +113,23 @@ describe('T-080 routing e middleware next-intl', () => {
     collectTypes(el, types);
     expect(types.has(NextIntlClientProvider)).toBe(true); // covers: AC-080-7
     expect(types.has(ThemeProvider)).toBe(true); // covers: AC-080-7
+  });
+
+  // covers: AC-083-5
+  it("il layout instrada il locale RISOLTO (preferenza da profilo) in <html lang>, anche quando l'URL differisce", async () => {
+    // Simula resolveInitialLocale → 'es' (nessun cookie, profiles.locale='es'),
+    // mentre il segmento URL è 'it'. Il layout deve rendere in 'es' (la clausola
+    // "la UI rende in es" di AC-083-5), non nel locale dell'URL.
+    resolveHolder.override = 'es';
+    try {
+      const el = await LocaleLayout({
+        params: Promise.resolve({ locale: 'it' }),
+        children: h('div'),
+      });
+      // Il return radice del layout è <html lang={locale-risolto}>.
+      expect((el as { props: { lang: string } }).props.lang).toBe('es'); // covers: AC-083-5
+    } finally {
+      resolveHolder.override = undefined;
+    }
   });
 });

@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { hasLocale } from 'next-intl';
 import { redirect } from '@/i18n/navigation';
 import { routing } from '@/i18n/routing';
+import { updateProfileLocale } from '@/data/updateProfileLocale';
 
 // Risultato del percorso di rifiuto (validazione fallita). Sul percorso valido
 // la funzione non ritorna un valore: redirect() interrompe il flusso lanciando.
@@ -41,6 +42,16 @@ export async function setLocale(
     (currentPathname === '/' || /^\/(?![/\\])/.test(currentPathname));
   if (!isInternalPath) {
     return { ok: false, status: 400 };
+  }
+
+  // Persistenza OLTRE il cookie (T-083): se l'utente è autenticato, salva la
+  // preferenza su profiles.locale (updateProfileLocale valida il locale e vincola
+  // la scrittura alla propria riga via RLS). Best-effort — un fallimento (utente
+  // anonimo, errore DB) NON deve impedire il cambio lingua via cookie/redirect.
+  try {
+    await updateProfileLocale(nextLocale);
+  } catch {
+    // ignorato di proposito: la persistenza su DB è additiva rispetto al cookie.
   }
 
   const store = await cookies();

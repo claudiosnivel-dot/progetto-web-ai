@@ -6,6 +6,7 @@ import { NextIntlClientProvider, hasLocale } from 'next-intl';
 import { getMessages, setRequestLocale } from 'next-intl/server';
 import { ThemeProvider } from '@/ui/theme/ThemeProvider';
 import { routing } from '@/i18n/routing';
+import { resolveInitialLocale } from '@/i18n/resolveInitialLocale';
 
 export const metadata: Metadata = {
   title: 'Belora',
@@ -24,11 +25,16 @@ export default async function LocaleLayout({
   children,
   params,
 }: LocaleLayoutProps) {
-  const { locale } = await params;
+  const { locale: urlLocale } = await params;
 
-  if (!hasLocale(routing.locales, locale)) {
+  if (!hasLocale(routing.locales, urlLocale)) {
     notFound();
   }
+
+  // Locale EFFETTIVO al bootstrap (T-083): cookie NEXT_LOCALE > preferenza
+  // persistita profiles.locale > locale dell'URL. In assenza di cookie, la
+  // preferenza dell'utente autenticato determina la lingua resa.
+  const locale = await resolveInitialLocale(urlLocale);
 
   setRequestLocale(locale);
   const messages = await getMessages();
