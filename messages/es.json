@@ -1,0 +1,29 @@
+{
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "loading": "Cargando…",
+    "error": "Se ha producido un error",
+    "retry": "Reintentar"
+  },
+  "nav": {
+    "home": "Inicio",
+    "dashboard": "Panel",
+    "sites": "Sitios",
+    "settings": "Ajustes",
+    "signOut": "Cerrar sesión"
+  },
+  "dashboard": {
+    "title": "Panel de control",
+    "greeting": "Bienvenido de nuevo",
+    "createSite": "Crear un sitio",
+    "emptyState": "Aún no has creado ningún sitio",
+    "stats": {
+      "sites": "Sitios",
+      "visits": "Visitas",
+      "published": "Publicados"
+    }
+  }
+}
