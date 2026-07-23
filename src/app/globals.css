@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Valori reali dei token colore (unica posizione in cui vivono gli hex).
+   Set chiaro sotto :root, set scuro sotto [data-theme="dark"]: i nomi semantici
+   in src/ui/theme/tokens.ts vi puntano via var(--color-*), senza duplicazione. */
+:root {
+  --color-background: #ffffff;
+  --color-foreground: #0a0a0a;
+  --color-primary: #4f46e5;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #f1f5f9;
+  --color-secondary-foreground: #0f172a;
+  --color-muted: #f1f5f9;
+  --color-muted-foreground: #64748b;
+  --color-border: #e2e8f0;
+}
+
+[data-theme='dark'] {
+  --color-background: #0a0a0a;
+  --color-foreground: #f8fafc;
+  --color-primary: #818cf8;
+  --color-primary-foreground: #0a0a0a;
+  --color-secondary: #1e293b;
+  --color-secondary-foreground: #f8fafc;
+  --color-muted: #1e293b;
+  --color-muted-foreground: #94a3b8;
+  --color-border: #1e293b;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+}
