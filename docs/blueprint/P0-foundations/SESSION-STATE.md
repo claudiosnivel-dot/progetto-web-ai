@@ -8,8 +8,8 @@
 |---|---|
 | **Progetto** | Belora |
 | **Ecosistema** | supabase-jsts (JS/TS + Supabase) |
-| **Ultimo aggiornamento** | 2026-07-23 (chiusura sessione build-P0-tenancy) |
-| **Sessione corrente** | build-P0-tenancy — **CHIUSA** (riprendere con `prompts/session-start.md`) |
+| **Ultimo aggiornamento** | 2026-07-24 (chiusura sessione build-P0-sites+T-083) |
+| **Sessione corrente** | build-P0-sites+T-083 — **CHIUSA**. **P0 COMPLETO** (6/6 macrotask verdi). Riprendere con `prompts/project-start.md` (il prossimo passo è P1, vedi §7). |
 
 ---
 
@@ -21,60 +21,63 @@
 |---|---|---|---|
 | infra | **done** | **VERDE 4/4** | T-001..T-006 |
 | design-system | **done** | **VERDE 4/4** | T-020..T-022; `7fd35fd` |
-| i18n | **done** (parziale) | **VERDE 4/4** | T-080..T-082; `a679b6c`. **T-083 rinviato** (ora sbloccato, vedi §7) |
+| i18n | **done** | **VERDE 4/4** | T-080..T-082 (`a679b6c`) + **T-083 chiuso** (`9dad560`) |
 | auth | **done** | **VERDE 4/4** | T-040..T-044; `d4fe1a8` (+ hardening `33ab0e0`) |
 | tenancy | **done** | **VERDE 4/4** | T-060..T-063 (`dd1e905`) + emendamento `UNIQUE(owner_id)` (`463678d`) |
-| sites | todo | — | Dipende da tenancy ✅, design-system ✅, i18n ✅, auth ✅ → **prossimo eseguibile** |
+| sites | **done** | **VERDE 4/4** | T-100..T-105 (`6c4c9e2`) |
+
+**→ P0 COMPLETO: tutti e 6 i macrotask del blueprint sono `done` e verdi, mergeati su `main`.**
 
 ## 2. Macrotask corrente
 
-- **Ultimo chiuso**: `tenancy` (T-060..T-063, checkpoint verde 4/4, `dd1e905`). **Prossimo eseguibile**: **`sites`** (tutte le dipendenze verdi).
-- **Criteri/test di riferimento**: `06-sites.md`, task T-100 (schema sites + RLS + UNIQUE(account_id,slug)) → T-104 (utility slug unico) → T-101 (server actions create/list) → T-102 (scheletro dashboard) → T-103/T-105 (rinomina/elimina + UI). Richiede migrazioni Supabase + test RLS a runtime via client autenticato (stesso pattern di tenancy).
-- **NB carry-over i18n**: **T-083** (persistenza `profiles.locale`) è ora sbloccato (dipende da T-061 ✅ + T-041 ✅) → da costruire come breve revisita i18n, prima o insieme a `sites`.
+- **Ultimo chiuso**: `sites` (T-100..T-105, checkpoint verde 4/4, `6c4c9e2`) + carry-over **`T-083`** dell'i18n (checkpoint verde 4/4, `9dad560`).
+- **Prossimo eseguibile in P0**: **NESSUNO** — il blueprint P0 è interamente costruito. Il passo successivo è il sotto-progetto **P1** (onboarding/import GBP·Instagram), che richiede modalità **BOOTSTRAP** (raccolta-intento + nuove decisioni di ledger) e **non** è un "next macrotask" di questo blueprint (§7).
 
 ## 3. Stato git
 
 | Campo | Valore |
 |---|---|
-| Branch di lavoro | `trueline/build/tenancy` (pushato; mergeto su main; non cancellato) |
-| Ultimo commit | `463678d` su `main` (HEAD) — working tree pulito, `origin/main` allineato |
-| Stato merge su `main` | **MERGED** (tenancy ff `8dae25c..dd1e905`); emendamento `UNIQUE(owner_id)` `463678d` diretto su main (piccolo, gated dal verde, come `33ab0e0`) — checkpoint verde + non deploy-coupled |
-| Deploy-coupling | `main_deploy_coupled: **false**` (confermato 2026-07-23) → **merge su main autonomi** su verde |
+| Branch di lavoro | `trueline/build/sites` e `trueline/build/t083` (entrambi pushati; mergeti su main; non cancellati) |
+| Ultimo commit | `9dad560` su `main` (HEAD) — working tree pulito, `origin/main` allineato |
+| Stato merge su `main` | **MERGED**: sites ff `c7c4ad3..6c4c9e2`; T-083 ff `6c4c9e2..9dad560`. Entrambi gated dal checkpoint verde 4/4 |
+| Deploy-coupling | **Override umano confermato**: `main_deploy_coupled: false` (2026-07-23) → merge autonomi su verde. NB: `detect_deploy_coupling.mjs` **ri-flagga** `main` come coupled sul solo segnale `supabase/config.toml`, che è **config Supabase locale (dev)**, non un hook di deploy-on-push. Nessun `vercel.json`/GH-Actions-on-push/Cloudflare/Netlify presente → nessun deploy autonomo in produzione. L'override registrato governa (come per i merge di tenancy) |
 
 ## 4. Baseline & budget
 
-- **Baseline di sicurezza**: checkpoint `tenancy` verde con baseline vuota (0 finding nuovi ≥ HIGH). Controllo 2: `gitleaks 0 · osv 0 · semgrep 0 · rls 0`.
-- **Budget**: tenancy via dynamic workflow (9 agenti: 4 builder + 4 verifier avversariali + 1 integration), ~545k token subagente + fix human-gated applicati dall'orchestratore. Nessun fallimento di sessione.
+- **Baseline di sicurezza**: checkpoint `sites` e `T-083` verdi con baseline vuota (0 finding nuovi ≥ HIGH). Controllo 2 (entrambi): `gitleaks 0 · osv 0 · semgrep 0 · rls 0`; `degraded: []` (semgrep ha girato, nessuna degradazione). Controllo 1 dead-code 0; controlli 3/4 verdi.
+- **Suite**: 40→48 file di test, 155→**174** test verdi (28 nuovi sites + 5 nuovi T-083 + adeguamenti). typecheck/lint/knip puliti; `next build` verde; provenienza AC (`ac_assertion_trace_check`) OK su 42 target_test.
+- **Budget**: `sites` costruito test-first dall'orchestratore + **dynamic workflow di verifica avversariale** (5 lenti + refutazione, 7 agenti, ~477k token subagente) → 1 rilievo test-fidelity confermato e corretto. `T-083` idem (3 lenti + refutazione, 4 agenti, ~248k token) → 0 rilievi confermati, 1 rafforzamento adottato. Nessun fallimento di sessione.
 
 ## 5. Esiti dell'ultima sessione (framing onesto)
 
-- Macrotask `tenancy` (T-060..T-063) costruito **test-first** via **dynamic workflow multi-agente** (builder in ordine DAG → verifier avversariali DIVERSI per task + 1 integration → orchestratore/oracolo). Verdetto: **17 rilievi** (0 HIGH, 4 MEDIUM, 13 LOW).
-- **Schema**: `accounts` + `account_members` (+ `is_account_member()` SECURITY DEFINER contro la ricorsione di policy) + `profiles`; RLS ancorata all'appartenenza; scritture `account_members` **owner-only** (blocca escalation editor→owner). Auto-provision `handle_new_user()` SECURITY DEFINER (search_path fisso, solo `NEW.id`) + trigger AFTER INSERT su `auth.users`, idempotente. Isolamento tenant provato a **runtime** attraverso client con auth reale + guardrail service_role-vs-authenticated.
-- **Fix human-gated dai rilievi (pre-checkpoint)**: (a) AC-062-5 rilegato alla **funzione reale** (`pg_get_functiondef` + negative-PK check) — prima riesumava copie inline self-fulfilling; (b) guardrail service_role su AC-063-2; (c) `profiles.locale` **NOT NULL** (chiude il gap NULL del CHECK); (d) gate `SB` include `ANON_KEY`.
-- **2 root-cause colti dall'ORACOLO (non dallo static review)**:
-  1. **GRANT mancanti (42501)**: `config.toml` non attiva `auto_expose_new_tables` → le nuove tabelle in `public` NON sono raggiungibili da `authenticated`/`service_role` senza GRANT espliciti. Fix: GRANT DML espliciti nelle migrazioni (RLS = gate fine, GRANT = gate coarse) + `grant execute` su `is_account_member` (RPC + policy eval). I builder avevano assunto i default-privilege legacy.
-  2. **`accounts_schema.test.ts` array parsing**: node-postgres non parsa `name[]` (OID 1003) → `'{...}'` come stringa. Fix: cast `::text[]` (come già faceva `profiles_schema`).
-- **1 RILIEVO HIGH del checkpoint (RLS)**: `RLS004_MISSING_TENANT_PREDICATE` su `accounts_select_member` — lo static oracle non vede `auth.uid()` (nascosto in `is_account_member(id)`) né una colonna di tenancy nell'arg `id`. **Fix**: predicato di tenancy ESPLICITO `((select auth.uid()) = owner_id OR is_account_member(id))` — semantica invariata (owner ⊆ member), ma isolamento auditabile staticamente. **Lezione**: predicati d'isolamento nascosti in funzioni DEFINER → esplicitarli nel testo della policy accanto alla funzione.
-- **Checkpoint VERDE 4/4**; provenienza AC ok (`ac_assertion_trace_check`, `untracked:[]`).
-- **Fix_state** (tutti **verified** — nessuno open né mitigated-residual): ogni fix è stata riverificata con lo **STESSO oracolo** (re-run checkpoint) + i test → finding sparito e nulla rotto (121/121, 4/4). **Copertura dichiarata**: azionati i 4 MEDIUM (false-green idempotenza/guardrail, gate) + i LOW security-rilevanti (GRANT, array-cast) + il RLS004 HIGH del checkpoint; i restanti LOW triati come documentati-sicuri/cosmetici e **NON azionati** (es. tightening errore 42501, `revoke execute` su `handle_new_user`, `create or replace` di convenzione — vedi DEPLOY-CHECKLIST §6). **Nessuna rimozione di dead-code** (controllo 1 verde a 0 → niente da far passare dall'umano). Emendamento `UNIQUE(owner_id)` riverificato su re-run (checkpoint 4/4, 121/121).
+### sites (T-100..T-105)
+- **T-100** schema `public.sites` account-scoped + RLS: 4 policy (SELECT/INSERT/UPDATE/DELETE) `TO authenticated` ancorate a `is_account_member(account_id)`, `UNIQUE(account_id, slug)` per-account (no enumerazione cross-tenant), `CHECK(status)`, indice `account_id`, GRANT espliciti (auto_expose off). **RLS004 evitato per costruzione**: `account_id` (colonna di tenancy) compare nel testo di ogni policy → auditabile staticamente dall'oracolo. Vincoli provati a runtime (23505/23514/cross-account).
+- **T-104** utility slug pura URL-safe (diacritici IT/ES via NFKD, `[a-z0-9-]`, troncamento, fallback). **T-101** `createSite`/`listSites` (client SSR con sessione/RLS, mai service_role; `account_id` derivato da `auth.uid()→owner_id` via `.single()` sicuro per `UNIQUE(owner_id)`; slug unico; metodi tipati). **T-103** `renameSite`/`deleteSite` (RLS come gate cross-tenant). **T-102** dashboard localizzata `/it,/es` in AppShell, protetta (redirect login), form crea-sito (adapter `createSiteForm`→`createSite`→`revalidatePath`). **T-105** `SiteRow` con rinomina ed **elimina-a-conferma-esplicita**.
+- **Rilievo colto dalla verifica avversariale (pre-checkpoint)**: AC-102-4 coperto in modo **debole** (un test divergente + uno self-fulfilling; il vero adapter `createSiteForm` non era esercitato). **Fix alla radice**: (a) test del wiring reale dashboard→adapter (submit del form vero → `createSiteForm` col name inviato); (b) test di integrazione `createSiteForm`→`createSite`→comparsa in `listSites` contro DB reale + `revalidatePath`. Rilievo su `account_members`-vs-`owner_id`: **refutato** (l'emendamento ledger sancisce `owner_id.single()`; comportamento identico in P0 single-owner; DoD portante «mai da input client» soddisfatto). *Divergenza di sola prosa nel blueprint 06-sites.md T-101 DoD → vedi §7.5.*
+
+### T-083 (carry-over i18n)
+- `updateProfileLocale` (server action, client SSR/RLS, mai service_role; allowlist `['it','es']`→400, senza sessione→401, `.update().eq('id', auth.uid())` tipato). `getProfileLocale` (lettura propria via RLS). `resolveInitialLocale` (precedenza **cookie > profiles.locale > URL**, ogni sorgente validata). Layout: locale **effettivo** dal resolver (in assenza di cookie la preferenza persistita determina la lingua resa). `setLocale` (T-082) persiste «oltre al cookie» (best-effort). Isolamento RLS su `profiles` provato a runtime con auth reale (AC-083-2).
+- Verifica avversariale: 0 rilievi confermati; **AC-083-5 rafforzato** (aggiunto il test del cablaggio layout→`<html lang>` del locale risolto, chiudendo la clausola "la UI rende in es").
+
+### fix_state
+- Tutte le fix **verified** (riverificate con lo STESSO oracolo — re-run checkpoint — + i test): finding sparito, nulla rotto, checkpoint 4/4. Nessuna rimozione di dead-code (controllo 1 verde a 0 → niente da far passare dall'umano).
 
 ## 6. Note operative (checkpoint & Supabase)
 
-- **Checkpoint con test runtime Supabase**: `set -a; source .env.local; set +a` per esportare le 4 env via shell (così i controlli 3/4 `npm test` fanno girare i test runtime); **spostare `.env.local` FUORI dal repo** (scratchpad, NON rinominare in `.env.local.hidden` che non è gitignored) + `rm -rf .next`, così gitleaks (controllo 2) resta pulito; ripristinare `.env.local` a fine (trap EXIT). Invocazione: `node <trueline>/scripts/checkpoint/run_checkpoint.mjs "<repo>" --in-place --mode build` (SENZA `--blueprint`).
-- **Provenienza AC separata**: `node <trueline>/scripts/blueprint/ac_assertion_trace_check.mjs docs/blueprint/P0-foundations . ` (exit 0 = ogni AC valutato è tracciato da un tag `covers:`).
-- **`--blueprint` NON usarlo**: il manifest `supabase-jsts` ha `run_file="node --test {file}"`, incompatibile coi test vitest+jsdom → falso rosso.
-- **Supabase locale**: `supabase start` (docker, DB `127.0.0.1:54622`). `supabase db reset` applica le migrazioni + **riavvia i container** (azzera anche il contatore rate-limit in-memory di GoTrue). CLI v2.106 (chiavi legacy anon/service_role in `.env.local` restano valide; mostra anche le nuove `sb_publishable`/`sb_secret`).
-- **Rate limit auth** (`sign_in_sign_ups=30`/5min per IP): `createTestUser` usa l'admin API (esente); solo `signInAs` conta. La suite fa ~16 sign-in: eseguire **una volta per finestra** (nessun retry entro 5 min); un `db reset` prima del run azzera il contatore.
-- **DEPLOY-CHECKLIST (hardening prod, fuori P0 locale)**:
-  - **GRANT/auto_expose**: in prod verificare che le tabelle abbiano i GRANT attesi (auto_expose off è il default cloud); il pattern è replicato nelle migrazioni.
-  - **`revoke execute` su `handle_new_user()` da PUBLIC**: hardening opzionale (trigger function non invocabile direttamente; non necessario per l'isolamento).
-  - Voci auth pre-esistenti: `skip_nonce_check=true` su Google (solo dev); `redirectTo` OAuth da header host; refresh cookie sessione in RSC/route handler (non nel middleware).
+- **Checkpoint con test runtime Supabase**: script `scratchpad/run-checkpoint-sites.sh` → `set -a; . .env.local; set +a` (esporta le 4 env), **sposta `.env.local` FUORI dal repo** (gitleaks working-tree resta pulito) + `rm -rf .next`, poi `node <trueline>/scripts/checkpoint/run_checkpoint.mjs "<repo>" --in-place --mode build` (SENZA `--blueprint`), ripristino via trap EXIT. `db reset` prima di ogni checkpoint (rate-limit auth azzerato).
+- **Provenienza AC**: `node <trueline>/scripts/blueprint/ac_assertion_trace_check.mjs docs/blueprint/P0-foundations .` (exit 0 = ogni AC valutato tracciato da un tag `covers:`).
+- **`--blueprint` NON usarlo**: il manifest `supabase-jsts` ha `run_file="node --test {file}"`, incompatibile con vitest+jsdom → falso rosso.
+- **Deploy-coupling detector**: `detect_deploy_coupling.mjs` ri-flagga `main` come coupled sul solo `supabase/config.toml` (dev locale); l'override umano registrato (false) governa (§3).
+- **Rate limit auth** (`sign_in_sign_ups=30`/5min per IP): `createTestUser` usa l'admin API (esente); solo `signInAs` conta. Eseguire la suite/checkpoint **una volta per finestra**; un `db reset` prima del run azzera il contatore.
+- **Test di Server Action a runtime**: mock di `@/data/supabase-ssr` `createServerSupabaseClient` → client iniettato da `signInAs` (JWT reale, RLS genuina); l'identità è `supabase.auth.getUser()` sul client iniettato. Server Component testati chiamandoli come funzione async e ispezionando/renderizzando l'albero.
+- **DEPLOY-CHECKLIST (hardening prod, fuori P0 locale)**: GRANT/auto_expose (off è il default cloud; pattern replicato nelle migrazioni); `revoke execute` su `handle_new_user()` da PUBLIC (opzionale); voci auth pre-esistenti (`skip_nonce_check` Google solo dev; `redirectTo` OAuth da header host; refresh cookie sessione in RSC/route handler).
 
 ## 7. Prossimi passi & tracker task rinviati / decisioni aperte
 
-1. **Sessione CHIUSA.** Riprendere con `prompts/session-start.md`.
-2. **Prossimo macrotask BUILD: `sites`** — branch `trueline/build/sites`; T-100 (sites + RLS + UNIQUE(account_id,slug)) → T-104 (slug unico) → T-101 (server actions) → T-102 (dashboard) → T-103/T-105. Stesso pattern tenancy (migrazioni + test RLS runtime via client autenticato).
-3. **TRACKER TASK RINVIATI**:
-   - **T-083** (i18n — persistenza `profiles.locale`): **SBLOCCATO** (T-061 ✅ + T-041 ✅). Oggi la lingua persiste solo via cookie `NEXT_LOCALE`; ora `profiles.locale` (NOT NULL, IT/ES) esiste. Costruire come breve revisita i18n prima o insieme a `sites`.
-4. **DECISIONE CHIUSA (2026-07-23)**: **`UNIQUE(owner_id)` su `accounts`** — **ADOTTATO** (emendamento ledger 00-INDEX §3 + mig `20260723000400`, commit `463678d`). In P0/V1 un utente possiede al più un account personale → idempotenza auto-provision + `.single()` per-owner provabili per costruzione; team via `account_members`. Reversibile (drop / indice parziale) quando servirà il multi-account ownership. Implica: le future server action di `sites` risolvono l'account con `.eq('owner_id', uid).single()` in sicurezza.
-5. **Metodo attivo**: dynamic workflow multi-agente (builder → verifier diversi → fixer diversi + orchestratore), **oracolo unico giudice**. Merge su `main` autonomo su verde.
+1. **Sessione CHIUSA. P0 COMPLETO** (6/6 macrotask verdi, su `main`). Riprendere con `prompts/project-start.md`.
+2. **Nessun macrotask P0 residuo.** Il passo successivo è **P1** (onboarding/import GBP·Instagram — 00-INDEX §5). È un **nuovo sotto-progetto** che richiede modalità **BOOTSTRAP**: raccolta-intento (obiettivo, scope, vincoli), nuove decisioni di ledger, generazione di un blueprint di task atomici. **Non avviabile in autonomia** senza le decisioni di scope dell'utente (BOOTSTRAP è consent-gated).
+3. **TRACKER TASK RINVIATI**: **VUOTO** — T-083 (unico carry-over) è ora **chiuso**.
+4. **DECISIONE CHIUSA (2026-07-23)**: `UNIQUE(owner_id)` su `accounts` — ADOTTATO (mig `20260723000400`, `463678d`). Le server action di `sites` risolvono l'account con `.eq('owner_id', uid).single()` (applicato in T-101).
+5. **NOTA doc (non un difetto)**: `06-sites.md` T-101 DoD dice ancora «deriva l'account_id dall'appartenenza (account_members)», mentre il codice usa `owner_id.single()` per l'emendamento ledger 2026-07-23 (comportamento identico in P0 single-owner). Divergenza di sola **prosa**; da riallineare in un futuro tocco del blueprint, senza urgenza.
+6. **NOTA doc**: SESSION-STATE e `project-start.md` rimandano a `prompts/session-start.md`, ma il file effettivo è `prompts/project-start.md` (esiste `session-end.md`, non `session-start.md`). Riferimento a file inesistente — da riallineare (rinominare o correggere i puntatori).
+7. **Metodo attivo**: dynamic workflow multi-agente (orchestratore costruisce test-first + verifica avversariale multi-lente con refutazione), **oracolo unico giudice** (checkpoint 4/4). Merge su `main` autonomo su verde (override deploy-coupling confermato).
