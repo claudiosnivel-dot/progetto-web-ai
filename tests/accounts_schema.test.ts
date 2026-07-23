@@ -181,4 +181,15 @@ describe.skipIf(!DB)('T-060 schema accounts + account_members (cataloghi)', () =
     expect(amCmds).toContain('UPDATE'); // covers: AC-060-6
     expect(amCmds).toContain('SELECT'); // covers: AC-060-6
   });
+
+  // Emendamento ledger 2026-07-23: UNIQUE(owner_id) su accounts (un utente possiede
+  // al piu un account personale in P0/V1). Non tra gli AC originali di T-060.
+  it('accounts ha un vincolo UNIQUE su owner_id (un account per owner)', async () => {
+    const uniq = await pgQuery<{ def: string }>(
+      `select pg_get_constraintdef(c.oid) as def
+         from pg_constraint c
+        where c.conrelid = 'public.accounts'::regclass and c.contype = 'u'`,
+    );
+    expect(uniq.some((r) => /owner_id/.test(r.def))).toBe(true);
+  });
 });

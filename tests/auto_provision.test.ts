@@ -138,4 +138,15 @@ describe.skipIf(!(SB && DB))('T-062 auto-provision su signup (trigger handle_new
     expect(members[0].n).toBe(1); // covers: AC-062-5 — nessuna membership duplicata
     expect(profiles[0].n).toBe(1); // covers: AC-062-5 — nessun profilo duplicato
   });
+
+  // covers: AC-062-5
+  it('idempotenza garantita dallo schema: un 2o account per lo stesso owner e rifiutato (UNIQUE, 23505)', async () => {
+    // Emendamento ledger 2026-07-23: UNIQUE(owner_id) su accounts. Rende l'idempotenza
+    // dell'auto-provision provabile PER COSTRUZIONE (non solo per la guardia applicativa
+    // nella funzione): un secondo account per l'owner gia provisionato in beforeAll e
+    // rifiutato dal DB con unique_violation, quindi un re-provision non puo duplicare.
+    await expect(
+      pgQuery('insert into public.accounts (owner_id) values ($1::uuid)', [userId]),
+    ).rejects.toMatchObject({ code: '23505' }); // covers: AC-062-5 — vincolo UNIQUE(owner_id) enforced
+  });
 });

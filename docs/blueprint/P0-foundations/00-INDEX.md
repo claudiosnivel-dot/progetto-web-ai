@@ -34,6 +34,7 @@ sicurezza, regressioni, conformita-logica sui `target_tests`), poi commit atomic
 | Decisione | Scelta | Nota |
 |---|---|---|
 | Modello account | Personale, pronto per team | RLS ancorata a `account_members`; in V1 solo la riga owner |
+| Unicità account per owner | `UNIQUE(owner_id)` su `accounts` | **Emendamento 2026-07-23** (mig. `20260723000400`): un utente possiede al più un account (personale) in P0/V1 → idempotenza auto-provision + `.single()` per-owner provabili per costruzione. Il team resta via `account_members` (più utenti per account). Reversibile (drop / indice parziale) quando servirà il multi-account ownership |
 | Login | Email/password + Google OAuth | Google richiede app OAuth (client id/secret server-side) |
 | Scope P0 | Include entita `sites` + scheletro dashboard | Segnaposto; generazione AI = P2 |
 | Stack | Next.js (App Router, TS) + Supabase | Managed, compatibile trueline |
