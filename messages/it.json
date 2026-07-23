@@ -19,7 +19,15 @@
     "title": "Pannello di controllo",
     "greeting": "Bentornato",
     "createSite": "Crea un sito",
+    "siteName": "Nome del sito",
     "emptyState": "Non hai ancora creato nessun sito",
+    "actions": {
+      "rename": "Rinomina",
+      "save": "Salva",
+      "delete": "Elimina",
+      "confirmDelete": "Conferma eliminazione",
+      "cancel": "Annulla"
+    },
     "stats": {
       "sites": "Siti",
       "visits": "Visite",

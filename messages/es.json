@@ -19,7 +19,15 @@
     "title": "Panel de control",
     "greeting": "Bienvenido de nuevo",
     "createSite": "Crear un sitio",
+    "siteName": "Nombre del sitio",
     "emptyState": "Aún no has creado ningún sitio",
+    "actions": {
+      "rename": "Renombrar",
+      "save": "Guardar",
+      "delete": "Eliminar",
+      "confirmDelete": "Confirmar eliminación",
+      "cancel": "Cancelar"
+    },
     "stats": {
       "sites": "Sitios",
       "visits": "Visitas",
