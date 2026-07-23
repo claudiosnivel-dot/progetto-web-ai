@@ -83,11 +83,13 @@ describe('T-082 setLocale (server action) + persistenza cookie', () => {
     expect(redirectSpy).not.toHaveBeenCalled();
   });
 
-  it('il middleware risolve il locale es dal cookie NEXT_LOCALE su GET /', () => {
+  it('il middleware risolve il locale es dal cookie NEXT_LOCALE su GET /', async () => {
     const req = new NextRequest(new URL('/', 'http://localhost'), {
       headers: { cookie: 'NEXT_LOCALE=es' },
     });
-    const res = middleware(req);
+    // Il middleware (T-041) può essere async sulle route protette: qui la home /
+    // è pubblica e resta sincrona, ma await ne normalizza il tipo di ritorno.
+    const res = await middleware(req);
     expect(res.status).toBe(307); // covers: AC-082-4
     expect(res.headers.get('location')).toMatch(/\/es$/); // covers: AC-082-4
   });

@@ -55,20 +55,20 @@ describe('T-080 routing e middleware next-intl', () => {
     notFoundSpy.mockClear();
   });
 
-  it('lascia passare /it senza redirect', () => {
-    const res = run('/it');
+  it('lascia passare /it senza redirect', async () => {
+    const res = await run('/it');
     expect(res.headers.get('location')).toBeNull(); // covers: AC-080-1
     expect(res.status).toBe(200); // covers: AC-080-1
   });
 
-  it('lascia passare /es senza redirect', () => {
-    const res = run('/es');
+  it('lascia passare /es senza redirect', async () => {
+    const res = await run('/es');
     expect(res.headers.get('location')).toBeNull(); // covers: AC-080-2
     expect(res.status).toBe(200); // covers: AC-080-2
   });
 
-  it('reindirizza / (senza prefisso) al locale di default /it', () => {
-    const res = run('/');
+  it('reindirizza / (senza prefisso) al locale di default /it', async () => {
+    const res = await run('/');
     expect(res.status).toBe(307); // covers: AC-080-3
     expect(res.headers.get('location')).toMatch(/\/it$/); // covers: AC-080-3
   });
