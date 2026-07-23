@@ -10,18 +10,19 @@ import { routing } from '@/i18n/routing';
 type SetLocaleRejected = { ok: false; status: number };
 
 // Server action del selettore lingua. VALIDAZIONE SERVER-SIDE (entrambi gli
-// argomenti sono controllabili dal client): (1) il nextLocale è confrontato con
+// argomenti sono controllabili dal client): (1) il nextLocale e confrontato con
 // l'allowlist routing.locales (['it','es']) tramite il type guard hasLocale;
-// (2) il currentPathname è ammesso solo se è un path interno — esattamente '/'
-// oppure un singolo '/' seguito da un carattere diverso da '/' e '\' — così da
-// rifiutare href assoluti ('https://…'), protocol-relative ('//evil.com'),
-// backslash-tricks ('/\\evil') e schemi ('javascript:…') che next-intl
-// inoltrerebbe grezzi a next/navigation (anti open-redirect / path injection).
-// Nessuna delle due validazioni interpola mai il valore grezzo in un path o
-// header Location. Fuori allowlist o path non interno → { ok: false,
-// status: 400 }, senza cookie né redirect. Se entrambi validi: imposta il
-// cookie NEXT_LOCALE (Path=/, SameSite=Lax) e reindirizza allo stesso path con
-// il nuovo prefisso di locale tramite l'helper tipato di next-intl.
+// (2) il currentPathname e ammesso solo se e un path interno — esattamente '/'
+// oppure un singolo '/' seguito da un carattere diverso da '/' e '\' — e privo
+// di caratteri di controllo Unicode. Cosi si rifiutano href assoluti
+// ('https://...'), protocol-relative ('//evil.com'), backslash-trick ('/\evil'),
+// schemi ('javascript:...') e lo smuggling via caratteri di controllo (che i
+// parser di URL rimuovono, potendo far uscire la destinazione dal same-origin)
+// che next-intl inoltrerebbe. Nessuna delle due validazioni interpola mai il
+// valore grezzo in un path o header Location. Fuori allowlist o path non interno
+// -> { ok: false, status: 400 }, senza cookie ne redirect. Se entrambi validi:
+// imposta il cookie NEXT_LOCALE (Path=/, SameSite=Lax) e reindirizza allo stesso
+// path col nuovo prefisso di locale tramite l'helper tipato di next-intl.
 export async function setLocale(
   nextLocale: string,
   currentPathname: string,
@@ -30,9 +31,14 @@ export async function setLocale(
     return { ok: false, status: 400 };
   }
 
-  // Accetta solo path interni: '/' esatto oppure '/' + carattere non '/'/'\'.
+  // Path interno: '/' esatto oppure '/' + carattere non '/'/'\', e privo di
+  // caratteri di controllo Unicode (\p{Cc}: C0/C1/DEL). I control-char sono un
+  // vettore di smuggling che i parser di URL normalizzano potendo far uscire la
+  // destinazione dal same-origin: li rifiutiamo esplicitamente.
+  const hasControlChars = /\p{Cc}/u.test(currentPathname);
   const isInternalPath =
-    currentPathname === '/' || /^\/(?![/\\])/.test(currentPathname);
+    !hasControlChars &&
+    (currentPathname === '/' || /^\/(?![/\\])/.test(currentPathname));
   if (!isInternalPath) {
     return { ok: false, status: 400 };
   }

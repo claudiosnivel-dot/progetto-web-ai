@@ -83,6 +83,13 @@ describe('T-082 setLocale (server action) + persistenza cookie', () => {
     expect(redirectSpy).not.toHaveBeenCalled();
   });
 
+  it('rifiuta un pathname con caratteri di controllo (smuggling) con 400', async () => {
+    const r = await setLocale('es', '/\t//evil.com');
+    expect(r.status).toBe(400);
+    expect(cookieSetSpy).not.toHaveBeenCalled();
+    expect(redirectSpy).not.toHaveBeenCalled();
+  });
+
   it('il middleware risolve il locale es dal cookie NEXT_LOCALE su GET /', async () => {
     const req = new NextRequest(new URL('/', 'http://localhost'), {
       headers: { cookie: 'NEXT_LOCALE=es' },
