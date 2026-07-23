@@ -1,0 +1,11 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/config/**/*.ts",
+    "src/data/**/*.ts",
+    "tests/helpers/**/*.ts"
+  ],
+  "project": ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
+  "ignoreBinaries": ["supabase"],
+  "ignoreDependencies": ["jscpd", "madge", "prettier"]
+}
