@@ -8,8 +8,8 @@
 |---|---|
 | **Progetto** | Belora |
 | **Ecosistema** | supabase-jsts (JS/TS + Supabase) |
-| **Ultimo aggiornamento** | 2026-07-23 (BUILD macrotask `infra`) |
-| **Sessione corrente** | build-P0-infra |
+| **Ultimo aggiornamento** | 2026-07-23 (chiusura sessione build-P0-infra) |
+| **Sessione corrente** | build-P0-infra — **CHIUSA** (riprendere con `prompts/session-start.md`) |
 
 ---
 
@@ -35,8 +35,8 @@
 
 | Campo | Valore |
 |---|---|
-| Branch di lavoro | `trueline/build/infra` (pushato; mergeto su main) |
-| Ultimo commit | `d13d32a` su `main` |
+| Branch di lavoro | `trueline/build/infra` (pushato; mergeto su main; non cancellato) |
+| Ultimo commit | `d8b1085` su `main` (HEAD) — working tree PULITO, tutto pushato |
 | Stato merge su `main` | **MERGED** (fast-forward `0bcd885..d13d32a`, pushato) — checkpoint verde + non deploy-coupled |
 | Deploy-coupling | `main_deploy_coupled: **false**` — confermato dall'utente 2026-07-23 (nessun deploy automatico su push) → **merge su main autonomi** per i prossimi macrotask con checkpoint verde |
 
@@ -51,6 +51,7 @@
 - **Checkpoint trueline VERDE 4/4** (l'oracolo decide): dead-code 0 nuovi (knip) · sicurezza [gitleaks/osv/semgrep/rls] 0 · regressioni verdi · conformità 25 target_test verdi.
 - Vulnerabilità dipendenze (sharp/postcss) risolte via `overrides` npm → osv-scanner 0.
 - gitleaks: falsi positivi su file **gitignorati** (`.env.local` = chiavi demo locali pubbliche; `.next/` = artefatti build) neutralizzati eseguendo il checkpoint su albero pulito con env Supabase **via shell** (non su disco).
+- Fix in-sessione **riverificate con lo STESSO oracolo/test** (L-COL-003): `overrides` npm → osv-scanner 0; tipo del loader env → typecheck 0; config knip → knip 0. Nessuna rimozione di dead-code (mai in autonomia).
 
 ## 6. Note operative (Supabase locale & checkpoint)
 
@@ -60,6 +61,7 @@
 
 ## 7. Prossimi passi
 
-1. Aprire la sessione BUILD di **`design-system`** (`prompts/session-start.md`) — dipendenze verdi (infra).
-   Nuovo branch `trueline/build/design-system`; T-020 (Tailwind+token+tema) → T-021 (primitive) → T-022 (AppShell).
-2. Merge su `main` ora **autonomo** su checkpoint verde (coupling confermato false).
+1. **Sessione CHIUSA.** Riprendere con `prompts/session-start.md`.
+2. Prossimo macrotask BUILD: **`design-system`** — branch `trueline/build/design-system`; T-020 (Tailwind+token+tema) → T-021 (primitive shadcn/ui) → T-022 (AppShell).
+3. **Metodo di esecuzione attivo**: dynamic workflow multi-agente (builder → verifier diversi → fixer diversi + orchestratore), con l'**oracolo unico giudice** — vedi `prompts/session-start.md` §6.
+4. Merge su `main` **autonomo** su checkpoint verde (coupling confermato false).
