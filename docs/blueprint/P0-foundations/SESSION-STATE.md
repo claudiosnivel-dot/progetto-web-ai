@@ -8,8 +8,8 @@
 |---|---|
 | **Progetto** | Belora |
 | **Ecosistema** | supabase-jsts (JS/TS + Supabase) |
-| **Ultimo aggiornamento** | 2026-07-22 (chiusura BOOTSTRAP) |
-| **Sessione corrente** | bootstrap-P0 |
+| **Ultimo aggiornamento** | 2026-07-23 (BUILD macrotask `infra`) |
+| **Sessione corrente** | build-P0-infra |
 
 ---
 
@@ -19,49 +19,46 @@
 
 | Macrotask | Stato | Checkpoint | Note |
 |---|---|---|---|
-| infra | todo | — | Radice del DAG; primo eseguibile |
-| design-system | todo | — | Dipende da infra |
-| i18n | todo | — | Dipende da infra |
-| auth | todo | — | Dipende da infra |
-| tenancy | todo | — | Dipende da auth + infra |
-| sites | todo | — | Dipende da tenancy + design-system + i18n + auth |
+| infra | **done** | **VERDE 4/4** | T-001..T-006; commit `49a4c0e` sul branch |
+| design-system | todo | — | Dipende da infra ✅ → **prossimo eseguibile** |
+| i18n | todo | — | Dipende da infra ✅, design-system (tema) |
+| auth | todo | — | Dipende da infra ✅, i18n, design-system |
+| tenancy | todo | — | Dipende da infra ✅, auth |
+| sites | todo | — | Dipende da tenancy, design-system, i18n, auth |
 
 ## 2. Macrotask corrente
 
-- **Selezionato**: nessuno ancora costruito. Primo eseguibile (dipendenze vuote): **`infra`**.
-- **Task atomici in corso**: —
-- **Criteri/test di riferimento**: vedi `01-infra.md` e i `target_tests` dei suoi task.
+- **Ultimo chiuso**: `infra` (checkpoint verde). **Prossimo eseguibile**: **`design-system`** (dipendenze verdi).
+- **Criteri/test di riferimento**: `02-design-system.md` e i `target_tests` dei task T-020..T-022.
 
 ## 3. Stato git
 
 | Campo | Valore |
 |---|---|
-| Branch di lavoro | — (da creare al primo BUILD; mai lavorare su `main`) |
-| Ultimo commit | `cc271ad` (Initial commit — solo docs) |
-| Stato merge su `main` | — (gated dal verde del checkpoint) |
-| Deploy-coupling | `unknown` (da rilevare al primo BUILD; assumere coupled se ambiguo) |
+| Branch di lavoro | `trueline/build/infra` (pushato su origin) |
+| Ultimo commit | `49a4c0e` (feat(infra): P0 macrotask infra) |
+| Stato merge su `main` | **SOSPESO** — deploy-coupling rilevato (fail-safe `L-COL-025`); in attesa di conferma utente |
+| Deploy-coupling | `main_deploy_coupled: true` (auto-detect, 1 segnale: `supabase/config.toml`) — **da confermare con l'utente** |
 
 ## 4. Baseline & budget
 
-- **Baseline di sicurezza**: vuota (popolata al primo BUILD).
-- **Budget consumato**: 0 / (da definire per-ciclo in BUILD).
+- **Baseline di sicurezza**: checkpoint `infra` verde con baseline vuota (0 finding nuovi ≥ HIGH).
+- **Budget consumato**: n/d (build manuale in sessione).
 
 ## 5. Esiti dell'ultima sessione (framing onesto)
 
-- BOOTSTRAP completato: blueprint P0 generato — **28 task atomici** in 6 macrotask,
-  ciascuno con DoD + acceptance_criteria + target_tests + security_notes.
-- Oracolo strutturale `validate_blueprint.mjs`: **passato** (exit 0), tutti e 5 i
-  controlli OK (campi, copertura AC→test, DAG aciclico, id univoci, macrotask).
-- Self-check semantico (punti 6–10) eseguito con 2 critici avversariali
-  (copertura/atomicità + sicurezza): **21 rilievi**, tutti applicati al piano
-  (fra cui: `account_members` write owner-only, slug `UNIQUE(account_id,slug)`,
-  middleware unico composto, naming client Supabase inequivocabile, helper
-  Postgres diretto per le asserzioni di catalogo, modulo brand, split UI/dati).
+- Macrotask `infra` costruito test-first (T-001..T-006, 25 target_test) sul branch `trueline/build/infra`.
+- **Checkpoint trueline VERDE 4/4** (l'oracolo decide): dead-code 0 nuovi (knip) · sicurezza [gitleaks/osv/semgrep/rls] 0 · regressioni verdi · conformità 25 target_test verdi.
+- Vulnerabilità dipendenze (sharp/postcss) risolte via `overrides` npm → osv-scanner 0.
+- gitleaks: falsi positivi su file **gitignorati** (`.env.local` = chiavi demo locali pubbliche; `.next/` = artefatti build) neutralizzati eseguendo il checkpoint su albero pulito con env Supabase **via shell** (non su disco).
 
-## 6. Prossimi passi
+## 6. Note operative (Supabase locale & checkpoint)
 
-- Aprire la prossima sessione con `prompts/session-start.md`.
-- Il dispatch di trueline rileverà blueprint + SESSION-STATE → modalità **BUILD**.
-- Primo macrotask: **`infra`** (scaffold Next.js + Supabase, env/segreti, CI, migrazioni locali).
-- Prima del primo BUILD: eseguire `scripts/preflight.mjs` (gitleaks/osv/semgrep/knip) e
-  rilevare il deploy-coupling di `main`.
+- **Supabase locale**: porte spostate a `546xx` (config.toml) per evitare collisione con altri stack locali (543xx/544xx/545xx occupati). Avvio: `supabase start`; parametri: `supabase status -o env`.
+- **Env dei test**: `.env.local` (gitignorato) mappa API_URL/ANON_KEY/SERVICE_ROLE_KEY/DB_URL → NEXT_PUBLIC_SUPABASE_URL / _ANON_KEY / SUPABASE_SERVICE_ROLE_KEY / DATABASE_URL. Caricato da `tests/setup.env.ts`.
+- **Per il checkpoint sicurezza**: eseguire senza `.env.local` e senza `.next/` su disco, esportando le env Supabase nella shell (il gitleaks bundled scansiona anche i gitignorati).
+
+## 7. Prossimi passi
+
+1. **Confermare il deploy-coupling di `main`** → se NON accoppiato (nessun deploy automatico su push; Supabase è solo locale), **merge `infra` su `main` + push**; altrimenti tenere sul branch.
+2. Aprire la sessione BUILD di **`design-system`** (`prompts/session-start.md`).
