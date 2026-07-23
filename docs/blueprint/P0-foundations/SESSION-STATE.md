@@ -23,7 +23,7 @@
 | design-system | **done** | **VERDE 4/4** | T-020..T-022; `7fd35fd` |
 | i18n | **done** (parziale) | **VERDE 4/4** | T-080..T-082; `a679b6c`. **T-083 rinviato** (ora sbloccato, vedi §7) |
 | auth | **done** | **VERDE 4/4** | T-040..T-044; `d4fe1a8` (+ hardening `33ab0e0`) |
-| tenancy | **done** | **VERDE 4/4** | T-060..T-063; `dd1e905` |
+| tenancy | **done** | **VERDE 4/4** | T-060..T-063 (`dd1e905`) + emendamento `UNIQUE(owner_id)` (`463678d`) |
 | sites | todo | — | Dipende da tenancy ✅, design-system ✅, i18n ✅, auth ✅ → **prossimo eseguibile** |
 
 ## 2. Macrotask corrente
@@ -37,8 +37,8 @@
 | Campo | Valore |
 |---|---|
 | Branch di lavoro | `trueline/build/tenancy` (pushato; mergeto su main; non cancellato) |
-| Ultimo commit | `dd1e905` su `main` (HEAD) — working tree pulito, `origin/main` allineato |
-| Stato merge su `main` | **MERGED** (tenancy ff `8dae25c..dd1e905`) — checkpoint verde + non deploy-coupled |
+| Ultimo commit | `463678d` su `main` (HEAD) — working tree pulito, `origin/main` allineato |
+| Stato merge su `main` | **MERGED** (tenancy ff `8dae25c..dd1e905`); emendamento `UNIQUE(owner_id)` `463678d` diretto su main (piccolo, gated dal verde, come `33ab0e0`) — checkpoint verde + non deploy-coupled |
 | Deploy-coupling | `main_deploy_coupled: **false**` (confermato 2026-07-23) → **merge su main autonomi** su verde |
 
 ## 4. Baseline & budget
@@ -75,6 +75,5 @@
 2. **Prossimo macrotask BUILD: `sites`** — branch `trueline/build/sites`; T-100 (sites + RLS + UNIQUE(account_id,slug)) → T-104 (slug unico) → T-101 (server actions) → T-102 (dashboard) → T-103/T-105. Stesso pattern tenancy (migrazioni + test RLS runtime via client autenticato).
 3. **TRACKER TASK RINVIATI**:
    - **T-083** (i18n — persistenza `profiles.locale`): **SBLOCCATO** (T-061 ✅ + T-041 ✅). Oggi la lingua persiste solo via cookie `NEXT_LOCALE`; ora `profiles.locale` (NOT NULL, IT/ES) esiste. Costruire come breve revisita i18n prima o insieme a `sites`.
-4. **DECISIONE APERTA (non presa, richiede emendamento al ledger 00-INDEX §3 se adottata)**:
-   - **`UNIQUE(owner_id)` su `accounts`**: raccomandato dai verifier (renderebbe l'idempotenza di auto-provision provabile per costruzione e i lookup `.single()` sull'account per-owner provabilmente sicuri, e permetterebbe `on conflict(owner_id) do nothing` conforme al DoD letterale). **NON aggiunto**: è una decisione di modello dati ("un utente possiede al più un account, per sempre") oltre il DoD di T-060 → serve un emendamento esplicito al ledger. Oggi l'idempotenza regge via guardia applicativa `EXISTS(owner_id)` nella funzione (provata dai test) e auto-provision crea esattamente 1 account/utente.
+4. **DECISIONE CHIUSA (2026-07-23)**: **`UNIQUE(owner_id)` su `accounts`** — **ADOTTATO** (emendamento ledger 00-INDEX §3 + mig `20260723000400`, commit `463678d`). In P0/V1 un utente possiede al più un account personale → idempotenza auto-provision + `.single()` per-owner provabili per costruzione; team via `account_members`. Reversibile (drop / indice parziale) quando servirà il multi-account ownership. Implica: le future server action di `sites` risolvono l'account con `.eq('owner_id', uid).single()` in sicurezza.
 5. **Metodo attivo**: dynamic workflow multi-agente (builder → verifier diversi → fixer diversi + orchestratore), **oracolo unico giudice**. Merge su `main` autonomo su verde.
