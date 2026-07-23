@@ -35,10 +35,10 @@
 
 | Campo | Valore |
 |---|---|
-| Branch di lavoro | `trueline/build/infra` (pushato su origin) |
-| Ultimo commit | `49a4c0e` (feat(infra): P0 macrotask infra) |
-| Stato merge su `main` | **SOSPESO** — deploy-coupling rilevato (fail-safe `L-COL-025`); in attesa di conferma utente |
-| Deploy-coupling | `main_deploy_coupled: true` (auto-detect, 1 segnale: `supabase/config.toml`) — **da confermare con l'utente** |
+| Branch di lavoro | `trueline/build/infra` (pushato; mergeto su main) |
+| Ultimo commit | `d13d32a` su `main` |
+| Stato merge su `main` | **MERGED** (fast-forward `0bcd885..d13d32a`, pushato) — checkpoint verde + non deploy-coupled |
+| Deploy-coupling | `main_deploy_coupled: **false**` — confermato dall'utente 2026-07-23 (nessun deploy automatico su push) → **merge su main autonomi** per i prossimi macrotask con checkpoint verde |
 
 ## 4. Baseline & budget
 
@@ -60,5 +60,6 @@
 
 ## 7. Prossimi passi
 
-1. **Confermare il deploy-coupling di `main`** → se NON accoppiato (nessun deploy automatico su push; Supabase è solo locale), **merge `infra` su `main` + push**; altrimenti tenere sul branch.
-2. Aprire la sessione BUILD di **`design-system`** (`prompts/session-start.md`).
+1. Aprire la sessione BUILD di **`design-system`** (`prompts/session-start.md`) — dipendenze verdi (infra).
+   Nuovo branch `trueline/build/design-system`; T-020 (Tailwind+token+tema) → T-021 (primitive) → T-022 (AppShell).
+2. Merge su `main` ora **autonomo** su checkpoint verde (coupling confermato false).
