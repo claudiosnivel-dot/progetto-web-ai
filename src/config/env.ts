@@ -35,3 +35,40 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
     SUPABASE_SERVICE_ROLE_KEY: source.SUPABASE_SERVICE_ROLE_KEY as string,
   };
 }
+
+// T-130 (macrotask ai-onboarding, P1) — config Anthropic. ANTHROPIC_API_KEY e un
+// SEGRETO server-only: mai NEXT_PUBLIC, mai riesportato verso il browser, e questo
+// accessor e l'UNICO punto del sorgente che lo nomina. Non entra in REQUIRED_KEYS
+// perche il boot deve riuscire anche dove l'LLM non serve: chi la chiave la usa
+// fallisce qui in modo esplicito (fail-fast), non con una stringa vuota silenziosa.
+
+// Modello dell'intervista di onboarding quando ANTHROPIC_MODEL_ONBOARDING e assente
+// (decisione P1-D4). Config pubblica, non un segreto.
+const DEFAULT_ANTHROPIC_MODEL_ONBOARDING = 'claude-haiku-4-5';
+
+/**
+ * Legge il segreto Anthropic (solo server-side).
+ * @param source sorgente delle variabili (default: process.env) — parametrizzato per i test.
+ * @throws Error di configurazione che nomina ANTHROPIC_API_KEY se assente o vuota.
+ */
+export function getAnthropicApiKey(
+  source: Record<string, string | undefined> = process.env,
+): string {
+  const value = source.ANTHROPIC_API_KEY;
+  if (value === undefined || value.trim() === '') {
+    throw new Error("Variabile d'ambiente mancante: ANTHROPIC_API_KEY");
+  }
+  return value;
+}
+
+/**
+ * Modello Anthropic dell'intervista di onboarding: il valore configurato se
+ * valorizzato, altrimenti il default. Vuota/whitespace = non impostata (come loadEnv).
+ * @param source sorgente delle variabili (default: process.env) — parametrizzato per i test.
+ */
+export function getAnthropicOnboardingModel(
+  source: Record<string, string | undefined> = process.env,
+): string {
+  const value = source.ANTHROPIC_MODEL_ONBOARDING;
+  return value !== undefined && value.trim() !== '' ? value : DEFAULT_ANTHROPIC_MODEL_ONBOARDING;
+}

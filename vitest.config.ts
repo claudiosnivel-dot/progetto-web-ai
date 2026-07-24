@@ -5,6 +5,11 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // "server-only" lancia all'import fuori dalla condizione react-server di
+      // Next: nei test lo risolviamo al suo empty.js, lo stesso file che Next
+      // usa in quella condizione. Solo infrastruttura di test: la guardia di
+      // build resta intatta nei moduli server (src/data/**).
+      'server-only': fileURLToPath(new URL('./node_modules/server-only/empty.js', import.meta.url)),
     },
   },
   test: {

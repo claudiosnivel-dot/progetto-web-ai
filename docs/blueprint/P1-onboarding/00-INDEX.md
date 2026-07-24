@@ -90,6 +90,8 @@ baseline di sicurezza (`11` §5.2 p.9):
 | `P1-D9` | Entita Brief | `site_briefs` **1:1 con `site`** (`UNIQUE(site_id)`), RLS clonata da `sites`/T-100 | chiusa |
 | `P1-D10` | Media | In v1 il brief salva **solo riferimenti/URL** di foto; hosting file → **P4** | chiusa |
 | `P1-D11` | Contratto di altitudine (`architecture:`) | **Ancora rinviato** (ereditato da P0): attivare `arch_check` solo dopo audit del grafo import reale, per evitare rossi su violazioni pre-esistenti | aperta |
+| `P1-D12` | Forma dell'input del tool `update_brief` (T-132) | **Wrapper `{updates:{...}}`**: la patch di T-121 vive sotto l'unica chiave obbligatoria `updates`. Necessario perche' `BriefUpdateSchema` ha tutti i campi opzionali, quindi una patch FLAT non puo' avere il `required` **valorizzato** che AC-132-2 impone. Di conseguenza il `{business_name:'Bar Sole'}` nel *given* di AC-132-1 va letto come il **contenuto** della tool-call, non come il suo involucro JSON | chiusa (BUILD 2026-07-24) |
+| `P1-D13` | `hours` fuori dal tool `update_brief` (T-132) | **Omesso dallo schema del tool**: `hours` e' `z.record` (chiavi libere) e lo strict tool use pretende `additionalProperties:false` su ogni oggetto, quindi non e' esprimibile. Gli orari **non sono raccoglibili dalla chat**; restano raccoglibili da `upsertBrief` (T-123). **Vincolo su `onboarding-ui`: il pannello brief (T-151) DEVE esporre un campo orari editabile**, altrimenti il dato non entra mai nel Brief | chiusa (BUILD 2026-07-24) |
 
 ## 5. Fonti di verita
 

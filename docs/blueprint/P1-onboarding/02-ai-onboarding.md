@@ -154,6 +154,27 @@ con la logica pura del macrotask brief-model.
     - "Import da URL (macrotask url-import)"
 ```
 
+## Chiarimenti registrati in fase di BUILD (2026-07-24)
+
+Emersi dalla verifica avversariale del macrotask e decisi dall'human-in-the-loop.
+Non modificano gli `acceptance_criteria` sopra: ne fissano la lettura.
+
+- **`P1-D12` — input di `update_brief`.** AC-132-1 e AC-132-2 sono in tensione: la patch di
+  T-121 ha tutti i campi opzionali, quindi in forma FLAT non esiste un `required`
+  **valorizzato** come AC-132-2 pretende. La patch vive percio' sotto l'unica chiave
+  obbligatoria `updates` (`required: ['updates']`), e il `{business_name:'Bar Sole'}` del
+  *given* di AC-132-1 si legge come **contenuto** della tool-call, non come involucro JSON.
+- **`P1-D13` — `hours` assente dallo schema del tool.** Non esprimibile sotto strict tool use
+  (`z.record` ⇒ `additionalProperties` valorizzato, vietato). **Limite noto: l'intervista non
+  puo' raccogliere gli orari**, e `isBriefComplete` non li richiede, quindi un brief senza orari
+  risulta comunque completo. **Vincolo ereditato da `onboarding-ui` (T-151): il pannello brief
+  deve esporre un campo orari editabile.**
+- **Non verificato: lo schema strict non e' mai stato validato contro l'API reale.** Tutti gli
+  oracoli mockano il confine LLM (per costruzione: e' cio' che tiene deterministico il
+  checkpoint). L'oggetto annidato `updates` chiude con `additionalProperties:false` ma non
+  dichiara `required`: se l'API applicasse il vincolo ricorsivamente, la prima chiamata reale
+  tornerebbe 400. **Da verificare al primo turno end-to-end (T-150), con chiave configurata.**
+
 ## Self-check
 
 - **Strutturale** (deterministico): `validate_blueprint.mjs` sulla dir del blueprint P1 — atteso exit 0.
