@@ -8,8 +8,8 @@
 |---|---|
 | **Progetto** | Belora |
 | **Ecosistema** | supabase-jsts (JS/TS + Supabase) |
-| **Ultimo aggiornamento** | 2026-07-24 (BOOTSTRAP P1 — blueprint generato) |
-| **Sessione corrente** | bootstrap-P1 — blueprint pronto. **Nessun macrotask ancora costruito.** Prossima sessione: **BUILD** del 1o macrotask (`brief-model`). |
+| **Ultimo aggiornamento** | 2026-07-24 (chiusura BUILD macrotask `brief-model`) |
+| **Sessione corrente** | build-P1-brief-model — **CHIUSA**. Checkpoint VERDE 4/4 (pre- e post-fix), mergeato su `main`. Prossimo macrotask: **`ai-onboarding`** o **`url-import`** (indipendenti, entrambi sbloccati). |
 
 ---
 
@@ -19,65 +19,96 @@
 
 | Macrotask | Stato | Checkpoint | Note |
 |---|---|---|---|
-| brief-model | **todo** | — | T-120..T-123 (la spina dorsale) |
-| ai-onboarding | **todo** | — | T-130..T-132 |
-| url-import | **todo** | — | T-140..T-141 |
-| onboarding-ui | **todo** | — | T-150..T-153 |
+| brief-model | **done** | **VERDE 4/4** | T-120..T-123 (`33fb898`) + fix verifica avversariale (`5243260`); mergeato su `main` |
+| ai-onboarding | **todo** | — | T-130..T-132 (sbloccato: usa T-122) |
+| url-import | **todo** | — | T-140..T-141 (sbloccato: usa T-121 + confine LLM T-131) |
+| onboarding-ui | **todo** | — | T-150..T-153 (dipende da tutti i precedenti) |
 
-**→ Nessun macrotask P1 costruito.** Il blueprint (`00-INDEX` + 4 moduli) e stato generato
-in BOOTSTRAP; il self-check strutturale/semantico e la conferma umana precedono il BUILD.
+**→ `brief-model` (la spina dorsale) e `done` e verde su `main`.**
 
 ## 2. Macrotask corrente
 
-- **Ultimo chiuso**: nessuno (P1 appena bootstrappato).
-- **Prossimo eseguibile**: **`brief-model`** (T-120..T-123) — nessuna dipendenza P1 aperta.
-  Selezionare col DAG (00-INDEX §2), costruire sul branch di lavoro, checkpoint al confine.
+- **Ultimo chiuso**: `brief-model` (T-120..T-123, checkpoint verde 4/4, `5243260`).
+- **Prossimi eseguibili**: **`ai-onboarding`** (T-130..T-132) e **`url-import`** (T-140..T-141) —
+  indipendenti fra loro, entrambe con le dipendenze P1 verdi (usano `brief.ts`/`T-121-T-122`).
+  Costruibili in parallelo con worktree se mutano file in parallelo; altrimenti in sequenza.
+  `onboarding-ui` resta bloccato finche ai-onboarding e url-import non sono verdi.
+- **NOTA ai-onboarding**: introduce l'SDK Anthropic (`@anthropic-ai/sdk`, NON ancora in
+  package.json) → il preflight/BUILD dovra aggiungerlo (nuova dep → osv delta da verificare).
 
 ## 3. Stato git
 
 | Campo | Valore |
 |---|---|
-| Branch di lavoro | nessuno ancora per P1 (il BUILD del 1o macrotask creera `trueline/build/brief-model`) |
-| Ultimo commit | il commit dei doc di blueprint P1 su `main` (BOOTSTRAP non produce codice) |
-| Stato merge su `main` | n/a (nessun macrotask P1 costruito) |
-| Deploy-coupling | **`main_deploy_coupled: false`** — override umano confermato a livello di progetto il 2026-07-23 (vedi SESSION-STATE di P0 §3). NB: `detect_deploy_coupling.mjs` ri-flagga `main` come coupled sul solo `supabase/config.toml` (dev locale), non un hook di deploy-on-push; nessun `vercel.json`/GH-Actions-on-push/Cloudflare/Netlify presente. L'override registrato governa. **Da riconfermare una volta** all'inizio del BUILD P1 |
+| Branch di lavoro | `trueline/build/brief-model` (pushato; mergeato su main; non cancellato) |
+| Ultimo commit | `5243260` su `main` (HEAD) — working tree pulito, `origin/main` allineato |
+| Stato merge su `main` | **MERGED**: brief-model ff `7a9ae9a..5243260`, gated dal checkpoint verde 4/4 |
+| Deploy-coupling | **`main_deploy_coupled: false`** — riconfermato dall'utente in questo BUILD (2026-07-24). `detect_deploy_coupling.mjs` ri-flagga sul solo `supabase/config.toml` (dev locale); nessun `vercel.json`/GH-Actions-on-push/Cloudflare/Netlify → nessun deploy-on-push. L'override governa |
 
 ## 4. Baseline & budget
 
-- **Baseline di sicurezza**: **vuota** (BOOTSTRAP non esegue oracoli). Verra popolata al 1o
-  BUILD: attesi `gitleaks 0 · osv 0 · semgrep 0 · rls 0`, dead-code 0.
-- **Attenzione P1 (nuove superfici vs P0):** (a) segreto `ANTHROPIC_API_KEY` — gitleaks
-  deve restare a 0; (b) **SSRF** dell'import — coperto da T-140 e dal ruleset semgrep/authz;
-  (c) output del modello e HTML importato = input non fidato, validati (T-121).
-- **Budget**: definito per-ciclo in BUILD. Il metodo di esecuzione e il **dynamic workflow
-  multi-agente** (builder / verifier diversi / fixer diversi), oracolo unico giudice.
+- **Baseline di sicurezza**: checkpoint `brief-model` verde con baseline pulita. Controllo 2:
+  `gitleaks:0 · osv:0 · semgrep:0 · rls:0`; `degraded: []` (semgrep ha girato, nessuna
+  degradazione). Controllo 1 dead-code:0; controlli 3/4 verdi.
+- **Suite**: **26 test brief-model** (4 file: brief-schema, brief-apply, site-briefs-schema,
+  briefs-actions) — verdi, DB-backed su Supabase locale; full suite verde. typecheck/lint/knip
+  puliti; `next build` (via checkpoint) verde.
+- **Budget**: `brief-model` costruito test-first dall'orchestratore + **dynamic workflow di
+  verifica avversariale** (4 lenti + refutazione 2x, **24 agenti, ~1.04M token subagente**) →
+  10 candidati, **5 rilievi confermati** (1 sicurezza medium + 1 correttezza medium + 3 low),
+  **tutti corretti e riverificati** con lo stesso oracolo (L-COL-003). Nessun fallimento di sessione.
 
-## 5. Note operative (checkpoint & AI)
+## 5. Esiti dell'ultima sessione (framing onesto)
 
-- **Test AI deterministici**: il confine LLM `src/data/anthropic.ts` (T-131) e **mockato**
-  nei test (turni/tool-call preconfezionati), come in P0 si mocka `createServerSupabaseClient`.
-  La qualita dell'intervista NON entra nel checkpoint (eval offline opzionale, `*.eval.ts`
-  escluso dalla suite).
-- **RLS a runtime**: `site_briefs` (T-120) e le server action briefs (T-123) provano
-  l'isolamento cross-tenant attraverso il client con auth reale su Supabase locale (mai
-  nell'SQL editor, che gira come superuser → falso verde). Riuso del pattern P0 (T-063/T-101).
-- **SSRF (T-140)**: testare il blocco IP privati/riservati (127/8, 10/8, 192.168/16,
-  169.254.169.254, ::1) e il re-check sui redirect con DNS/network mockati.
-- **Checkpoint con test runtime Supabase**: riusare lo schema P0 (`scratchpad/run-checkpoint-*.sh`):
+### brief-model (T-120..T-123)
+- **T-120** schema `public.site_briefs` 1:1 con `site` (`UNIQUE(site_id)`), account-scoped, RLS
+  4 policy `TO authenticated` su `is_account_member(account_id)` con `account_id` esplicito
+  (RLS004 evitato), CHECK vertical/primary_goal/locale/status; vincoli provati a runtime.
+- **T-121** `BriefSchema` zod (allowlist chiuse, strict) — gate dell'input non fidato (A05:2025).
+  **T-122** `applyBriefUpdate` (merge offerings per `name`) + `isBriefComplete`, puri.
+  **T-123** `briefs.ts` get/upsert/confirm via client RLS (mai service_role), account da
+  `owner_id.single()`, site-ownership verificata, `upsert onConflict(site_id)`, metodi tipati.
+- **Rilievi colti dalla verifica avversariale (post-checkpoint, oltre l'oracolo)** — 5 confermati,
+  tutti corretti nel commit `5243260`:
+  1. **[SICUREZZA medium]** la RLS ancorava solo `account_id` senza legare `site_id` all'account →
+     **squatting cross-tenant del `site_id` altrui + DoS** via chiamata PostgREST diretta (bypass di
+     `briefs.ts`). **Fix radice a livello DB**: `UNIQUE(account_id, id)` su `sites` + **FK composita**
+     `site_briefs(account_id, site_id) → sites(account_id, id)` → impossibile ancorare il brief al
+     sito di un altro tenant (test: own-account + other-site → `23503`). *Difetto che l'oracolo
+     `rls_check` strutturale non poteva vedere (invariante cross-colonna).*
+  2. **[CORRETTEZZA medium]** `confirmBrief` ritornava `{ok:true}` su 0 righe → falso successo. Fix:
+     `.select()` + **404** su 0 righe (rende anche raggiungibile il `404` del tipo). Test: 404 su
+     sito senza brief e cross-tenant.
+  3. **[TEST-FIDELITY low]** AC-122-1 copriva l'invarianza solo nominalmente → test rinforzato
+     (semina description/phone/offerings, asserisce l'invarianza reale).
+  4. **[DISCIPLINA low]** indirection inutile `rowToBrief`/`emptyBriefMerged` → collassate.
+- 5 candidati refutati (falsi positivi): tra cui "confirmBrief no-op = leak" (la RLS blocca, nessun
+  leak), "content azzerato in lettura" (non raggiungibile per costruzione), immutabilita profonda
+  delle offerings (nessun AC la richiede).
+
+### fix_state
+- Tutte le fix **verified**: riverificate con lo STESSO oracolo (re-run checkpoint) + i test → finding
+  sparito, nulla rotto, checkpoint 4/4. Nessuna rimozione di dead-code (controllo 1 a 0).
+
+## 6. Note operative (checkpoint & test)
+
+- **Checkpoint**: `db reset` prima del run (rate-limit auth azzerato + migrazioni riapplicate),
   `set -a; . .env.local; set +a`, spostare `.env.local` FUORI dal repo (gitleaks pulito) +
-  `rm -rf .next`, `db reset` prima del run (rate-limit auth azzerato), `--mode build`
-  SENZA `--blueprint` (il manifest supabase-jsts usa `node --test`, incompatibile con
-  vitest+jsdom → falso rosso).
+  `rm -rf .next`, `node <trueline>/scripts/checkpoint/run_checkpoint.mjs "<repo>" --in-place
+  --mode build` (SENZA `--blueprint`: manifest supabase-jsts usa `node --test`, incompatibile con
+  vitest+jsdom → falso rosso), ripristino via trap EXIT.
+- **RLS a runtime**: schema test via `pgQuery` (cataloghi) + vincoli via superuser (bypassa RLS,
+  non i vincoli); **denial cross-tenant provata via `signInAs`** (auth reale), mai nell'SQL editor.
+- **Rate limit auth** (`sign_in_sign_ups=30`/5min per IP): eseguire la suite/checkpoint **una volta
+  per finestra**; `db reset` prima del run azzera il contatore. Riuso di `signInAs` per client.
 
-## 6. Prossimi passi & decisioni aperte
+## 7. Prossimi passi & decisioni
 
-1. **Self-check del blueprint**: strutturale (`validate_blueprint.mjs`, exit 0) + semantico
-   (checklist 6–10) → human-in-the-loop → chiusura del blueprint.
-2. **BUILD del 1o macrotask** `brief-model` (T-120..T-123): schema `site_briefs` + RLS →
-   dominio brief (zod, merge/complete) → server action con RLS a runtime.
-3. **DECISIONE APERTA `P1-D11`**: contratto di altitudine (`architecture:`) ancora rinviato
-   — attivare `arch_check` solo dopo audit del grafo import reale (evitare rossi su
-   violazioni pre-esistenti). Ereditata da P0.
-4. **DA RICONFERMARE**: deploy-coupling di `main` all'inizio del BUILD (override false).
-5. **Metodo attivo**: dynamic workflow multi-agente (orchestratore costruisce test-first +
-   verifica avversariale multi-lente con refutazione), **oracolo unico giudice** (checkpoint 4/4).
+1. **BUILD del prossimo macrotask**: `ai-onboarding` (T-130..T-132) o `url-import` (T-140..T-141),
+   indipendenti. `ai-onboarding` aggiunge `@anthropic-ai/sdk` (nuova dep → osv). **NON avviare in
+   autonomia**: attendere il via dell'utente (consent-gated come da preferenza espressa).
+2. **DECISIONE APERTA `P1-D11`**: contratto di altitudine (`architecture:`) ancora rinviato —
+   attivare `arch_check` solo dopo audit del grafo import reale.
+3. **Metodo attivo**: dynamic workflow multi-agente (orchestratore costruisce test-first + verifica
+   avversariale multi-lente con refutazione), **oracolo unico giudice** (checkpoint 4/4). Merge su
+   `main` autonomo su verde (deploy-coupling `false` riconfermato); distruttive/deploy gated.
