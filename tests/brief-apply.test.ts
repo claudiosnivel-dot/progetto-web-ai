@@ -6,12 +6,26 @@ import { applyBriefUpdate, isBriefComplete, emptyBrief } from '@/domain/onboardi
 
 describe('T-122 applyBriefUpdate — fusione deterministica', () => {
   // covers: AC-122-1
-  it('applica business_name lasciando invariati gli altri campi', () => {
-    const base = emptyBrief('it'); // vertical 'altro', nessun business_name
+  it('applica business_name lasciando invariati TUTTI gli altri campi (core + content)', () => {
+    // Base con "altri campi valorizzati" come richiede il given dell'AC (non un brief
+    // quasi vuoto): description, phone, vertical e un'offerta preesistente.
+    const base = applyBriefUpdate(emptyBrief('it'), {
+      vertical: 'ristorazione',
+      description: 'Storico bar del centro',
+      phone: '+39 06 000',
+      offerings: [{ name: 'Caffe', price: '1.20' }],
+    }).brief;
+
     const { brief } = applyBriefUpdate(base, { business_name: 'Bar Sole' });
-    expect(brief.business_name).toBe('Bar Sole'); // covers: AC-122-1
-    expect(brief.vertical).toBe('altro'); // covers: AC-122-1 — invariato
-    expect(brief.locale).toBe('it'); // covers: AC-122-1 — invariato
+
+    expect(brief.business_name).toBe('Bar Sole'); // covers: AC-122-1 — campo applicato
+    // TUTTI gli altri campi restano invariati (core + content):
+    expect(brief.vertical).toBe('ristorazione'); // covers: AC-122-1
+    expect(brief.description).toBe('Storico bar del centro'); // covers: AC-122-1
+    expect(brief.phone).toBe('+39 06 000'); // covers: AC-122-1
+    expect(brief.locale).toBe('it'); // covers: AC-122-1
+    expect(brief.content.offerings).toHaveLength(1); // covers: AC-122-1 — content non azzerato
+    expect(brief.content.offerings[0]).toMatchObject({ name: 'Caffe', price: '1.20' }); // covers: AC-122-1
   });
 
   // covers: AC-122-2

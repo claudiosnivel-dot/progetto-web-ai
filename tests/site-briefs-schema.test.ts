@@ -173,9 +173,11 @@ describe.skipIf(!SB)('T-120 site_briefs vincoli a runtime (UNIQUE / CHECK / cros
   let userXId = '';
   let userYId = '';
   let accountXId = '';
+  let accountYId = '';
   let siteS1 = '';
   let siteS2 = '';
   let siteS3 = '';
+  let siteYown = '';
 
   const insertSite = async (accountId: string, slug: string): Promise<string> => {
     const rows = await pgQuery<{ id: string }>(
@@ -196,10 +198,17 @@ describe.skipIf(!SB)('T-120 site_briefs vincoli a runtime (UNIQUE / CHECK / cros
       .select('id')
       .eq('owner_id', userXId)
       .single();
+    const { data: accY } = await admin
+      .from('accounts')
+      .select('id')
+      .eq('owner_id', userYId)
+      .single();
     accountXId = accX!.id as string;
+    accountYId = accY!.id as string;
     siteS1 = await insertSite(accountXId, `s1-${randomUUID().slice(0, 8)}`);
     siteS2 = await insertSite(accountXId, `s2-${randomUUID().slice(0, 8)}`);
     siteS3 = await insertSite(accountXId, `s3-${randomUUID().slice(0, 8)}`);
+    siteYown = await insertSite(accountYId, `yown-${randomUUID().slice(0, 8)}`);
   });
 
   afterAll(async () => {
@@ -254,5 +263,19 @@ describe.skipIf(!SB)('T-120 site_briefs vincoli a runtime (UNIQUE / CHECK / cros
     // (b) SELECT di Y non vede il brief di X (S1): la RLS filtra a insieme vuoto.
     const { data: seen } = await clientY.from('site_briefs').select('id, site_id');
     expect((seen ?? []).some((r) => r.site_id === siteS1)).toBe(false); // covers: AC-120-6
+  });
+
+  // covers: AC-120-6 (rafforzamento: FK composita account<->site — rilievo verifica avversariale)
+  it('un brief con account_id proprio ma site_id di un altro tenant e respinto dalla FK composita (SQLSTATE 23503)', async () => {
+    // Vettore scoperto dalla verifica avversariale: X (col PROPRIO account) prova ad
+    // ancorare un brief al sito di Y. La FK composita (account_id, site_id) ->
+    // sites(account_id, id) lo blocca a livello DB anche via superuser (RLS bypassata,
+    // vincoli no) — quindi anche via chiamata PostgREST diretta che bypassi briefs.ts.
+    await expect(
+      pgQuery(
+        `insert into public.site_briefs (account_id, site_id, locale) values ($1, $2, $3)`,
+        [accountXId, siteYown, 'it'],
+      ),
+    ).rejects.toMatchObject({ code: '23503' }); // covers: AC-120-6
   });
 });

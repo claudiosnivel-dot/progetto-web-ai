@@ -53,15 +53,10 @@ export type UpsertBriefResult =
 
 export type MutateBriefResult = { ok: true } | { ok: false; status: 401 | 404 | 500 };
 
-// Converte una riga DB nel Brief di dominio (null → undefined; content jsonb → shape
-// del content). BriefSchema riempie i default (vertical 'altro', content vuoto).
+// Converte una riga DB nel Brief di dominio: applica i valori presenti (null →
+// undefined) sopra un brief vuoto del locale della riga, cosi i default del content
+// sono garantiti e i null spariscono. content jsonb → shape del content.
 function rowToBrief(row: BriefRow): Brief {
-  return emptyBriefMerged(row);
-}
-
-// Costruisce il Brief da una riga applicando i valori presenti sopra un brief vuoto
-// del locale della riga: cosi i default del content sono garantiti e i null spariscono.
-function emptyBriefMerged(row: BriefRow): Brief {
   const base = emptyBrief(row.locale === 'es' ? 'es' : 'it');
   const contentUpdate =
     row.content && typeof row.content === 'object' ? (row.content as Record<string, unknown>) : {};
@@ -187,7 +182,9 @@ export async function upsertBrief(siteId: string, update: unknown): Promise<Upse
 }
 
 // Porta il Brief del sito a status='confirmed' (l'artefatto che P2 consumera). La
-// RLS vincola l'update ai soli brief dei propri account.
+// RLS vincola l'update ai soli brief dei propri account; .select() rende osservabili
+// le righe toccate: 0 righe (nessun brief per quel sito, o tentativo cross-tenant
+// filtrato dalla RLS) → 404, mai un falso successo (rilievo verifica avversariale).
 export async function confirmBrief(siteId: string): Promise<MutateBriefResult> {
   const supabase = await createServerSupabaseClient();
 
@@ -196,11 +193,13 @@ export async function confirmBrief(siteId: string): Promise<MutateBriefResult> {
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, status: 401 };
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('site_briefs')
     .update({ status: 'confirmed', updated_at: new Date().toISOString() })
-    .eq('site_id', siteId);
+    .eq('site_id', siteId)
+    .select('id');
   if (error) return { ok: false, status: 500 };
+  if (!data || data.length === 0) return { ok: false, status: 404 };
 
   return { ok: true };
 }

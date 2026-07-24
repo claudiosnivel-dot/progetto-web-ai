@@ -14,6 +14,15 @@
 -- Applicata dopo tenancy (public.accounts, public.is_account_member) e sites
 -- (public.sites): questi esistono gia.
 
+-- ── Prerequisito: (account_id, id) di sites come chiave di FK composita ────────
+-- Difesa in profondita OLTRE la RLS (rilievo della verifica avversariale). La RLS
+-- ancora account_id ma non lega da sola site_id all'account: senza questo vincolo un
+-- tenant potrebbe, via chiamata PostgREST diretta, ancorare il proprio brief al sito
+-- di un altro tenant (squatting cross-tenant + DoS). Esponendo (account_id, id) di
+-- sites come unique, il brief lo referenzia con una FK COMPOSITA che impone
+-- brief.account_id = account del sito. id e gia PK (unico globale).
+alter table public.sites add constraint sites_account_id_id_key unique (account_id, id);
+
 -- ── Tabella ──────────────────────────────────────────────────────────────────
 
 create table public.site_briefs (
@@ -21,8 +30,10 @@ create table public.site_briefs (
   -- on delete cascade: alla rimozione dell'account (a cascata dall'utente owner)
   -- il brief e eliminato.
   account_id    uuid not null references public.accounts (id) on delete cascade,
-  -- 1:1 con il sito: alla rimozione del sito, il suo brief e eliminato.
-  site_id       uuid not null references public.sites (id) on delete cascade,
+  -- La coerenza site<->account e imposta dalla FK COMPOSITA (in coda alla tabella),
+  -- non da una FK indipendente su site_id: (account_id, site_id) deve puntare a una
+  -- riga reale di sites con lo STESSO account_id.
+  site_id       uuid not null,
   business_name text,
   vertical      text not null default 'altro'
                 check (vertical in ('ristorazione', 'fitness', 'salone_studio', 'negozio_artigiano', 'altro')),
@@ -43,7 +54,12 @@ create table public.site_briefs (
   created_at    timestamptz default now(),
   updated_at    timestamptz default now(),
   -- 1:1 sito<->brief: un solo brief per sito. L'indice implicito copre site_id.
-  unique (site_id)
+  unique (site_id),
+  -- FK COMPOSITA: brief.account_id DEVE coincidere con l'account del sito (difesa in
+  -- profondita cross-tenant, oltre la RLS). on delete cascade: rimosso il sito, il
+  -- brief cade. Sostituisce la FK indipendente su site_id.
+  constraint site_briefs_account_site_fk
+    foreign key (account_id, site_id) references public.sites (account_id, id) on delete cascade
 );
 
 comment on table public.site_briefs is

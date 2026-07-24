@@ -41,6 +41,7 @@ describe.skipIf(!SB)('T-123 getBrief/upsertBrief/confirmBrief (runtime, Supabase
   let userBId = '';
   let accountAId = '';
   let siteS = '';
+  let siteNoBrief = '';
   let clientA: SupabaseClient;
   let clientB: SupabaseClient;
   let anon: SupabaseClient;
@@ -65,6 +66,14 @@ describe.skipIf(!SB)('T-123 getBrief/upsertBrief/confirmBrief (runtime, Supabase
       .select('id')
       .single();
     siteS = site!.id as string;
+
+    // Un secondo sito di A che NON riceve mai un brief (per il caso confirmBrief → 404).
+    const { data: siteNb } = await admin
+      .from('sites')
+      .insert({ account_id: accountAId, name: 'Sito A senza brief', slug: `sito-a-nb-${randomUUID().slice(0, 8)}` })
+      .select('id')
+      .single();
+    siteNoBrief = siteNb!.id as string;
 
     clientA = await signInAs(emailA, password);
     clientB = await signInAs(emailB, password);
@@ -187,5 +196,23 @@ describe.skipIf(!SB)('T-123 getBrief/upsertBrief/confirmBrief (runtime, Supabase
       .eq('site_id', siteS)
       .single();
     expect(row?.business_name).toBe('Bar Sole'); // covers: AC-123-5
+  });
+
+  // Rafforzamento (rilievo verifica avversariale): confirmBrief non riporta un falso
+  // successo su 0 righe.
+  it('confirmBrief su un sito senza brief → 404 (nessun falso successo)', async () => {
+    clientHolder.current = clientA;
+    const res = await confirmBrief(siteNoBrief);
+    expect(res.ok).toBe(false);
+    if (res.ok) throw new Error('confirmBrief su sito senza brief non doveva riuscire');
+    expect(res.status).toBe(404);
+  });
+
+  it('confirmBrief cross-tenant (B sul brief di A) → 404, nessuna conferma', async () => {
+    clientHolder.current = clientB;
+    const res = await confirmBrief(siteS);
+    expect(res.ok).toBe(false);
+    if (res.ok) throw new Error('confirmBrief cross-tenant non doveva riuscire');
+    expect(res.status).toBe(404);
   });
 });
