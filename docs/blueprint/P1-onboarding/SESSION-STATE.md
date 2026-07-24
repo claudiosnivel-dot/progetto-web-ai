@@ -9,7 +9,7 @@
 | **Progetto** | Belora |
 | **Ecosistema** | supabase-jsts (JS/TS + Supabase) |
 | **Ultimo aggiornamento** | 2026-07-24 (chiusura BUILD macrotask `brief-model`) |
-| **Sessione corrente** | build-P1-brief-model — **CHIUSA**. Checkpoint VERDE 4/4 (pre- e post-fix), mergeato su `main`. Prossimo macrotask: **`ai-onboarding`** o **`url-import`** (indipendenti, entrambi sbloccati). |
+| **Sessione corrente** | build-P1-brief-model — **CHIUSA**. Checkpoint VERDE 4/4 (pre- e post-fix), mergeato su `main`. **Prossimo macrotask DESIGNATO: `ai-onboarding`** (T-130..T-132). Riprendere con `prompts/session-start.md`. |
 
 ---
 
@@ -29,12 +29,17 @@
 ## 2. Macrotask corrente
 
 - **Ultimo chiuso**: `brief-model` (T-120..T-123, checkpoint verde 4/4, `5243260`).
-- **Prossimi eseguibili**: **`ai-onboarding`** (T-130..T-132) e **`url-import`** (T-140..T-141) —
-  indipendenti fra loro, entrambe con le dipendenze P1 verdi (usano `brief.ts`/`T-121-T-122`).
-  Costruibili in parallelo con worktree se mutano file in parallelo; altrimenti in sequenza.
-  `onboarding-ui` resta bloccato finche ai-onboarding e url-import non sono verdi.
-- **NOTA ai-onboarding**: introduce l'SDK Anthropic (`@anthropic-ai/sdk`, NON ancora in
-  package.json) → il preflight/BUILD dovra aggiungerlo (nuova dep → osv delta da verificare).
+- **PROSSIMO DESIGNATO**: **`ai-onboarding`** (T-130..T-132) — confine LLM server-only mockabile
+  + intervista tool-use. Dipendenze P1 verdi (usa `brief.ts`/T-121-T-122). Primo nell'ordine di
+  build (00-INDEX §2) ed e il cuore dell'intervista.
+- **Alternativa equivalente**: **`url-import`** (T-140..T-141, SSRF-safe + estrazione) — indipendente
+  da ai-onboarding; se si preferisce si puo costruire prima o in parallelo (worktree). `onboarding-ui`
+  resta bloccato finche **entrambi** ai-onboarding e url-import non sono verdi.
+- **PREPARAZIONE per ai-onboarding** (T-130/T-131): introduce l'SDK Anthropic — **`@anthropic-ai/sdk`
+  NON e ancora in package.json**. Il BUILD dovra aggiungerlo (nuova devDependency/dependency → **osv
+  delta da verificare** al checkpoint) e aggiungere allo schema env `ANTHROPIC_API_KEY` (server-only)
+  + `ANTHROPIC_MODEL_ONBOARDING` (default `claude-haiku-4-5`, decisione P1-D4). Modello onboarding =
+  Haiku 4.5; il confine LLM `src/data/anthropic.ts` va reso mockabile (guardia ESLint no-restricted-imports).
 
 ## 3. Stato git
 
