@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { useTranslations } from 'next-intl';
+import Link from 'next/link';
+import { hasLocale, useLocale, useTranslations } from 'next-intl';
 import { BriefPanel, type BriefPanelPatch } from '@/ui/onboarding/BriefPanel';
 import { ChatPanel, type ChatTurn } from '@/ui/onboarding/ChatPanel';
 import { UrlImportBar } from '@/ui/onboarding/UrlImportBar';
 import { BriefSchema, emptyBrief, type Brief } from '@/domain/onboarding/brief';
+import { routing } from '@/i18n/routing';
 
 // T-151 (macrotask onboarding-ui, P1) — composizione dei tre pannelli: e' qui che vive
 // lo stato condiviso, cioe' l'unica cosa che ChatPanel, BriefPanel e UrlImportBar hanno
@@ -127,6 +129,26 @@ export function mergeProposal(current: Brief, proposal: Brief): Brief {
 
 export function OnboardingWorkspace({ siteId, initialBrief }: OnboardingWorkspaceProps) {
   const t = useTranslations('onboarding');
+  // T-152 — COLLEGAMENTO alla schermata Rivedi&conferma. Senza di esso quella schermata
+  // e' irraggiungibile dall'applicazione (nessun href, nessun push la nomina): e' la stessa
+  // lezione del montaggio dei pannelli qui sopra, cioe' che "il componente funziona" non
+  // implica "l'utente ci arriva".
+  //
+  // SEMPRE PRESENTE, non condizionato a `readiness.readyForReview`: quel flag e' deciso dal
+  // modello ed e' prompt-injectable (SESSION-STATE §7 p.10, peggiorato da P1-D23 — il
+  // modello non vede nemmeno il brief), quindi legarci l'ACCESSO alla revisione vorrebbe
+  // dire che un'iniezione, o semplicemente un modello che non lo dichiara mai, chiude
+  // all'utente l'ultimo passo dell'onboarding. Il messaggio di `readiness` resta l'INVITO
+  // (sopra, condizionato al chunk), il link resta la STRADA.
+  //
+  // Destinazione INTERNA FISSA: il locale e' vincolato all'allowlist routing.locales prima
+  // di essere interpolato (come T-044 e come la pagina che rende questo componente), mai il
+  // valore grezzo; `siteId` e' l'unica parte che viene dalla rotta ed e' codificata, quindi
+  // non puo' aggiungere segmenti (uno '/' diventa %2F) — la stessa regola con cui qui sotto
+  // si costruisce l'URL dell'endpoint di turno.
+  const rawLocale = useLocale();
+  const locale = hasLocale(routing.locales, rawLocale) ? rawLocale : routing.defaultLocale;
+  const reviewHref = `/${locale}/onboarding/${encodeURIComponent(siteId)}/review`;
   // DUE stati, non uno: `brief` e' cio' che l'utente vede e modifica (vi entra anche il
   // pre-riempimento di un import, che NON e' salvato), `persisted` e' cio' che il DB
   // contiene secondo l'ultima lettura/scrittura. Il pannello calcola il diff contro
@@ -278,6 +300,12 @@ export function OnboardingWorkspace({ siteId, initialBrief }: OnboardingWorkspac
           )}
         </div>
       )}
+
+      {/* L'UNICO href del workspace, e non porta dati del brief: destinazione interna fissa
+          (vedi sopra). Il testo del brief resta in `value` di input e in nodi di testo. */}
+      <Link href={reviewHref} className="text-sm font-medium text-foreground">
+        {t('review.title')}
+      </Link>
 
       <BriefPanel siteId={siteId} brief={brief} persisted={persisted} onSaved={handleSaved} />
 

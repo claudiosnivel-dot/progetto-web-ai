@@ -93,6 +93,27 @@
     "readiness": {
       "complete": "El brief tiene todos los campos esenciales",
       "readyForReview": "El brief está listo para la revisión"
+    },
+    "review": {
+      "title": "Revisa y confirma",
+      "confirm": "Confirmar el brief",
+      "confirmYes": "Confirmo: el brief es definitivo",
+      "confirmError": "No se ha podido confirmar el brief: inténtalo de nuevo.",
+      "unsaved": "Hay cambios sin guardar: guárdalos antes de confirmar o no entrarán en el brief.",
+      "saveSent": "Cambios enviados. Vuelve a cargar la página para ver qué se ha guardado realmente: si la lista de la oferta supera el límite de elementos, el servidor descarta ese campo y guarda el resto.",
+      "saveRejected": "No se ha guardado ningún cambio: el servidor rechaza todo el guardado si un solo valor no es válido. Corrige los campos e inténtalo de nuevo.",
+      "nothingToSave": "No hay cambios que guardar.",
+      "backToDashboard": "Volver al panel",
+      "offeringsNote": "El nombre del elemento es su clave: si lo cambias, al guardar se añade un elemento nuevo en lugar de renombrar el existente.",
+      "offeringName": "Nombre del elemento {n}",
+      "offeringSection": "Sección del elemento {n}",
+      "offeringPrice": "Precio del elemento {n}",
+      "offeringDescription": "Descripción del elemento {n}",
+      "offeringPhoto": "Referencia de foto del elemento {n}",
+      "highlight": "Punto fuerte {n}",
+      "socialLink": "Perfil social {n}",
+      "geoLat": "Latitud",
+      "geoLng": "Longitud"
     }
   }
 }

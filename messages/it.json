@@ -93,6 +93,27 @@
     "readiness": {
       "complete": "Il brief ha tutti i campi essenziali",
       "readyForReview": "Il brief è pronto per la revisione"
+    },
+    "review": {
+      "title": "Rivedi e conferma",
+      "confirm": "Conferma il brief",
+      "confirmYes": "Confermo: il brief è definitivo",
+      "confirmError": "Non è stato possibile confermare il brief: riprova.",
+      "unsaved": "Ci sono modifiche non salvate: salvale prima di confermare, altrimenti non entrano nel brief.",
+      "saveSent": "Modifiche inviate. Ricarica la pagina per vedere che cosa è stato salvato davvero: se l'elenco dell'offerta supera il limite di voci, il server scarta quel campo e salva il resto.",
+      "saveRejected": "Nessuna modifica è stata salvata: il server rifiuta l'intero salvataggio se un solo valore non è valido. Correggi i campi e riprova.",
+      "nothingToSave": "Nessuna modifica da salvare.",
+      "backToDashboard": "Torna alla dashboard",
+      "offeringsNote": "Il nome della voce è la sua chiave: se lo cambi, il salvataggio aggiunge una voce nuova invece di rinominare quella esistente.",
+      "offeringName": "Nome della voce {n}",
+      "offeringSection": "Sezione della voce {n}",
+      "offeringPrice": "Prezzo della voce {n}",
+      "offeringDescription": "Descrizione della voce {n}",
+      "offeringPhoto": "Riferimento foto della voce {n}",
+      "highlight": "Punto di forza {n}",
+      "socialLink": "Profilo social {n}",
+      "geoLat": "Latitudine",
+      "geoLng": "Longitudine"
     }
   }
 }

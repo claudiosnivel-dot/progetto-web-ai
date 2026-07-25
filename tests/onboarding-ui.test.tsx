@@ -311,6 +311,58 @@ describe('T-151 la rotta monta davvero i pannelli (T151-V05)', () => {
     expect(upsertBriefSpy).toHaveBeenCalledWith(OTHER_SITE_ID, { whatsapp: NEW_WHATSAPP });
   });
 
+  // T152-V08 — la schermata Rivedi&conferma (T-152) non era RAGGIUNGIBILE dall'applicazione:
+  // nessun href e nessun push la nominavano, cioe' lo stesso difetto che T151-V05 aveva
+  // trovato sui pannelli, un passo piu' avanti. Il collegamento vive nel workspace che
+  // questa rotta monta, e NON e' condizionato a `readyForReview`: quel flag lo decide il
+  // modello ed e' prompt-injectable (SESSION-STATE §7 p.10), quindi legarci l'accesso
+  // vorrebbe dire che un'iniezione — o un modello che non lo dichiara mai — chiude l'ultimo
+  // passo dell'onboarding. Qui NESSUN turno di chat e' avvenuto e la strada c'e' comunque.
+  it('la rotta offre il collegamento a Rivedi&conferma, gia al primo render e senza readyForReview', async () => {
+    briefsHolder.getResult = { ok: true, brief: DRAFT_BRIEF, status: 'draft', complete: false };
+    await renderRoute();
+    const main = within(screen.getByRole('main'));
+
+    const link = main.getByRole('link', { name: itMessages.onboarding.review.title });
+    expect(link.getAttribute('href')).toBe(`/it/onboarding/${SITE_ID}/review`);
+    // Non-vacuita': nessun chunk `brief` e' arrivato, quindi nessun invito del modello e'
+    // a schermo — il link non sta dietro a quel flag.
+    expect(screen.queryByText(itMessages.onboarding.readiness.readyForReview)).toBeNull();
+  });
+
+  // Il collegamento e' CABLATO alla rotta: il siteId e' quello della rotta (non il primo
+  // sito posseduto) e il locale resta quello della rotta, dall'allowlist.
+  it('il collegamento a Rivedi&conferma porta al siteId e al locale della ROTTA', async () => {
+    briefsHolder.getResult = { ok: true, brief: DRAFT_BRIEF, status: 'draft', complete: false };
+    sitesHolder.list = { ok: true, sites: [{ id: OTHER_SITE_ID, name: 'Panetteria di B' }] };
+    await renderRoute(OTHER_SITE_ID, 'es');
+    const main = within(screen.getByRole('main'));
+
+    const link = main.getByRole('link', { name: esMessages.onboarding.review.title });
+    expect(link.getAttribute('href')).toBe(`/es/onboarding/${OTHER_SITE_ID}/review`);
+    expect(main.queryByRole('link', { name: `/it/onboarding/${SITE_ID}/review` })).toBeNull();
+  });
+
+  // Il locale del collegamento e' vincolato all'ALLOWLIST prima di essere interpolato (come
+  // T-044) e quel ramo NON era osservabile: con il provider sempre su un locale valido, un
+  // `/${rawLocale}/onboarding/...` passerebbe ogni asserzione di questo file. Qui il provider
+  // porta un locale che non e' nell'allowlist — cio' che si vedrebbe se il layout smettesse di
+  // validarlo, che e' la ragione per cui la guardia esiste — e la destinazione resta sul
+  // locale di default. Si usa un tag BCP47 VALIDO ma non elencato: basta a osservare
+  // l'allowlist, e non fa esplodere la formattazione ICU delle etichette per un motivo che non
+  // e' quello in prova.
+  it('locale fuori allowlist: il collegamento a Rivedi&conferma non interpola il valore grezzo', () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={itMessages}>
+        <OnboardingWorkspace siteId={SITE_ID} initialBrief={DRAFT_BRIEF} />
+      </NextIntlClientProvider>,
+    );
+
+    const link = screen.getByRole('link', { name: itMessages.onboarding.review.title });
+    expect(link.getAttribute('href')).toBe(`/it/onboarding/${SITE_ID}/review`);
+    expect(link.getAttribute('href')).not.toContain('/en/');
+  });
+
   // Sito PROPRIO senza brief ancora creato (getBrief → brief:null, caso legittimo): la
   // pagina non ha un brief da passare e usa emptyBrief(locale). Pinna quel ramo: un
   // `initialBrief` nullable farebbe crollare il pannello sul primo `brief.content`.
@@ -921,13 +973,21 @@ describe('T-151 testo del brief: input NON FIDATO in rendering (§7 p.4)', () =>
     expect(container.querySelectorAll('img')).toHaveLength(0);
     expect(container.querySelectorAll('script')).toHaveLength(0);
     expect(container.querySelectorAll('b')).toHaveLength(0);
-    // Nessun href/src, di nessuno schema, in tutto il pannello: i campi destinati a un
-    // link (social_links, photo_ref) sono resi come TESTO, scelta dichiarata. Vale anche
-    // per `geo`, che una mappa renderebbe naturalmente come link: nessun <a> del tutto,
-    // cosi' anche un anchor senza href non passa.
-    expect(container.querySelectorAll('[href]')).toHaveLength(0);
+    // Nessun href/src DAL BRIEF: i campi destinati a un link (social_links, photo_ref) sono
+    // resi come TESTO, scelta dichiarata. Vale anche per `geo`, che una mappa renderebbe
+    // naturalmente come link.
+    // T-152 ha aggiunto al workspace UN href, e uno solo: la destinazione INTERNA FISSA
+    // della schermata Rivedi&conferma (T152-V08 — senza di essa quella schermata era
+    // irraggiungibile). Non trasporta dati del brief, quindi l'asserzione non era piu'
+    // "zero href": si ENUMERA l'insieme atteso, che e' altrettanto forte — un valore del
+    // brief che finisse in un href cambierebbe la lista, e il conteggio degli <a> a UNO
+    // esclude ancora un anchor in piu' costruito attorno a un valore del brief (anche senza
+    // href, che l'asserzione sugli href non vedrebbe).
+    expect([...container.querySelectorAll('[href]')].map((el) => el.getAttribute('href'))).toEqual([
+      `/it/onboarding/${SITE_ID}/review`,
+    ]);
     expect(container.querySelectorAll('[src]')).toHaveLength(0);
-    expect(container.querySelectorAll('a')).toHaveLength(0);
+    expect(container.querySelectorAll('a')).toHaveLength(1);
     expect(document.title).not.toBe('pwned');
     // E il valore resta VISIBILE come testo: non si sanitizza cancellando il dato.
     expect(
