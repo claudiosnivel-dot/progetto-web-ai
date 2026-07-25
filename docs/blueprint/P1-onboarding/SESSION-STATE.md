@@ -9,7 +9,7 @@
 | **Progetto** | Belora |
 | **Ecosistema** | supabase-jsts (JS/TS + Supabase) |
 | **Ultimo aggiornamento** | 2026-07-25 (chiusura BUILD macrotask `url-import`) |
-| **Sessione corrente** | build-P1-url-import — **CHIUSA**. Checkpoint VERDE 4/4 al secondo giro (il primo ROSSO su sicurezza), mergeato su `main` (`802ee69`). **Prossimo macrotask DESIGNATO: `onboarding-ui`** (T-150..T-153), l'ULTIMO di P1. Riprendere con `prompts/session-start.md`. |
+| **Sessione corrente** | **CHIUSA con `session-end`**. Ha chiuso DUE macrotask: `ai-onboarding` (`8ef4cf9`, checkpoint 4/4) e `url-import` (`802ee69`, 4/4 al secondo giro — il primo ROSSO su sicurezza). Entrambi mergeati su `main`; HEAD `f2b8b14`. **Prossimo macrotask DESIGNATO: `onboarding-ui`** (T-150..T-153), l'ULTIMO di P1. Riprendere con `prompts/session-start.md`. |
 
 ---
 
@@ -129,6 +129,41 @@ di dead-code.
 - **Batteria di mutazione**: e' lo strumento che ha trovato tutto. Muta l'IMPLEMENTAZIONE,
   gira i test, ripristina verificando l'hash; includi sempre controlli di sanita' che devono
   restare ROSSI. Passa le stringhe via `argv`, non via heredoc annidati (l'escaping salta).
+
+## 6-bis. Copertura dichiarata (cosa e' verificato e cosa NO)
+
+> Il "fatto" si dichiara per fatti. Questa sezione esiste perche' un checkpoint verde dice
+> cosa e' stato controllato, non cosa e' stato **coperto**.
+
+**Verificato da oracoli.** 107 test P1 (brief-schema 5, brief-apply 5, site-briefs-schema 8,
+briefs-actions 8, env-anthropic 8, anthropic-boundary 4, interview-orchestration 7,
+fetch-safe 28, import-fromurl 34). Segreto Anthropic confinato (nominato in UN file, assente
+dai 7 moduli `'use client'`, nessun `NEXT_PUBLIC_ANTHROPIC`). SSRF: schema, 21 IPv4 sui
+confini delle range, IPv6 riservati + IPv4-mapped + NAT64 + 6to4, forme offuscate sul percorso
+reale, rivalidazione per-hop su 5 status di redirect, limiti tempo/redirect/byte, allowlist
+content-type, nessun oracolo di enumerazione, cablaggio di produzione, 18 input ostili da 1 MB
+sotto 2 s. 21 mutazioni sulle fix, 21 uccise.
+
+**`rls:0` significa "niente di nuovo".** Ne' `ai-onboarding` ne' `url-import` hanno introdotto
+superficie DB (nessuna migrazione, tabella o policy). La RLS di `site_briefs` resta provata a
+runtime da `brief-model`: 35 test DB-backed **eseguiti, 0 skippati**, `signInAs` con auth reale
+(7 usi), denial cross-tenant asserito (404 su scrittura del brief altrui, 404 su `confirmBrief`
+cross-tenant) e FK composita che risponde `23503` sul site-squatting.
+
+**NON coperto — da non confondere con un verde:**
+1. **La qualita' dell'intervista AI non e' oracolata.** Il confine e' mockato per costruzione:
+   si prova che le tool-call sono interpretate, NON che il modello conduca bene l'intervista.
+   Eval offline opzionale, fuori dal checkpoint.
+2. **Gli schemi `strict` non sono mai stati provati contro l'API reale** (nessuna chiave).
+3. **L'estrazione e' provata su HTML sintetico**, mai su siti reali.
+4. **La guardia SSRF non ha mai girato contro un server remoto ostile** ne' dietro un gateway
+   NAT64: il blocco e' per prefisso e non lo richiede, ma "avrebbe raggiunto il metadata
+   endpoint" resta INFERENZA, non misura.
+5. **Le porte non sono filtrate** (`:22`, `:6379` su IP pubblico sono permessi).
+6. **Niente e' end-to-end**: non esiste UI, nessun flusso utente e' stato eseguito.
+7. **La verifica avversariale di `url-import` e' fallita a meta'** (13/16 agenti): i rilievi sono
+   stati giudicati dagli oracoli deterministici dell'orchestratore, non da una refutazione
+   indipendente.
 
 ## 7. Carry-over: rilievi NON corretti (nessuno e' un via libera)
 
