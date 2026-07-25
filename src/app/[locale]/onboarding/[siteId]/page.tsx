@@ -2,16 +2,35 @@ import { notFound, redirect } from 'next/navigation';
 import { hasLocale } from 'next-intl';
 import { getTranslations } from 'next-intl/server';
 import { AppShell } from '@/ui/shell/AppShell';
+import { OnboardingWorkspace } from '@/ui/onboarding/OnboardingWorkspace';
 import { getUser } from '@/data/supabase-ssr';
 import { listSites } from '@/data/sites';
 import { getBrief } from '@/data/briefs';
+import { emptyBrief } from '@/domain/onboarding/brief';
 import { routing } from '@/i18n/routing';
 
 // T-150 (macrotask onboarding-ui, P1) — rotta localizzata e protetta
-// /{locale}/onboarding/{siteId}, resa dentro AppShell (T-022). Rende lo STATO
-// CORRENTE del brief caricato via getBrief (T-123). E' il segnaposto del flusso: i
-// pannelli chat/brief live/import sono T-151, la schermata Rivedi&conferma e' T-152,
-// il CTA dalla dashboard e' T-153 — qui non ci sono.
+// /{locale}/onboarding/{siteId}, resa dentro AppShell (T-022). Carica lo STATO
+// CORRENTE del brief via getBrief (T-123) e lo consegna ai pannelli di T-151. La
+// schermata Rivedi&conferma e' T-152, il CTA dalla dashboard e' T-153 — qui non ci sono.
+//
+// T-151 — MONTAGGIO dei pannelli. Il riepilogo statico che stava qui era il segnaposto
+// dichiarato di T-150 e ora e' sostituito da <OnboardingWorkspace>, che e' l'UNICO punto
+// da cui i componenti di src/ui/onboarding sono raggiungibili dall'applicazione: senza
+// questa riga il build li escludeva dal bundle (assenti da .next/static) e l'unica cosa
+// che li eseguiva era il loro test.
+//  - La pagina resta un SERVER COMPONENT. I dati sono caricati QUI (dietro le guardie
+//    sotto) e passati come props a un componente client: rendere 'use client' questo file
+//    tirerebbe getUser/listSites/getBrief nel grafo del bundle browser e smonterebbe le
+//    guardie che seguono.
+//  - Le stringhe dei pannelli arrivano da next-intl LATO CLIENT (useTranslations). Il
+//    provider e' NextIntlClientProvider in src/app/[locale]/layout.tsx, che avvolge ogni
+//    rotta sotto /[locale] — quindi anche questa: verificato leggendo il layout, non
+//    dedotto.
+//  - `initialBrief` non e' nullable: un sito PROPRIO senza brief ancora creato
+//    (getBrief → brief:null, caso legittimo) parte da emptyBrief(locale), che e' lo
+//    stesso valore da cui parte l'endpoint di turno. Cosi' il pannello e' editabile da
+//    subito — altrimenti il primo dato di un sito nuovo potrebbe entrare solo dalla chat.
 //
 // Sicurezza (A01:2025):
 //  - la rotta e' protetta a DUE livelli: la guardia di route nel middleware (T-041,
@@ -33,8 +52,9 @@ import { routing } from '@/i18n/routing';
 //    all'allowlist routing.locales PRIMA di essere interpolato in una destinazione
 //    (come il route handler di T-044) — mai il valore grezzo in un path.
 //  - Il testo del brief e' input NON FIDATO in rendering (§7 p.4: puo' arrivare da
-//    una pagina ostile via url-import). Qui finisce SOLO in nodi di testo JSX, mai in
-//    innerHTML ne' in un href. La sanitizzazione per gli usi ricchi e' T-151/T-152.
+//    una pagina ostile via url-import). Questo file non lo rende piu' da se': lo passa
+//    al pannello di T-151, che lo mette SOLO in `value` di input e in nodi di testo JSX
+//    — mai in innerHTML, mai in un href/src. Pinnato dall'oracolo di T-151.
 
 type OnboardingPageProps = {
   params: Promise<{ locale: string; siteId: string }>;
@@ -83,24 +103,6 @@ export default async function OnboardingPage({ params }: OnboardingPageProps) {
   const brief = briefResult.ok ? briefResult.brief : null;
   const status = briefResult.ok ? briefResult.status : null;
 
-  // Solo i campi di TESTO LIBERO e contatto. vertical e primary_goal sono enum e
-  // renderne il valore grezzo ('salone_studio') non sarebbe localizzato: le etichette
-  // dei valori enum arrivano col pannello brief di T-151, che e' la sede del rendering
-  // completo. I campi vuoti non si mostrano: sono i buchi che la chat deve riempire.
-  const entries: [string, string | undefined][] = brief
-    ? [
-        [t('fields.businessName'), brief.business_name],
-        [t('fields.description'), brief.description],
-        [t('fields.address'), brief.address],
-        [t('fields.phone'), brief.phone],
-        [t('fields.whatsapp'), brief.whatsapp],
-        [t('fields.email'), brief.email],
-      ]
-    : [];
-  const fields = entries.filter(
-    (entry): entry is [string, string] => typeof entry[1] === 'string' && entry[1].length > 0,
-  );
-
   return (
     <AppShell navItems={[{ href: `/${locale}/dashboard`, label: tNav('dashboard') }]}>
       <div className="mx-auto flex max-w-2xl flex-col gap-lg">
@@ -117,18 +119,7 @@ export default async function OnboardingPage({ params }: OnboardingPageProps) {
           </p>
         ) : null}
 
-        {fields.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t('briefEmpty')}</p>
-        ) : (
-          <dl className="flex flex-col gap-sm">
-            {fields.map(([label, value]) => (
-              <div key={label} className="flex flex-col">
-                <dt className="text-sm font-medium text-foreground">{label}</dt>
-                <dd className="text-sm text-muted-foreground">{value}</dd>
-              </div>
-            ))}
-          </dl>
-        )}
+        <OnboardingWorkspace siteId={siteId} initialBrief={brief ?? emptyBrief(locale)} />
       </div>
     </AppShell>
   );

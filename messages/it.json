@@ -36,7 +36,6 @@
   },
   "onboarding": {
     "title": "Onboarding del sito",
-    "briefEmpty": "Non ci sono ancora dati nel brief di questo sito",
     "statusLabel": "Stato del brief",
     "statusDraft": "Bozza",
     "statusConfirmed": "Confermato",
@@ -46,7 +45,54 @@
       "address": "Indirizzo",
       "phone": "Telefono",
       "whatsapp": "WhatsApp",
-      "email": "Email"
+      "email": "Email",
+      "vertical": "Settore",
+      "primaryGoal": "Obiettivo principale",
+      "geo": "Coordinate",
+      "hours": "Orari di apertura"
+    },
+    "verticals": {
+      "ristorazione": "Ristorazione",
+      "fitness": "Palestra e fitness",
+      "salone_studio": "Salone o studio",
+      "negozio_artigiano": "Negozio o laboratorio artigiano",
+      "altro": "Altro"
+    },
+    "goals": {
+      "prenota": "Far prenotare",
+      "ordina": "Far ordinare",
+      "contatta": "Farsi contattare"
+    },
+    "panel": {
+      "title": "Brief del sito",
+      "save": "Salva le modifiche",
+      "saveError": "Non è stato possibile salvare le modifiche: controlla i campi e riprova.",
+      "hoursDay": "Giorno {n}",
+      "hoursValue": "Orario {n}",
+      "hoursAdd": "Aggiungi un giorno",
+      "notChosen": "Non scelto",
+      "offerings": "Offerta",
+      "highlights": "Punti di forza",
+      "socialLinks": "Profili social",
+      "brandHints": "Indicazioni di stile"
+    },
+    "chat": {
+      "title": "Intervista guidata",
+      "you": "Tu",
+      "assistant": "Assistente",
+      "assistantSilent": "L'assistente ha aggiornato il brief senza aggiungere testo",
+      "message": "Il tuo messaggio",
+      "send": "Invia",
+      "error": "Il turno non è andato a buon fine: riprova."
+    },
+    "import": {
+      "url": "Indirizzo del sito da importare",
+      "submit": "Importa dal sito",
+      "error": "Non è stato possibile importare da questo indirizzo."
+    },
+    "readiness": {
+      "complete": "Il brief ha tutti i campi essenziali",
+      "readyForReview": "Il brief è pronto per la revisione"
     }
   }
 }

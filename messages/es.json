@@ -36,7 +36,6 @@
   },
   "onboarding": {
     "title": "Onboarding del sitio",
-    "briefEmpty": "Todavía no hay datos en el brief de este sitio",
     "statusLabel": "Estado del brief",
     "statusDraft": "Borrador",
     "statusConfirmed": "Confirmado",
@@ -46,7 +45,54 @@
       "address": "Dirección",
       "phone": "Teléfono",
       "whatsapp": "WhatsApp",
-      "email": "Correo electrónico"
+      "email": "Correo electrónico",
+      "vertical": "Sector",
+      "primaryGoal": "Objetivo principal",
+      "geo": "Coordenadas",
+      "hours": "Horario de apertura"
+    },
+    "verticals": {
+      "ristorazione": "Hostelería",
+      "fitness": "Gimnasio y fitness",
+      "salone_studio": "Salón o consulta",
+      "negozio_artigiano": "Tienda o taller artesano",
+      "altro": "Otro"
+    },
+    "goals": {
+      "prenota": "Conseguir reservas",
+      "ordina": "Conseguir pedidos",
+      "contatta": "Recibir contactos"
+    },
+    "panel": {
+      "title": "Brief del sitio",
+      "save": "Guardar los cambios",
+      "saveError": "No se han podido guardar los cambios: revisa los campos e inténtalo de nuevo.",
+      "hoursDay": "Día {n}",
+      "hoursValue": "Horario {n}",
+      "hoursAdd": "Añadir un día",
+      "notChosen": "Sin elegir",
+      "offerings": "Oferta",
+      "highlights": "Puntos fuertes",
+      "socialLinks": "Perfiles sociales",
+      "brandHints": "Indicaciones de estilo"
+    },
+    "chat": {
+      "title": "Entrevista guiada",
+      "you": "Tú",
+      "assistant": "Asistente",
+      "assistantSilent": "El asistente ha actualizado el brief sin añadir texto",
+      "message": "Tu mensaje",
+      "send": "Enviar",
+      "error": "El turno no se ha completado: inténtalo de nuevo."
+    },
+    "import": {
+      "url": "Dirección del sitio que quieres importar",
+      "submit": "Importar del sitio",
+      "error": "No se ha podido importar desde esta dirección."
+    },
+    "readiness": {
+      "complete": "El brief tiene todos los campos esenciales",
+      "readyForReview": "El brief está listo para la revisión"
     }
   }
 }

@@ -4,7 +4,9 @@ import { render, screen, within, cleanup } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import type Anthropic from '@anthropic-ai/sdk';
 import { NextRequest } from 'next/server';
+import { NextIntlClientProvider } from 'next-intl';
 import itMessages from '../messages/it.json';
+import esMessages from '../messages/es.json';
 
 // T-150 (macrotask onboarding-ui, P1) — ORACOLO della rotta onboarding protetta e
 // dell'endpoint di turno chat. Le asserzioni derivano da AC-150-1..4
@@ -203,9 +205,21 @@ const MARK_READY_CALL = {
   caller: { type: 'direct' },
 };
 
-const renderPage = async (siteId: string, locale = 'it') => {
+// La pagina monta OnboardingWorkspace (T-151), che e un componente client e usa
+// useTranslations: senza NextIntlClientProvider il render LANCIA. In produzione il
+// provider c'e — src/app/[locale]/layout.tsx lo avvolge intorno a ogni rotta sotto
+// /[locale], quindi anche a questa — percio si avvolge qui col catalogo REALE del
+// locale invece di stubbare il pannello: cosi le asserzioni restano sul DOM che
+// l'utente vede, e non su props che nessuno rende.
+const CATALOGS = { it: itMessages, es: esMessages } as const;
+
+const renderPage = async (siteId: string, locale: 'it' | 'es' = 'it') => {
   const ui = await OnboardingPage({ params: Promise.resolve({ locale, siteId }) });
-  render(ui);
+  render(
+    <NextIntlClientProvider locale={locale} messages={CATALOGS[locale]}>
+      {ui}
+    </NextIntlClientProvider>,
+  );
 };
 
 // `origin` e `fetchSite`: undefined = il valore del client LEGITTIMO, null = header
@@ -373,18 +387,22 @@ describe('T-150 rotta onboarding protetta', () => {
     // then: il brief e caricato per QUEL sito, via getBrief — e per nessun altro
     expect(getBriefSpy).toHaveBeenCalledWith(SITE_A); // covers: AC-150-2
     expect(getBriefSpy).not.toHaveBeenCalledWith(SITE_B); // covers: AC-150-2
-    // then: lo stato corrente del brief e reso (etichette localizzate + valori)
+    // then: lo stato corrente del brief e reso (etichette localizzate + valori).
+    // I valori dei campi vivono nei controlli EDITABILI del BriefPanel (T-151, montato
+    // qui dalla pagina di T-150): per un input l'equivalente di getByText e
+    // getByDisplayValue. La prova resta a livello di DOM e non di props, quindi
+    // continua a morire se la pagina carica o passa il brief del sito sbagliato.
     const main = within(screen.getByRole('main'));
     expect(main.getByText(itMessages.onboarding.fields.businessName)).toBeTruthy(); // covers: AC-150-2
-    expect(main.getByText('Bar Sole')).toBeTruthy(); // covers: AC-150-2
-    expect(main.getByText('Caffe e cornetti in centro')).toBeTruthy(); // covers: AC-150-2
-    expect(main.getByText('+39 06 1234567')).toBeTruthy(); // covers: AC-150-2
+    expect(main.getByDisplayValue('Bar Sole')).toBeTruthy(); // covers: AC-150-2
+    expect(main.getByDisplayValue('Caffe e cornetti in centro')).toBeTruthy(); // covers: AC-150-2
+    expect(main.getByDisplayValue('+39 06 1234567')).toBeTruthy(); // covers: AC-150-2
     expect(main.getByText(SITE_A_NAME)).toBeTruthy(); // covers: AC-150-2
     expect(main.getByText(itMessages.onboarding.statusDraft)).toBeTruthy(); // covers: AC-150-2
     // then: NULLA dell'altro sito posseduto entra nel DOM — ne il nome ne il brief.
     expect(screen.queryByText(SITE_B_NAME)).toBeNull(); // covers: AC-150-2
-    expect(screen.queryByText('Panetteria Aurora')).toBeNull(); // covers: AC-150-2
-    expect(screen.queryByText('Pane a lievitazione naturale')).toBeNull(); // covers: AC-150-2
+    expect(screen.queryByDisplayValue('Panetteria Aurora')).toBeNull(); // covers: AC-150-2
+    expect(screen.queryByDisplayValue('Pane a lievitazione naturale')).toBeNull(); // covers: AC-150-2
     expect(screen.queryByText(itMessages.onboarding.statusConfirmed)).toBeNull(); // covers: AC-150-2
   });
 
@@ -394,9 +412,15 @@ describe('T-150 rotta onboarding protetta', () => {
     briefsHolder.get = { ok: true, brief: null, status: null, complete: false };
     // when: A apre /it/onboarding/S
     await renderPage(SITE_A);
-    // then: la pagina e resa (brief:null NON e trattato come accesso negato)
+    // then: la pagina e resa (brief:null NON e trattato come accesso negato). Il
+    // segnaposto `briefEmpty` non esiste piu': la pagina monta il pannello di T-151 su
+    // un brief VUOTO, quindi "stato vuoto" significa il pannello reso con i campi in
+    // bianco — non un messaggio. Le due asserzioni insieme tengono la stessa forza di
+    // prima: la pagina ha reso qualcosa (non 404) e non ha reso il brief di nessun altro.
     expect(notFoundSpy).not.toHaveBeenCalled(); // covers: AC-150-2
-    expect(screen.getByText(itMessages.onboarding.briefEmpty)).toBeTruthy(); // covers: AC-150-2
+    const main = within(screen.getByRole('main'));
+    expect(main.getByText(itMessages.onboarding.panel.title)).toBeTruthy(); // covers: AC-150-2
+    expect(screen.queryByDisplayValue('Bar Sole')).toBeNull(); // covers: AC-150-2
   });
 
   // covers: AC-150-2
