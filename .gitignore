@@ -21,7 +21,13 @@ next-env.d.ts
 .env*.local
 
 # trueline (binari oracoli scaricati project-local, mai versionati)
-/.trueline/
+# La forma `/*` esclude il CONTENUTO e non la directory: se si escludesse la directory,
+# git non consulterebbe piu' nulla al suo interno e la negazione qui sotto non avrebbe
+# effetto. La baseline d'igiene e' l'UNICA cosa qui che va versionata: e' il riferimento
+# con cui il checkpoint distingue una duplicazione NUOVA da una preesistente, quindi se
+# vivesse solo in locale l'oracolo darebbe esiti diversi su macchine diverse.
+/.trueline/*
+!/.trueline/hygiene-baseline.json
 
 # supabase local
 /supabase/.branches

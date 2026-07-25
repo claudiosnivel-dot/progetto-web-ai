@@ -127,7 +127,7 @@ vi.mock('@/data/supabase-ssr', () => ({ getUser: async () => authHolder.user }))
 
 // Import DOPO i mock (vi.mock e' hoisted).
 import { OnboardingWorkspace, mergeProposal } from '@/ui/onboarding/OnboardingWorkspace';
-import { VERTICAL_OPTIONS, GOAL_OPTIONS } from '@/ui/onboarding/BriefPanel';
+import { VERTICAL_OPTIONS, GOAL_OPTIONS } from '@/ui/onboarding/brief-fields';
 import { importBriefFromUrl } from '@/data/import';
 import OnboardingPage from '@/app/[locale]/onboarding/[siteId]/page';
 import {

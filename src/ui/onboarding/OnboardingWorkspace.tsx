@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { hasLocale, useLocale, useTranslations } from 'next-intl';
-import { BriefPanel, type BriefPanelPatch } from '@/ui/onboarding/BriefPanel';
+import { BriefPanel } from '@/ui/onboarding/BriefPanel';
+import type { BriefCorePatch } from '@/ui/onboarding/brief-fields';
 import { ChatPanel, type ChatTurn } from '@/ui/onboarding/ChatPanel';
 import { UrlImportBar } from '@/ui/onboarding/UrlImportBar';
 import { BriefSchema, emptyBrief, type Brief } from '@/domain/onboarding/brief';
@@ -279,7 +280,7 @@ export function OnboardingWorkspace({ siteId, initialBrief }: OnboardingWorkspac
   //    aggiungerebbe un secondo modo di fallire (la rilettura che non risponde).
   // Sede della fix: `UpsertBriefResult` in `src/data/briefs.ts` (T-123), con una decisione
   // esplicita. Fino ad allora e' un limite dichiarato, non un incidente.
-  function handleSaved(patch: BriefPanelPatch): void {
+  function handleSaved(patch: BriefCorePatch): void {
     setBrief((current) => ({ ...current, ...patch }));
     setPersisted((current) => ({ ...current, ...patch }));
   }

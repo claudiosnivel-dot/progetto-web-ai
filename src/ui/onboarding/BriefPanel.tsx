@@ -5,6 +5,13 @@ import { useTranslations } from 'next-intl';
 import { Button, Card, CardContent, CardHeader, Input, Label } from '@/ui/primitives';
 import { upsertBrief } from '@/data/briefs';
 import type { Brief } from '@/domain/onboarding/brief';
+import {
+  GOAL_OPTIONS,
+  VERTICAL_OPTIONS,
+  asGoal,
+  asVertical,
+  type BriefCorePatch,
+} from '@/ui/onboarding/brief-fields';
 
 // T-151 (macrotask onboarding-ui, P1) — pannello del brief: rende lo stato corrente e
 // consente l'EDIT MANUALE dei campi, che alla conferma esplicita finisce in upsertBrief
@@ -43,18 +50,6 @@ import type { Brief } from '@/domain/onboarding/brief';
 // l'utente e la ri-valida T-121).
 type HoursRow = { key: string; value: string };
 
-// Gli enum del brief sono ridichiarati qui perche' brief.ts non li esporta e T-151 non
-// puo' toccarlo. RISCHIO DICHIARATO: se l'allowlist di T-121 cambiasse, questa copia
-// divergerebbe in silenzio. Mitigazione eseguibile: un test lega ogni valore offerto
-// qui a BriefUpdateSchema, cosi' una rinomina non resta muta.
-export const VERTICAL_OPTIONS = [
-  'ristorazione',
-  'fitness',
-  'salone_studio',
-  'negozio_artigiano',
-  'altro',
-] as const;
-export const GOAL_OPTIONS = ['prenota', 'ordina', 'contatta'] as const;
 
 // Campi di testo libero: nome del campo nel brief + chiave i18n dell'etichetta. La
 // coppia sta in UN posto solo, cosi' etichetta e campo non possono disallinearsi.
@@ -70,20 +65,6 @@ const TEXT_FIELDS = [
 type TextFieldName = (typeof TEXT_FIELDS)[number][0];
 type DraftKey = TextFieldName | 'vertical' | 'primary_goal';
 
-// La patch e' un sottoinsieme di BriefUpdateSchema: solo i campi che questo pannello
-// rende editabili. Non e' una ri-dichiarazione dello schema — la validazione resta
-// server-side — ma il tipo di cio' che si spedisce.
-export type BriefPanelPatch = Partial<{
-  business_name: string;
-  description: string;
-  address: string;
-  phone: string;
-  whatsapp: string;
-  email: string;
-  vertical: Brief['vertical'];
-  primary_goal: NonNullable<Brief['primary_goal']>;
-  hours: Record<string, string>;
-}>;
 
 type BriefPanelProps = {
   siteId: string;
@@ -98,16 +79,8 @@ type BriefPanelProps = {
   persisted: Brief;
   // Il pannello non e' la sorgente di verita' del brief: chi lo contiene la tiene e la
   // aggiorna quando una scrittura e' andata a buon fine.
-  onSaved: (patch: BriefPanelPatch) => void;
+  onSaved: (patch: BriefCorePatch) => void;
 };
-
-function asVertical(value: string): Brief['vertical'] | undefined {
-  return VERTICAL_OPTIONS.find((option) => option === value);
-}
-
-function asGoal(value: string): NonNullable<Brief['primary_goal']> | undefined {
-  return GOAL_OPTIONS.find((option) => option === value);
-}
 
 // Confronto per valore di due mappe di orari: serve a non spedire `hours` quando
 // l'utente ha aperto l'editor e non ha cambiato nulla.
@@ -155,7 +128,7 @@ export function BriefPanel({ siteId, brief, persisted, onSaved }: BriefPanelProp
   const updateRow = (index: number, patch: Partial<HoursRow>) =>
     setHoursRows(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
 
-  function buildPatch(): BriefPanelPatch {
+  function buildPatch(): BriefCorePatch {
     const text: Partial<Record<TextFieldName, string>> = {};
     for (const [name] of TEXT_FIELDS) {
       // Si spedisce anche la stringa vuota (l'utente ha svuotato il campo): decidere qui
@@ -166,7 +139,7 @@ export function BriefPanel({ siteId, brief, persisted, onSaved }: BriefPanelProp
       if (value === (persisted[name] ?? '')) continue;
       text[name] = value;
     }
-    const patch: BriefPanelPatch = { ...text };
+    const patch: BriefCorePatch = { ...text };
 
     // Gli enum non si possono SVUOTARE dal pannello: l'allowlist di T-121 non ammette
     // la stringa vuota, quindi spedirla sarebbe un 400 garantito e un dato perso.

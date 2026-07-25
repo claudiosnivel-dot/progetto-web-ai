@@ -1,13 +1,8 @@
-import { notFound, redirect } from 'next/navigation';
-import { hasLocale } from 'next-intl';
-import { getTranslations } from 'next-intl/server';
 import { AppShell } from '@/ui/shell/AppShell';
 import { ReviewConfirm } from '@/ui/onboarding/ReviewConfirm';
-import { getUser } from '@/data/supabase-ssr';
-import { listSites } from '@/data/sites';
 import { getBrief } from '@/data/briefs';
 import { emptyBrief } from '@/domain/onboarding/brief';
-import { routing } from '@/i18n/routing';
+import { enterOnboarding } from '../guard';
 
 // T-152 (macrotask onboarding-ui, P1) — step di rotta della schermata Rivedi&conferma:
 // /{locale}/onboarding/{siteId}/review, reso dentro AppShell (T-022). Carica lo stato
@@ -57,25 +52,10 @@ type ReviewPageProps = {
 
 export default async function OnboardingReviewPage({ params }: ReviewPageProps) {
   const { locale: rawLocale, siteId } = await params;
-  const locale = hasLocale(routing.locales, rawLocale) ? rawLocale : routing.defaultLocale;
-
-  const user = await getUser();
-  if (!user) {
-    // Destinazione interna FISSA con locale dall'allowlist (anti open-redirect).
-    redirect(`/${locale}/login`);
-  }
-
-  const sitesResult = await listSites();
-  if (!sitesResult.ok) {
-    throw new Error('onboarding: elenco siti non disponibile');
-  }
-  const site = sitesResult.sites.find((candidate) => candidate.id === siteId);
-  if (!site) {
-    notFound();
-  }
-
-  const t = await getTranslations({ locale, namespace: 'onboarding' });
-  const tNav = await getTranslations({ locale, namespace: 'nav' });
+  // Stessa catena di guardie della rotta di T-150, e ora la STESSA SEDE: ./../guard.
+  // Era duplicata riga per riga, ed e' codice di sicurezza — la copia divergente e' la
+  // regola, non l'eccezione.
+  const { locale, site, t, tNav } = await enterOnboarding({ locale: rawLocale, siteId });
 
   const briefResult = await getBrief(siteId);
   // GUASTO NOSTRO != BRIEF ASSENTE, la stessa distinzione che questa pagina fa già su

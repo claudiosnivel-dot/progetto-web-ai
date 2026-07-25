@@ -5,7 +5,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Button, Card, CardContent, CardHeader, Input, Label, Textarea } from '@/ui/primitives';
-import { GOAL_OPTIONS, VERTICAL_OPTIONS } from '@/ui/onboarding/BriefPanel';
+import {
+  GOAL_OPTIONS,
+  VERTICAL_OPTIONS,
+  asGoal,
+  asVertical,
+  type BriefCorePatch,
+} from '@/ui/onboarding/brief-fields';
 import { upsertBrief, confirmBrief } from '@/data/briefs';
 import type { Brief } from '@/domain/onboarding/brief';
 import { routing } from '@/i18n/routing';
@@ -123,22 +129,6 @@ type Offering = Brief['content']['offerings'][number];
 // editabili (cioe' tutti, tranne `locale` — un sito = una lingua, T-121, e la lingua e'
 // proprieta' del sito). Non e' una ri-dichiarazione dello schema: la validazione resta
 // server-side, questo e' il tipo di cio' che si spedisce.
-type ReviewPatch = Partial<{
-  business_name: string;
-  description: string;
-  address: string;
-  phone: string;
-  whatsapp: string;
-  email: string;
-  vertical: Brief['vertical'];
-  primary_goal: NonNullable<Brief['primary_goal']>;
-  geo: { lat: number; lng: number };
-  hours: Record<string, string>;
-  offerings: Offering[];
-  highlights: string[];
-  social_links: string[];
-  brand_hints: string;
-}>;
 
 type Draft = {
   core: Record<CoreTextField, string>;
@@ -181,14 +171,6 @@ function toDraft(brief: Brief): Draft {
   };
 }
 
-function asVertical(value: string): Brief['vertical'] | undefined {
-  return VERTICAL_OPTIONS.find((option) => option === value);
-}
-
-function asGoal(value: string): NonNullable<Brief['primary_goal']> | undefined {
-  return GOAL_OPTIONS.find((option) => option === value);
-}
-
 function sameList(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
@@ -229,6 +211,20 @@ function toOffering(row: OfferingRow, base: OfferingRow | undefined): Offering {
   }
   return offering;
 }
+
+// La patch della schermata Rivedi&conferma e' un SUPERSET di quella del pannello: qui si
+// edita TUTTO il brief, collezioni comprese (AC-152-1). La parte core e' condivisa
+// (`BriefCorePatch`, in ./brief-fields) perche' era identica riga per riga nei due file;
+// il resto e' solo di questa schermata e resta qui. Unificare anche il resto sarebbe stato
+// estrarre l'apparentemente simile invece dell'identico.
+type ReviewPatch = BriefCorePatch &
+  Partial<{
+    geo: { lat: number; lng: number };
+    offerings: Brief['content']['offerings'];
+    highlights: string[];
+    social_links: string[];
+    brand_hints: string;
+  }>;
 
 function buildReviewPatch(draft: Draft, brief: Brief): ReviewPatch {
   const base = toDraft(brief);

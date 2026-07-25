@@ -1,13 +1,8 @@
-import { notFound, redirect } from 'next/navigation';
-import { hasLocale } from 'next-intl';
-import { getTranslations } from 'next-intl/server';
 import { AppShell } from '@/ui/shell/AppShell';
 import { OnboardingWorkspace } from '@/ui/onboarding/OnboardingWorkspace';
-import { getUser } from '@/data/supabase-ssr';
-import { listSites } from '@/data/sites';
 import { getBrief } from '@/data/briefs';
 import { emptyBrief } from '@/domain/onboarding/brief';
-import { routing } from '@/i18n/routing';
+import { enterOnboarding } from './guard';
 
 // T-150 (macrotask onboarding-ui, P1) — rotta localizzata e protetta
 // /{locale}/onboarding/{siteId}, resa dentro AppShell (T-022). Carica lo STATO
@@ -62,43 +57,15 @@ type OnboardingPageProps = {
 
 export default async function OnboardingPage({ params }: OnboardingPageProps) {
   const { locale: rawLocale, siteId } = await params;
-  const locale = hasLocale(routing.locales, rawLocale) ? rawLocale : routing.defaultLocale;
+  // La catena di guardie (locale dall'allowlist → identita' → proprieta' del sito via
+  // listSites, P1-D21) vive in UNA sede condivisa con Rivedi&conferma: vedi ./guard.
+  // Duplicarla era il modo di farle perdere un controllo alla prossima modifica.
+  const { locale, site, t, tNav } = await enterOnboarding({ locale: rawLocale, siteId });
 
-  const user = await getUser();
-  if (!user) {
-    // Destinazione interna FISSA con locale dall'allowlist (anti open-redirect).
-    redirect(`/${locale}/login`);
-  }
-
-  // Proprieta' del sito prima di qualunque lettura del brief (vedi P1-D21 sopra).
-  //
-  // GUASTO NOSTRO ≠ NON TROVATO. Un `ok:false` di listSites (500 dal DB, o 401 se la
-  // sessione muore fra getUser e questa lettura) non dice NULLA sull'esistenza del sito:
-  // trattarlo come "sito assente" faceva uscire un notFound(), cioe' presentava un guasto
-  // transitorio di infrastruttura come un 404 definitivo — un'affermazione falsa su un
-  // dato che non si e' potuto leggere, che manda l'utente a cercare l'errore nell'URL.
-  // L'endpoint /api i due casi li distingueva gia' (500 'unavailable' vs 404
-  // 'not-found'); qui si lancia, cosi' il guasto resta un errore server (500 via error
-  // boundary di Next) invece di una risposta che mente.
-  //
-  // La distinzione introdotta e' SOLO fra "errore nostro" e "non trovato": "sito non tuo"
-  // e "sito inesistente" restano la STESSA risposta, perche' passano entrambi dall'unico
-  // notFound() qui sotto — distinguerli renderebbe la pagina un oracolo di enumerazione
-  // dei site_id altrui, che P1-D21 vieta.
-  const sitesResult = await listSites();
-  if (!sitesResult.ok) {
-    // Messaggio GENERICO: nessun siteId e nessuno stato interno, che finirebbero nei log
-    // del server e, in sviluppo, nella pagina d'errore.
-    throw new Error('onboarding: elenco siti non disponibile');
-  }
-  const site = sitesResult.sites.find((candidate) => candidate.id === siteId);
-  if (!site) {
-    notFound();
-  }
-
-  const t = await getTranslations({ locale, namespace: 'onboarding' });
-  const tNav = await getTranslations({ locale, namespace: 'nav' });
-
+  // La LETTURA del brief resta qui e non nella guardia, perche' questa rotta la tratta in
+  // modo deliberatamente diverso da Rivedi&conferma: qui un `ok:false` e' tollerato (i
+  // pannelli di T-151 partono da un brief vuoto e l'utente puo' comunque lavorare), la'
+  // LANCIA — un recap vuoto renderebbe confermabile un brief mai visto.
   const briefResult = await getBrief(siteId);
   const brief = briefResult.ok ? briefResult.brief : null;
   const status = briefResult.ok ? briefResult.status : null;
