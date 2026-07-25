@@ -63,10 +63,23 @@ export type MutateBriefResult = { ok: true } | { ok: false; status: 401 | 404 | 
 // quel campo torna vuoto nel Brief mentre tutti gli altri sopravvivono. Il `rejected`
 // di applyBriefUpdate e' volutamente ignorato: GetBriefResult non ha un canale per
 // riportarlo e l'UI non avrebbe nulla da farne. ACCETTATO perche' e' fail-closed e
-// coerente con lo scarto in scrittura (un valore fuori scala non entra mai nel Brief) e
-// perche' la RIGA non viene toccata: il dato resta in tabella, e' solo non mostrato
-// finche' l'utente non riscrive quel campo entro il tetto. Comportamento PINNATO da
-// tests/brief-length-caps.test.ts: cambiarlo deve essere una decisione, non una svista.
+// coerente con lo scarto in scrittura: un valore fuori scala non entra mai nel Brief.
+//
+// NON e' vero, invece, che "la riga non viene toccata, il dato resta in tabella ed e'
+// solo non mostrato": la PERDITA E' PERMANENTE al primo upsertBrief su quel sito,
+// chiunque lo chiami e qualunque campo la patch nomini. Il motivo e' qui sotto: la base
+// dell'update e' `rowToBrief(existing)`, che ha GIA' scartato quel valore, e briefToRow
+// riscrive OGNI colonna — quindi il campo torna in tabella come NULL. Con T-150 accade
+// al PRIMO turno di chat, perche' la route chiama upsertBrief a ogni turno.
+//
+// RISCHIO LATENTE, non incidente: la situazione e' oggi IRRAGGIUNGIBILE. Gli unici
+// writer di public.site_briefs sono upsertBrief (che valida con BriefUpdateSchema e
+// fonde con applyBriefUpdate: non scrive mai oltre il tetto) e confirmBrief (che tocca
+// solo status), e non esistono dati preesistenti perche' i tetti sono arrivati prima del
+// primo brief. Ci si arriva solo scrivendo la tabella da FUORI queste azioni (SQL
+// diretto, service_role, un task futuro): allora il primo salvataggio cancella il campo.
+// Comportamento PINNATO da tests/brief-length-caps.test.ts: cambiarlo deve essere una
+// decisione, non una svista.
 function rowToBrief(row: BriefRow): Brief {
   const base = emptyBrief(row.locale === 'es' ? 'es' : 'it');
   const contentUpdate =

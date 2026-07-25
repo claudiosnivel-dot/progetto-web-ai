@@ -33,5 +33,20 @@
       "visits": "Visite",
       "published": "Pubblicati"
     }
+  },
+  "onboarding": {
+    "title": "Onboarding del sito",
+    "briefEmpty": "Non ci sono ancora dati nel brief di questo sito",
+    "statusLabel": "Stato del brief",
+    "statusDraft": "Bozza",
+    "statusConfirmed": "Confermato",
+    "fields": {
+      "businessName": "Nome dell'attività",
+      "description": "Descrizione",
+      "address": "Indirizzo",
+      "phone": "Telefono",
+      "whatsapp": "WhatsApp",
+      "email": "Email"
+    }
   }
 }

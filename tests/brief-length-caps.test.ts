@@ -335,10 +335,16 @@ describe('P1-D17 tetto di lunghezza dei campi del brief', () => {
   // valore GIA' in tabella che lo sfonda SPARISCE dal brief. rowToBrief
   // (src/data/briefs.ts) ricostruisce il Brief da una riga con esattamente questa
   // chiamata e non propaga `rejected`, quindi la perdita non e' segnalata a nessuno.
-  // Scelta ACCETTATA (fail-closed, come lo scarto in scrittura; la riga in tabella non
-  // viene toccata): questa asserzione la PINNA, cosi' cambiarla e' una decisione e non
-  // una svista. Il giro completo per il DB sta in briefs-actions (DB-backed): qui si
-  // pinna il meccanismo, che e' dove la perdita accade.
+  // Scelta ACCETTATA (fail-closed, come lo scarto in scrittura): questa asserzione la
+  // PINNA, cosi' cambiarla e' una decisione e non una svista. Il giro completo per il DB
+  // sta in briefs-actions (DB-backed): qui si pinna il meccanismo, che e' dove la perdita
+  // accade.
+  // NON si dica che "la riga in tabella non viene toccata": e' falso. La base di
+  // upsertBrief e' lo stesso rowToBrief, che ha gia' scartato il valore, e briefToRow
+  // riscrive ogni colonna — quindi il primo salvataggio del brief (con T-150, il primo
+  // turno di chat) porta quel campo a NULL in tabella. Rischio LATENTE: nessun writer
+  // applicativo scrive oltre il tetto, quindi la riga fuori scala oggi non esiste; vedi
+  // la dichiarazione sopra rowToBrief in src/data/briefs.ts.
   it('lettura: un valore in tabella oltre il tetto sparisce dal brief, gli altri campi restano', () => {
     // La forma della patch che rowToBrief costruisce da una riga: colonne del brief,
     // con `description` scritta quando il tetto non c'era ancora.

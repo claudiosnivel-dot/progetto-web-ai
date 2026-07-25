@@ -60,6 +60,37 @@ describe('T-041 middleware: guardia auth composta con next-intl', () => {
     expect(getUserFromRequestMock).not.toHaveBeenCalled(); // covers: AC-041-5
   });
 
+  // T-150 — la rotta onboarding (/{locale}/onboarding/<siteId>) entra fra le route
+  // protette: prima era fuori dalla regex e il middleware la lasciava passare senza
+  // sessione. La pagina fa comunque il proprio getUser (difesa in profondità), ma la
+  // guardia di route deve negare l'accesso PRIMA di eseguire il Server Component.
+  it('senza sessione, GET /it/onboarding/<siteId> reindirizza 307 a /it/login', async () => {
+    // given: nessuna sessione valida; when: GET della rotta onboarding di un sito
+    getUserFromRequestMock.mockResolvedValue(null);
+    const res = await run('/it/onboarding/00000000-0000-0000-0000-0000000000aa');
+    // then: redirect 307 con Location = /it/login
+    expect(res.status).toBe(307); // covers: AC-150-1
+    expect(new URL(res.headers.get('location') as string).pathname).toBe('/it/login'); // covers: AC-150-1
+  });
+
+  it('con sessione valida, GET /it/onboarding/<siteId> prosegue senza redirect al login', async () => {
+    // given: sessione valida; when: GET della rotta onboarding
+    getUserFromRequestMock.mockResolvedValue(fakeUser);
+    const res = await run('/it/onboarding/00000000-0000-0000-0000-0000000000aa');
+    // then: nessun redirect e la guardia ha consultato l'identità server-side
+    expect(res.headers.get('location')).toBeNull(); // covers: AC-150-1
+    expect(getUserFromRequestMock).toHaveBeenCalledOnce(); // covers: AC-150-1
+  });
+
+  it('senza sessione, GET /es/onboarding/<siteId> reindirizza 307 a /es/login (locale es preservato)', async () => {
+    // given: nessuna sessione; when: GET onboarding sul locale non-default
+    getUserFromRequestMock.mockResolvedValue(null);
+    const res = await run('/es/onboarding/00000000-0000-0000-0000-0000000000aa');
+    // then: il routing di locale non è corto-circuitato dalla guardia
+    expect(res.status).toBe(307); // covers: AC-150-1
+    expect(new URL(res.headers.get('location') as string).pathname).toBe('/es/login'); // covers: AC-150-1
+  });
+
   it('senza sessione, GET /es/dashboard reindirizza 307 a /es/login (locale es preservato)', async () => {
     // given: nessuna sessione; when: GET /es/dashboard (locale non-default)
     getUserFromRequestMock.mockResolvedValue(null);

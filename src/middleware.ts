@@ -10,10 +10,16 @@ import { getUserFromRequest } from './data/supabase-ssr';
 // autenticato → /es/login, non /it/login).
 const handleI18n = createMiddleware(routing);
 
-// Route protette: /{locale}/dashboard e ogni sotto-route. Il locale è vincolato
-// ai locali supportati (unica sorgente di verità: routing.locales), mai a input
-// libero.
-const protectedRoute = new RegExp(`^/(${routing.locales.join('|')})/dashboard(?:/.*)?$`);
+// Route protette: /{locale}/dashboard e /{locale}/onboarding (T-150), con ogni
+// sotto-route. Il locale è vincolato ai locali supportati (unica sorgente di
+// verità: routing.locales), mai a input libero.
+// L'endpoint di turno della chat (T-150) vive sotto /api, che il matcher esclude
+// del tutto: la sua guardia è nel route handler stesso (401 JSON, non un 307 verso
+// il login, che un fetch non potrebbe leggere).
+const PROTECTED_SEGMENTS = ['dashboard', 'onboarding'] as const;
+const protectedRoute = new RegExp(
+  `^/(${routing.locales.join('|')})/(?:${PROTECTED_SEGMENTS.join('|')})(?:/.*)?$`,
+);
 
 // La funzione NON è async: per le route non protette ritorna in modo SINCRONO la
 // response di next-intl (preserva il comportamento verificato in T-080). Solo per
