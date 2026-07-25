@@ -50,6 +50,27 @@ describe('T-122 applyBriefUpdate — fusione deterministica', () => {
     expect(rejected).toContain('vertical'); // covers: AC-122-3 — segnalato, non applicato
   });
 
+  // covers: AC-122-3
+  it('scarta una chiave che collide con un membro di Object.prototype, senza lanciare', () => {
+    // La patch e' input NON FIDATO e JSON.parse crea queste chiavi come proprieta'
+    // PROPRIE, quindi Object.entries le enumera: il lookup per-campo non deve
+    // risolvere il prototype di Object (che non contiene schemi zod) ne' lanciare.
+    const base = applyBriefUpdate(emptyBrief('it'), { business_name: 'Bar Sole' }).brief;
+
+    for (const chiave of ['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__']) {
+      // La patch porta ANCHE un campo valido: la chiave ostile non deve far cadere
+      // il resto della patch (lo scarto e' per-campo).
+      const patch: unknown = JSON.parse(`{"${chiave}":"x","description":"Storico bar"}`);
+
+      expect(() => applyBriefUpdate(base, patch), chiave).not.toThrow(); // covers: AC-122-3
+
+      const { brief, rejected } = applyBriefUpdate(base, patch);
+      expect(rejected, chiave).toContain(chiave); // covers: AC-122-3 — scartata, non applicata
+      expect(brief.description, chiave).toBe('Storico bar'); // covers: AC-122-3 — gli altri campi passano
+      expect(brief.business_name, chiave).toBe('Bar Sole'); // covers: AC-122-3 — brief non corrotto
+    }
+  });
+
   // covers: AC-122-4
   it('isBriefComplete = false quando manca primary_goal', () => {
     const base = applyBriefUpdate(emptyBrief('it'), { business_name: 'Bar Sole' }).brief;

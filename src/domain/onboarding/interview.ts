@@ -1,7 +1,12 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 import { runOnboardingTurn } from '@/data/anthropic';
-import { BriefUpdateSchema, applyBriefUpdate, type Brief } from '@/domain/onboarding/brief';
+import {
+  BRIEF_LIMITS,
+  BriefUpdateSchema,
+  applyBriefUpdate,
+  type Brief,
+} from '@/domain/onboarding/brief';
 
 // T-132 (macrotask ai-onboarding, P1) — orchestrazione di UN turno dell'intervista:
 // costruisce il system prompt localizzato, dichiara i tool, chiama il confine LLM
@@ -14,11 +19,20 @@ import { BriefUpdateSchema, applyBriefUpdate, type Brief } from '@/domain/onboar
 // Nessun segreto qui: chiave e modello vivono nel confine server-only.
 
 // Gli ENUM del tool sono derivati dalle allowlist di T-121, cosi i valori dichiarati
-// al modello non possono divergere da quelli che la validazione accetta. L'elenco
-// delle properties resta invece scritto a mano (JSON Schema, non zod) e va tenuto
+// al modello non possono divergere da quelli che la validazione accetta.
+// I TETTI di lunghezza invece NON stanno nel JSON Schema (P1-D20, che annulla la
+// clausola 4 di P1-D17): `maxLength` e `maxItems` sono FUORI dal sottoinsieme JSON
+// Schema che lo strict tool use supporta, e questo e' un `Anthropic.Tool` scritto a
+// mano passato a messages.create — nessun helper zod li rimuove per noi, quindi
+// arriverebbero all'API verbatim e la prima chiamata reale rischierebbe un 400 in
+// compilazione dello schema. Il motivo della clausola resta valido (la chat scarta
+// l'INTERA tool-call su un solo campo invalido, quindi un tetto non dichiarato brucia
+// il turno): percio' i tetti si dichiarano al modello nella `description` del tool,
+// che e' prosa e non e' vincolata dal sottoinsieme (vedi CAPS_HINT).
+// L'elenco delle properties resta scritto a mano (JSON Schema, non zod) e va tenuto
 // allineato a BriefUpdateSchema: oggi `hours` e' l'unica divergenza, voluta (vedi
-// sotto). Nessuna derivazione automatica dell'elenco: sarebbe un generatore
-// zod->JSON Schema, astrazione che nessun task richiede.
+// sotto). Nessuna derivazione automatica: sarebbe un generatore zod->JSON Schema,
+// astrazione che nessun task richiede.
 const updateShape = BriefUpdateSchema.shape;
 const VERTICAL_VALUES = updateShape.vertical.unwrap().options;
 const PRIMARY_GOAL_VALUES = updateShape.primary_goal.unwrap().options;
@@ -43,6 +57,16 @@ const OFFERING_JSON_SCHEMA = {
   additionalProperties: false,
 };
 
+// I tetti dichiarati in PROSA (P1-D20). Solo i campi di testo libero, dove il modello
+// puo' davvero sforare: elencarli tutti e venti riempirebbe il prompt di numeri che
+// non cambiano nulla (un nome di attivita' non arriva a 200 caratteri, un telefono a
+// 40). I numeri vengono da BRIEF_LIMITS, non riscritti a mano: una copia divergente
+// direbbe al modello un limite che la validazione non applica.
+const CAPS_HINT =
+  `Limiti di lunghezza in caratteri, oltre i quali il campo viene scartato: ` +
+  `description ${BRIEF_LIMITS.description}, brand_hints ${BRIEF_LIMITS.brand_hints}, ` +
+  `description di ogni voce dell offerta ${BRIEF_LIMITS.offering_description}.`;
+
 // La patch di T-121, sotto l'unica chiave obbligatoria `updates` (decisione P1-D12:
 // la patch ha tutti i campi opzionali, quindi in forma flat non esiste un `required`
 // valorizzato come pretende AC-132-2).
@@ -52,8 +76,10 @@ const OFFERING_JSON_SCHEMA = {
 // orari; li raccolgono il pannello brief editabile (T-151) e upsertBrief (T-123).
 const UPDATE_BRIEF_TOOL: Anthropic.Tool = {
   name: 'update_brief',
-  description:
+  description: [
     'Registra nel brief i dati appresi dalla conversazione. Invia solo i campi che l utente ha comunicato davvero.',
+    CAPS_HINT,
+  ].join(' '),
   strict: true,
   input_schema: {
     type: 'object',

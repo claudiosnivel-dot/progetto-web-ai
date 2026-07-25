@@ -56,6 +56,17 @@ export type MutateBriefResult = { ok: true } | { ok: false; status: 401 | 404 | 
 // Converte una riga DB nel Brief di dominio: applica i valori presenti (null →
 // undefined) sopra un brief vuoto del locale della riga, cosi i default del content
 // sono garantiti e i null spariscono. content jsonb → shape del content.
+//
+// La LETTURA passa dallo stesso gate della scrittura (P1-D17), e questo ha una
+// conseguenza da dichiarare: un valore GIA' in tabella che sfonda un tetto — scritto
+// prima dell'emendamento, o da fuori queste azioni — viene SCARTATO in lettura, quindi
+// quel campo torna vuoto nel Brief mentre tutti gli altri sopravvivono. Il `rejected`
+// di applyBriefUpdate e' volutamente ignorato: GetBriefResult non ha un canale per
+// riportarlo e l'UI non avrebbe nulla da farne. ACCETTATO perche' e' fail-closed e
+// coerente con lo scarto in scrittura (un valore fuori scala non entra mai nel Brief) e
+// perche' la RIGA non viene toccata: il dato resta in tabella, e' solo non mostrato
+// finche' l'utente non riscrive quel campo entro il tetto. Comportamento PINNATO da
+// tests/brief-length-caps.test.ts: cambiarlo deve essere una decisione, non una svista.
 function rowToBrief(row: BriefRow): Brief {
   const base = emptyBrief(row.locale === 'es' ? 'es' : 'it');
   const contentUpdate =
