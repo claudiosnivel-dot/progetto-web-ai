@@ -8,8 +8,8 @@
 |---|---|
 | **Progetto** | Belora |
 | **Ecosistema** | supabase-jsts (JS/TS + Supabase) |
-| **Ultimo aggiornamento** | 2026-07-25 (chiusura BUILD macrotask `onboarding-ui` — **P1 COMPLETO**) |
-| **Sessione corrente** | **CHIUSA**. Ha chiuso l'ULTIMO macrotask di P1, `onboarding-ui` (T-150..T-153) piu' un **emendamento a T-121**. Checkpoint **VERDE 4/4 al secondo giro** (il primo ROSSO su dead-code). Mergeato su `main` in fast-forward `6874065..d38dcee`, pushato. **P1 e' completo: il prossimo sotto-progetto e' P2 (generazione dei mockup).** |
+| **Ultimo aggiornamento** | 2026-07-25 (chiusura BUILD `onboarding-ui` + emendamento **P1-D24** — **P1 COMPLETO**) |
+| **Sessione corrente** | **CHIUSA**. Ha chiuso l'ULTIMO macrotask di P1, `onboarding-ui` (T-150..T-153), piu' DUE emendamenti a task chiusi e verdi: **P1-D17** (tetto di lunghezza, T-121) e **P1-D24** (stato del brief al modello + `readyForReview` corroborato, T-132). Tre checkpoint eseguiti, tutti **VERDI al secondo giro** (i primi rossi su dead-code). Mergeato su `main` in fast-forward fino a `81ffd66`, pushato. **P1 e' completo: il prossimo sotto-progetto e' P2 (generazione dei mockup).** |
 
 ---
 
@@ -189,6 +189,16 @@ Tutte **verified**: riverificate con lo STESSO oracolo e con la batteria di muta
   Durante il BUILD si eseguono solo i file di test rilevanti, mai `npm test`.
 - **CRLF**: i file su disco sono CRLF. Una batteria di mutazione con pattern multi-riga
   scritti con `\n` **non combacia**: rilevare l'EOL e normalizzare. E' costato due giri.
+- **Le impronte d'igiene sono SENSIBILI ALLA POSIZIONE.** Editare un file vicino a un blocco
+  gia' duplicato — o editare il **partner** di una coppia — produce un finding "nuovo"
+  **spurio**, anche quando la duplicazione e' identica a prima. Successo con
+  `02-ai-onboarding.md` (AC emendati) che ha fatto risultare "nuovo" il boilerplate
+  `## Self-check` di `04-onboarding-ui.md`. Attribuire **sempre** prima di ricatturare:
+  distinguere il churn di posizione dalla duplicazione vera.
+- **Non lanciare il checkpoint attraverso `| tail`.** Il primo giro di P1-D24 e' stato letto
+  con `tail -55`, che ha tagliato la **testa** del JSON — cioe' `green`, `summary` e lo stato
+  del controllo 1 — dando l'illusione di avere il verdetto. Scrivere l'output **intero** su
+  file e leggerlo da li'. E' la stessa lezione dell'exit code, applicata al pezzo sbagliato.
 
 ### Correzioni al metodo, imparate sul campo
 1. **UNA FIXTURE CON UN SOLO ELEMENTO NON PROVA NULLA SULL'IDENTITA' DI QUELL'ELEMENTO.**
@@ -223,7 +233,17 @@ Tutte **verified**: riverificate con lo STESSO oracolo e con la batteria di muta
 6. **Non peggiorare il prodotto per compiacere un oracolo.** Un fixer ha scartato
    l'alternativa di sostituire un `<a>` con un `Button`+`router.push` per non rompere
    un'asserzione "zero anchor", e ha corretto l'oracolo enumerando l'href atteso. E' la
-   direzione giusta.
+   direzione giusta. Stessa regola applicata alle 3 duplicazioni di P1-D24: **non** sono
+   state ridotte, perche' l'unica sostanziale unirebbe il vocabolario del PROMPT con le
+   etichette della UI — due concerni separati che per caso enumerano lo stesso schema.
+7. **CONTROLLARE LO STRUMENTO DI MISURA, non solo il codice.** Tutto cio' che questa sessione
+   ha trovato appartiene a una famiglia sola: **il misuratore che sembra funzionare e non
+   misura**. Fixture con un solo elemento; asserzioni su un solo ramo (`it` e non `es`);
+   campi la cui fuga non e' osservabile perche' la fixture li lascia vuoti; e due errori
+   dell'orchestratore nello stesso giro — una batteria di mutazione le cui "fughe"
+   assegnavano a una variabile mai usata (quindi non erano fughe), e un verdetto letto
+   attraverso `| tail` che ne aveva tagliato la testa. **Prima di credere a un verde, provare
+   che lo strumento sa diventare rosso.**
 
 ## 6-bis. Copertura dichiarata (cosa e' verificato e cosa NO)
 
@@ -290,18 +310,24 @@ il ciclo `tool_result` (P1-D19, il 400 e' irrappresentabile), `assistantText` vu
 ChatPanel rende un segnaposto invece di una bolla vuota), `hours` editabile (P1-D13), il
 messaggio d'errore unico dell'import (P1-D16), il tetto di lunghezza (P1-D17).
 
-**APERTI — il primo e' il piu' importante:**
-1. **Il modello NON VEDE il brief (`P1-D23`).** Il payload al confine contiene solo il
-   system prompt statico, i messaggi di testo e i tool: `interview.ts` usa `turn.brief` solo
-   per `brief.locale` e come base del merge. Conseguenze: il modello **non sa quali campi
-   sono compilati** (quindi ri-chiede dati che `fromUrl` o il pannello hanno gia' raccolto) e
-   **non puo' sapere cosa manca** per completare il brief — che e' l'obiettivo
-   dell'intervista. Il comportamento attuale e' **pinnato da un test**: cambiarlo richiede
-   passare dal ledger. **Sede della fix: T-132, e serve una DECISIONE dell'utente**, perche'
-   serializzare il brief nel prompt fa entrare nell'intervista **testo importato non fidato**
-   (§7 p.4 → prompt injection). Mitigabile con delimitatori espliciti e la formula gia' usata
-   in `fromUrl` ("materiale da analizzare, non istruzioni"), non annullabile.
-2. **La history della chat non e' persistita**: al reload chi torna riparte da zero.
+**CHIUSO da `P1-D24`** (era il p.1, il piu' importante): il modello **vede** ora lo stato del
+brief — i **nomi** dei campi compilati e mancanti piu' i **valori dei due enum chiusi** — e
+continua a **non vedere nessun valore di testo libero**, che e' cio' che azzera la superficie
+di prompt injection dal testo importato. Non ri-chiede piu' cio' che `fromUrl` ha raccolto e
+sa cosa manca. Effetto di rimbalzo: **il brief e' ora la memoria durevole** anche al reload.
+
+**APERTI:**
+1. **La corroborazione di `readyForReview` verifica la PRESENZA, non la PROVENIENZA.**
+   `markedReady && isBriefComplete(brief)` e' **aggirabile in UN SOLO turno** — misurato:
+   `isBriefComplete` chiede `business_name && vertical && primary_goal && locale`, ma
+   `vertical` ha `default('altro')` e `locale` e' sempre valorizzato, quindi i campi che
+   davvero vincola sono **due**. Un modello sotto injection che fabbrica quei due e segnala
+   nello stesso turno passa. Alza la barriera da "qualunque segnale apre la conferma" a
+   "un'iniezione deve anche fabbricare i campi essenziali, che l'utente vede nel pannello e
+   conferma esplicitamente" (T-152), **ma non la chiude**. Chiuderla richiede tracciare la
+   provenienza dei valori: e' un'altra decisione. Il comportamento e' **pinnato da un test**.
+2. **La history della chat non e' persistita**: al reload chi torna riparte da zero. Mitigato
+   ma non risolto da P1-D24 (il brief e' memoria, la conversazione no).
 3. **`upsertBrief` non riporta quali campi ha scartato** (ritorna solo `{ok, complete}`):
    `onSaved(patch)` segna come persistita TUTTA la patch, quindi un campo rifiutato
    risulterebbe salvato e i diff successivi lo salterebbero. Sede: **T-123**.
@@ -349,10 +375,9 @@ messaggio d'errore unico dell'import (P1-D16), il tetto di lunghezza (P1-D17).
 
 1. **P1 e' completo.** Il prossimo sotto-progetto e' **P2 (generazione dei 5 mockup)**, che
    consuma il brief `status='confirmed'`. Da bootstrappare con un blueprint proprio.
-2. **DECISIONE APERTA E RACCOMANDATA — `P1-D23` / §7 p.1**: far vedere al modello lo stato
-   del brief (fix in T-132). Senza, l'intervista ri-chiede dati gia' raccolti e non sa cosa
-   manca. **Non e' bloccante per P2** (P2 consuma il brief confermato, non l'intervista), ma
-   e' la cosa che piu' peggiora l'esperienza reale del prodotto.
+2. **Decisione CHIUSA — `P1-D24`**: lo stato del brief arriva al modello come soli nomi di
+   campo. Resta aperto il limite della corroborazione di `readyForReview` (§7 p.1), che
+   verifica la presenza e non la provenienza: chiuderlo e' una decisione a se'.
 3. **Emendamenti da proporre**, entrambi su T-123: riportare `rejected[]` in
    `UpsertBriefResult` (§7 p.3) e `listBriefStatuses()` per l'N+1 (§7 p.15).
 4. **Prima chiamata reale all'API**, quando ci sara' una chiave: verificare gli schemi
