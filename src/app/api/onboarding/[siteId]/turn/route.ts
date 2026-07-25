@@ -91,19 +91,19 @@ const MAX_BODY_BYTES =
 //
 // P1-D23 corregge la motivazione originale di P1-D19 su DUE punti, ed entrambi si
 // leggono qui:
-//  1. NON e' vero che "il brief e' passato a ogni turno ed e' la memoria vera": il
-//     modello NON VEDE MAI il brief. Al confine arrivano SOLO tre cose: il system prompt
-//     STATICO scelto per locale, i messaggi di TESTO (history + turno utente) e i tool;
-//     `turn.brief` in runInterviewTurn serve solo a scegliere quel prompt e come base del
-//     merge, e non entra nel payload. LIMITE CHE NE CONSEGUE: entro i 40 turni l'unica
-//     memoria e' la trascrizione testuale, quindi il modello non sa quali campi sono gia'
-//     compilati — ri-chiede dati che l'import da URL (T-141) o il pannello (T-151) hanno
-//     gia' raccolto — e non puo' sapere cosa manca per completare il brief, che e'
-//     l'obiettivo dell'intervista: `mark_ready_for_review` lo decide alla cieca. Inoltre
-//     T-150 non persiste la history: al reload l'utente riparte da zero. Non risolto qui:
-//     la sede e' T-132 e serve una decisione, perche' serializzare il brief nel prompt fa
-//     entrare nell'intervista testo importato NON FIDATO (04 §7 p.4). Pinnato da un
-//     test nell'oracolo di T-150.
+//  1. NON e' vero che "il brief e' passato a ogni turno ed e' la memoria vera".
+//     **RISOLTO da P1-D24**, che e' la decisione che P1-D23 chiedeva: il modello ora vede
+//     lo STATO del brief — i NOMI dei campi compilati e mancanti piu' i VALORI dei due
+//     enum chiusi (`vertical`, `primary_goal`, allowlist di T-121) — e continua a NON
+//     vedere NESSUN valore di testo libero, che e' cio' che chiude la superficie di
+//     prompt injection dal testo importato (04 §7 p.4): la si azzera invece di
+//     contenerla con delimitatori. Il riepilogo lo costruisce `interview.ts` (T-132) sul
+//     brief che questa rotta gli passa, cioe' quello letto da `getBrief`; qui non cambia
+//     nulla se non che il brief in ingresso ora conta davvero. La stessa decisione rende
+//     `readyForReview` corroborato da `isBriefComplete`, quindi `mark_ready_for_review`
+//     non lo decide piu' da solo. RESTA APERTO: T-150 non persiste la history, quindi al
+//     reload la trascrizione riparte da zero — ma il brief e' ora memoria durevole.
+//     Il confine e' pinnato da un test nell'oracolo di T-150, nella forma di P1-D24.
 //  2. L'irrappresentabilita' del 400 vale per la sola classe `tool_result`. L'API
 //     pretende ANCHE che il primo messaggio sia `user`, e quel vincolo lo schema non lo
 //     esprimeva: una history che inizia con `assistant` arrivava al confine e tornava
