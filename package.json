@@ -25,6 +25,7 @@
     "react-dom": "^19.2.8",
     "server-only": "^0.0.1",
     "tailwind-merge": "^3.6.0",
+    "undici": "^7.28.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {

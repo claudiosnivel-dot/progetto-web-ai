@@ -123,6 +123,36 @@ mockabile. Il risultato pre-riempie il pannello del brief; l'utente rivede sempr
     - "UI della barra di import (T-151)"
 ```
 
+## Chiarimenti registrati in fase di BUILD (2026-07-25)
+
+Emersi dalla verifica avversariale del macrotask e dagli oracoli deterministici
+dell'orchestratore. Non modificano gli `acceptance_criteria`: ne fissano la lettura.
+
+- **`P1-D14` — `undici` dichiarata.** Il pinning dell'IP a livello di socket
+  (`connect.lookup`) e' cio' che chiude la finestra di **DNS rebinding** fra la
+  validazione e la connessione. Riscrivere l'URL con l'IP romperebbe SNI/certificato.
+- **`P1-D15` — gate della chiamata al modello.** Si invoca il confine quando la pagina
+  non si dichiara (nessun JSON-LD dell'attivita e nessun `og:title`); `<title>`/`<h1>`
+  sono ripieghi. Il modello riempie **solo il residuo**.
+- **`P1-D16` — motivo unico per host non raggiungibili in sicurezza.** Risoluzione
+  fallita e IP interno danno lo stesso `address-blocked`: negare l'enumerazione del DNS
+  interno vale piu' della diagnostica fine. **Vincolo su T-151**: il messaggio d'errore
+  dell'import non puo' distinguere "non esiste" da "bloccato".
+- **Estensione deliberata oltre l'objective**: si estrae anche `email` dal JSON-LD, che
+  l'objective non elenca (elenca name/address/hours/telephone/geo). Costo nullo, dato
+  utile; segnalato dalla verifica come comportamento non discendente da un AC.
+- **Limite dichiarato**: `openingHoursSpecification` (la forma a oggetti con
+  `dayOfWeek`/`opens`/`closes`) **non** e' letta — l'AC nomina `openingHours`. E' un'estensione
+  naturale per un macrotask successivo, non una lacuna rispetto al task.
+- **Difetti corretti in BUILD dopo la verifica** (tutti pinnati da mutazione): ricorsione
+  non limitata sul JSON-LD (`RangeError` che usciva da `fromUrl` con ~10 KB di HTML);
+  markup **dentro i commenti** che batteva quello reale; prefissi IPv6 di transizione
+  (**NAT64 `64:ff9b::/96`**, **6to4 `2002::/16`**) non bloccati; campi **non dichiarati dal
+  tool** accettati dalla risposta del modello (`social_links` finisce in un href);
+  output del modello che **sovrascriveva** i dati deterministici; valore JSON-LD non
+  testuale che sopprimeva i ripieghi validi; orari fuori scala (`25:99`) accettati;
+  risposta del confine malformata che faceva **lanciare** l'import; timeout senza oracolo.
+
 ## Self-check
 
 - **Strutturale** (deterministico): `validate_blueprint.mjs` sulla dir del blueprint P1 — atteso exit 0.
