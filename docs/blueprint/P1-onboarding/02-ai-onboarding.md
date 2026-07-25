@@ -122,6 +122,8 @@ con la logica pura del macrotask brief-model.
     - "il system prompt e localizzato per locale (it/es)"
     - "l'input di ogni tool-call update_brief e validato (T-121) e fuso con applyBriefUpdate (T-122) prima di aggiornare lo stato"
     - "la chiamata al modello passa per src/data/anthropic.ts (T-131); nel test il confine e mockato"
+    - "EMENDAMENTO P1-D24: il system prompt riporta lo STATO del brief corrente come SOLI NOMI dei campi (compilati / da raccogliere) piu i valori dei due enum chiusi (vertical, primary_goal); NESSUN valore di testo libero del brief entra nel payload"
+    - "EMENDAMENTO P1-D24: il flag ready-for-review e vero solo se il modello lo segnala E isBriefComplete (T-122) e vero sul brief risultante dal turno"
   acceptance_criteria:
     - id: AC-132-1
       given: "un confine LLM mockato che ritorna testo assistente + una tool-call update_brief con {business_name:'Bar Sole'}"
@@ -140,12 +142,20 @@ con la logica pura del macrotask brief-model.
       when: "eseguo il turno"
       then: "l'update invalido e rifiutato dalla validazione (T-121) e il campo vertical del brief resta invariato (nessuna corruzione)"
     - id: AC-132-5
-      given: "un confine LLM mockato che ritorna una tool-call mark_ready_for_review"
+      given: "un confine LLM mockato che ritorna una tool-call mark_ready_for_review, e un brief che dopo il turno ha i campi essenziali valorizzati (isBriefComplete vero)"
       when: "eseguo il turno"
       then: "il flag ready-for-review restituito e true"
+    - id: AC-132-6
+      given: "un confine LLM mockato che ritorna una tool-call mark_ready_for_review, e un brief che dopo il turno NON ha i campi essenziali (isBriefComplete falso)"
+      when: "eseguo il turno"
+      then: "il flag ready-for-review restituito e FALSE: il segnale del modello da solo non apre il passo di conferma (EMENDAMENTO P1-D24, corroborazione deterministica di 04 §7 p.8)"
+    - id: AC-132-7
+      given: "un brief con alcuni campi compilati (fra cui valori di testo provenienti da un import) e altri mancanti"
+      when: "eseguo il turno e ispeziono il payload inviato al confine LLM"
+      then: "il payload nomina i campi compilati e quelli da raccogliere e riporta i valori dei due enum chiusi, e NON contiene alcun valore di testo libero del brief (EMENDAMENTO P1-D24: nessuna superficie di prompt injection dai siti importati)"
   target_tests:
     - file: "tests/interview-orchestration.test.ts"
-      covers: [AC-132-1, AC-132-2, AC-132-3, AC-132-4, AC-132-5]
+      covers: [AC-132-1, AC-132-2, AC-132-3, AC-132-4, AC-132-5, AC-132-6, AC-132-7]
   security_notes:
     - "OWASP A05:2025 (validation): l'output del modello e input NON FIDATO — l'input di update_brief e validato con BriefSchema (T-121) prima di essere fuso, e strict:true vincola la forma dell'input del tool."
     - "OWASP A07:2025/A02:2025 (segreti): l'orchestrazione non contiene segreti e chiama il modello solo tramite il confine server-only (T-131); nessuna service_role coinvolta."
