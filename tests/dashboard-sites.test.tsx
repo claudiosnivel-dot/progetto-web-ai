@@ -90,6 +90,17 @@ vi.mock('@/data/sites', () => ({
   deleteSite: vi.fn(async () => ({ ok: true })),
 }));
 
+// T-153 — La dashboard legge ora lo stato del brief di ogni sito via getBrief (@/data/briefs)
+// per decidere il badge "pronto per generare". È una DIPENDENZA NUOVA della pagina, non un
+// cambio di comportamento di T-102: senza questo mock la server action reale girerebbe in
+// jsdom e chiamerebbe createServerSupabaseClient (assente dal mock di @/data/supabase-ssr
+// qui sopra). Nessuna asserzione di questo file è stata toccata: si stubba "nessun brief"
+// per tutti i siti, cioè lo stato in cui gli AC di T-102/T-105 sono stati scritti. Gli AC di
+// T-153 vivono in tests/dashboard-onboarding-cta.test.tsx.
+vi.mock('@/data/briefs', () => ({
+  getBrief: vi.fn(async () => ({ ok: true, brief: null, status: null, complete: false })),
+}));
+
 // Import DOPO i mock (vi.mock è hoisted).
 import DashboardPage from '@/app/[locale]/dashboard/page';
 

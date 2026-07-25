@@ -21,6 +21,7 @@
     "createSite": "Crea un sito",
     "siteName": "Nome del sito",
     "emptyState": "Non hai ancora creato nessun sito",
+    "sitesUnavailable": "Non è stato possibile leggere l'elenco dei tuoi siti: ricarica la pagina. I siti che hai creato non sono stati toccati.",
     "actions": {
       "rename": "Rinomina",
       "save": "Salva",
@@ -32,6 +33,11 @@
       "sites": "Siti",
       "visits": "Visite",
       "published": "Pubblicati"
+    },
+    "onboarding": {
+      "cta": "Avvia o continua l'onboarding",
+      "readyToGenerate": "Pronto per generare",
+      "statusUnavailable": "Stato del brief non disponibile"
     }
   },
   "onboarding": {
