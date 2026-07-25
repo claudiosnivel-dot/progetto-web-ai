@@ -11,6 +11,18 @@
 > **Forma del flusso: chat-led + pannello brief live (opzione A).** Il wizard e
 > realizzato come pannello editabile, non come modalita separata; l'import-URL e una
 > porta d'ingresso opzionale che pre-riempie lo stesso pannello.
+>
+> **Decisioni prese all'apertura del BUILD (2026-07-25), vincolanti per questi task —
+> vedi `00-INDEX` §4:**
+> - **`P1-D17`** — emendamento a **T-121**: tetto di lunghezza sui campi del brief, con
+>   scarto per-campo in `rejected[]`. Va costruito **PRIMA** di T-151/T-152, che rendono
+>   quei campi. E' l'unica cosa in questo macrotask che tocca un task chiuso e verde.
+> - **`P1-D18`** — lo "streaming" di **T-150** e' di **trasporto, a due flush** ordinati
+>   (testo assistente, poi brief aggiornato); il confine T-131 resta non-streaming.
+>   `AC-150-3` si oracola su **ordine e contenuto dei due chunk**, non su "e' uno stream".
+> - **`P1-D19`** — la history rigiocata al modello e' **solo testo**: nessun blocco
+>   `tool_use` torna indietro, quindi il 400 di §7 p.1 e' irrappresentabile e la history
+>   dal browser non e' piu' una superficie di forgiatura (§7 p.11).
 
 ## Obiettivo del macrotask
 
