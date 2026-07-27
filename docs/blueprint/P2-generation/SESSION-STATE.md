@@ -8,8 +8,8 @@
 |---|---|
 | **Progetto** | Belora |
 | **Ecosistema** | supabase-jsts (JS/TS + Supabase) |
-| **Ultimo aggiornamento** | 2026-07-26 (chiusura BOOTSTRAP: blueprint generato, nessun codice) |
-| **Sessione corrente** | **BOOTSTRAP CHIUSO.** Blueprint P2 generato dalla spec approvata del 2026-07-26 e validato strutturalmente. **Nessun macrotask costruito.** Il prossimo passo e il primo BUILD, su `generation-model`. |
+| **Ultimo aggiornamento** | 2026-07-26 (sessione CHIUSA: fase A design + fase B bootstrap, nessun codice) |
+| **Sessione corrente** | **CHIUSA.** Ha prodotto il design di P2 (17 decisioni chiuse in brainstorming, una domanda per volta), lo studio di fattibilita sull'ingest delle foto del cliente, e il blueprint completo: **5 macrotask, 27 task atomici, 156 acceptance criteria**. Self-check strutturale `validate_blueprint.mjs` **EXIT 0** prima e dopo l'applicazione dei rilievi semantici. **Nessun codice prodotto, nessun macrotask costruito, nessun checkpoint applicabile.** La prossima sessione riparte dal **primo BUILD su `generation-model`**. |
 
 ---
 
@@ -25,6 +25,12 @@
 
 **→ 27 task atomici, 5 macrotask. Nessuno costruito.**
 
+**Nessun checkpoint e applicabile in questa fase.** Il checkpoint gira al confine di un
+macrotask *costruito*, e non e stato scritto codice: dead-code, sicurezza, regressioni e
+conformita-logica sono **NON ESEGUITI**, cosi come `gitleaks`, `osv`, `semgrep` e `rls`.
+L'unico oracolo che ha girato in questa sessione e `validate_blueprint.mjs`. La colonna
+Checkpoint vuota va letta come **non eseguito**, non come "non ancora verde".
+
 ## 2. Macrotask corrente
 
 - **Selezionato**: nessuno. Il primo BUILD deve partire da **`generation-model`**: e l'unico
@@ -38,9 +44,14 @@
 | Campo | Valore |
 |---|---|
 | Branch di lavoro | `trueline/design/p2-generation` (fase A + questo BOOTSTRAP; **non** mergeato) |
-| Ultimo commit | da registrare alla chiusura di questa sessione |
-| Stato merge su `main` | **NON mergeato.** Il branch porta solo documenti (spec, ricerca, blueprint): nessun codice, quindi nessun checkpoint applicabile |
-| Deploy-coupling | **`main_deploy_coupled: false` EREDITATO da P1, da RICONFERMARE a inizio BUILD.** P2 tocca aree deploy-sensibili in modo piu esteso di P1 (due rotte nuove, un endpoint `/api` nuovo, migrazioni DB): la riconferma non e una formalita |
+| Ultimo commit | `74293b4` — working tree pulito, `origin/trueline/design/p2-generation` allineato |
+| Stato merge su `main` | **NON mergeato.** Il branch porta solo documenti (spec, ricerca, blueprint): nessun codice, quindi nessun checkpoint applicabile. La decisione di mergiare e dell'utente, non un gate da superare |
+| Deploy-coupling | **`main_deploy_coupled: false` EREDITATO da P1, NON riconfermato in questa sessione** (nessun BUILD): da RICONFERMARE all'apertura del primo BUILD. P2 tocca aree deploy-sensibili in modo piu esteso di P1 (due rotte nuove, un endpoint `/api` nuovo, migrazioni DB): la riconferma non e una formalita. **Nessuna operazione distruttiva e nessun deploy in questa sessione** |
+
+Commit della sessione, in ordine:
+`d736dbe` studio di fattibilita sull'ingest delle foto · `67e419e` design di P2 (15 decisioni) ·
+`7df5f4a` multi-pagina in v1 (P2-D13) + budget provvisorio (P2-D17) · `2b20a5c` blueprint
+bootstrappato (25 task) · `74293b4` rilievi del self-check semantico applicati (27 task).
 
 ## 4. Baseline & budget
 
@@ -89,6 +100,12 @@
   Minori applicati: `AC-223-6` ristretta a percorsi e valori esatti (evita falsi positivi),
   `AC-223-1` resa **totale sull'enum dei locale** col limite residuo dichiarato,
   `AC-240-1` ora nomina una risorsa attesa invece di asserire "non vuoto".
+- **Nessuna fix applicata e nessuna batteria di mutazione**: entrambe operano sul codice, e
+  in questa sessione non ne e stato scritto. Non sono state saltate: sono **inapplicabili**.
+  L'equivalente di fase e stato il self-check semantico, con l'oracolo strutturale rieseguito
+  dopo l'applicazione dei rilievi. Gli split hanno fatto emergere AC che nel task monolitico
+  non esistevano: indice di variante respinto **prima** del DB, transizione di stato che e un
+  **errore** e non un no-op silenzioso, payload ostile dentro il **nome** di un'offerta.
 
 ## 6. Copertura dichiarata (cosa NON e coperto, da subito)
 
@@ -149,3 +166,8 @@
    catturarla per far passare il controllo 1 benedirebbe anche le proprie (lezione di P1).
 5. **Decisioni ancora dell'utente**, non della skill: la taratura crediti/prezzi dopo la
    misura di T-225, e l'eventuale attivazione del contratto `architecture:` (`P1-D11`).
+6. **Nota operativa verificata**: gli script trueline sono presenti in due percorsi — la cache
+   dei plugin (`~/.claude/plugins/cache/trueline-local/trueline/0.1.0/skills/trueline/`, quello
+   registrato in P1 §6) e la dist su Desktop, da cui la skill si e risolta in questa sessione.
+   `validate_blueprint.mjs` e **il medesimo file** nei due percorsi (stessa dimensione, stesso
+   timestamp): il percorso registrato in P1 resta valido, non c'e nulla da correggere.
