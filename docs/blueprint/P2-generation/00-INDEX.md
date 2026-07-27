@@ -21,10 +21,10 @@
 
 | # | File | Macrotask | Cosa costruisce |
 |---|---|---|---|
-| 01 | `01-generation-model.md` | `generation-model` | **I contratti**: entita `site_generations` + `generation_pools` (RLS, FK composita, indice UNIQUE parziale), vocabolario degli slot + `PoolSchema`, `SiteDocumentSchema` multi-pagina, server action con RLS e riconciliazione dello stato |
+| 01 | `01-generation-model.md` | `generation-model` | **I contratti**: entita `site_generations` + `generation_pools` (RLS, FK composita, indice UNIQUE parziale), vocabolario degli slot + `PoolSchema`, `SiteDocumentSchema` multi-pagina, server action con RLS — separate fra **lettura/creazione** (con la riconciliazione dello stato) e **scrittura** (con la macchina a stati) |
 | 02 | `02-generation-engine.md` | `generation-engine` | **La trasformazione pura**: libreria di blocchi con precondizioni, 5 temi di P2 (layer separato e imposto), 5 ricette, `pagesFor` + navigazione derivata, `resolve`, `generatable` |
 | 03 | `03-generation-llm.md` | `generation-llm` | **Il confine**: proiezione allowlist a due profili, normalizzatore conservativo, tool strict del pool, system prompt per-locale, `runGenerationTurn` con guardie sul ritorno, `GENERATION_BUDGET` + harness di misura |
-| 04 | `04-generation-ui.md` | `generation-ui` | Rotta protetta + stream a due flush, blocchi del sito con rendering sanificato, selettore dei 5 mockup, scegli&congela, fase 2 a chunk, anteprima navigabile, aggancio dashboard |
+| 04 | `04-generation-ui.md` | `generation-ui` | Rotta protetta + stream a due flush, blocchi **narrativi** (piu le chiavi i18n di tutte le etichette) e blocchi di **dati** (dove nascono i link da campi liberi), selettore dei 5 mockup, scegli&congela, fase 2 a chunk, anteprima navigabile, aggancio dashboard |
 | 05 | `05-generation-e2e.md` | `generation-e2e` | **Il primo end-to-end vero del progetto**: harness Chromium, **canary** che prova che l'oracolo sa diventare rosso, documento ostile asserito sull'effetto, raggiungibilita del deliverable |
 
 ## 2. Piano di build (ordine topologico del DAG)
@@ -38,7 +38,8 @@ generation-model
  ├─ T-200 site_generations + generation_pools (schema+RLS)   [ ]
  ├─ T-201 slots + PoolSchema + POOL_LIMITS                   [ ]
  ├─ T-202 SiteDocumentSchema multi-pagina + slot immagine    [T-201]
- └─ T-203 server actions generations + riconciliazione       [T-200, T-202]
+ ├─ T-203 actions lettura/creazione + riconciliazione        [T-200, T-202]
+ └─ T-204 actions scrittura (pool, scelta, pagine)           [T-200, T-202]
 
 generation-engine
  ├─ T-210 libreria dei blocchi (precondizioni, ruoli)        [T-201]
@@ -57,12 +58,13 @@ generation-llm
  └─ T-225 harness di misura reale (P2-D17)                   [T-224]
 
 generation-ui
- ├─ T-230 rotta protetta + POST /api/generate + 2 flush      [T-203, T-212, T-224]
- ├─ T-231 blocchi del sito, rendering sanificato             [T-210, T-211]
- ├─ T-232 selettore dei 5 mockup + rigenera una variante     [T-230, T-231, T-214]
+ ├─ T-230 rotta protetta + POST /api/generate + 2 flush      [T-203, T-204, T-212, T-224]
+ ├─ T-231 blocchi narrativi + chiavi i18n + no-hex           [T-210, T-211]
+ ├─ T-237 blocchi di dati + link da campi validati           [T-210, T-211, T-231]
+ ├─ T-232 selettore dei 5 mockup + rigenera una variante     [T-230, T-231, T-237, T-214]
  ├─ T-233 scegli & congela il documento                      [T-232]
  ├─ T-234 fase 2: pagine interne a chunk                     [T-233, T-213, T-224]
- ├─ T-235 anteprima navigabile /preview                      [T-233, T-231]
+ ├─ T-235 anteprima navigabile /preview                      [T-233, T-231, T-237]
  └─ T-236 aggancio dashboard (una query sola)                [T-203, T-230]
 
 generation-e2e

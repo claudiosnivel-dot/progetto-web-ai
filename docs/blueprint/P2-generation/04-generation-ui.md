@@ -22,13 +22,20 @@ dallo *stesso* renderer dell'anteprima, il **congelamento** alla scelta, la **fa
 costruisce le pagine interne a chunk, l'**anteprima navigabile**, e l'aggancio in
 dashboard. E' la prima cosa del progetto che chiede di essere guardata.
 
+I blocchi sono divisi in due task lungo la linea del **rischio**, non del conteggio:
+**T-231** i blocchi *narrativi* (contenuto dal pool) piu le fondamenta condivise — chiavi
+i18n di tutte le etichette, divieto di colore letterale, divieto di
+`dangerouslySetInnerHTML`; **T-237** i blocchi di *dati* (offerte, orari, contatti,
+recensioni, galleria), dove si concentra la superficie di testo non fidato e dove nascono
+tutti i link costruiti da campi liberi del brief.
+
 ## Task atomici
 
 ```yaml
 - id: T-230
   title: "Rotta protetta /generate + POST /api/generate con catena di guardie e stream a due flush"
   macrotask: "generation-ui"
-  depends_on: [T-203, T-212, T-224]
+  depends_on: [T-203, T-204, T-212, T-224]
   objective: >
     Implementare la rotta protetta /{locale}/generate/{siteId} — che verifica auth e
     proprieta via listSites() (P1-D21), legge il brief con getBrief, valuta
@@ -100,70 +107,125 @@ dashboard. E' la prima cosa del progetto che chiede di essere guardata.
     - "Fase 2 (T-234)"
 
 - id: T-231
-  title: "Componenti dei blocchi del sito generato + sanificazione del testo non fidato"
+  title: "Blocchi narrativi del sito + chiavi i18n di tutte le etichette + divieto di colore letterale"
   macrotask: "generation-ui"
   depends_on: [T-210, T-211]
   objective: >
-    Implementare in src/ui/site/blocks/ i componenti React che rendono i blocchi del
-    documento applicando i token del tema. E' il punto in cui il testo NON FIDATO del brief
-    (description, highlights, nomi e descrizioni delle offerte — provenienti da siti terzi
-    via fromUrl, T-141) diventa una pagina: la sanificazione spetta a P2 ed e qui. Nessun
-    blocco costruisce un href o un src dal testo del brief; i link nascono dai campi
-    STRUTTURATI passati attraverso i loro validatori. Nessun blocco contiene un colore
-    letterale: i colori vengono dal tema (T-211). I componenti leggono solo i campi che il
-    catalogo dei blocchi (T-210) dichiara in brief_fields_rendered.
+    Implementare in src/ui/site/blocks/ i componenti React dei blocchi NARRATIVI — quelli il
+    cui contenuto viene dal pool: hero, chi-siamo, CTA e FAQ — applicando i token del tema.
+    Insieme, stabilire le fondamenta condivise da tutti i blocchi: (a) le CHIAVI i18n delle
+    etichette di TUTTI i blocchi (compresi quelli di dati di T-237) nei cataloghi it/es, dato
+    che per P2-D10 le etichette sono nostre e il modello scrive solo la prosa; (b) il divieto
+    di colore letterale, verificato su tutta la directory; (c) il divieto di
+    dangerouslySetInnerHTML. E' il primo punto in cui il testo NON FIDATO del brief
+    (description, highlights — provenienti da siti terzi via fromUrl, T-141) diventa una
+    pagina: la sanificazione spetta a P2 ed e qui.
   definition_of_done:
-    - "Componenti in src/ui/site/blocks/, uno per blocco del catalogo T-210, che ricevono il documento risolto e i token del tema"
-    - "Nessun uso di dangerouslySetInnerHTML in alcun componente del sito generato"
-    - "Nessun href/src costruito dal testo libero del brief; i link (whatsapp, telefono, email, social) sono costruiti dai campi strutturati e validati prima dell'uso"
-    - "Nessun valore di colore letterale nei componenti: i colori provengono dai token del tema"
+    - "Componenti in src/ui/site/blocks/ per i blocchi narrativi del catalogo T-210 (hero, chi-siamo, CTA, FAQ), che ricevono il documento risolto e i token del tema"
+    - "Le chiavi i18n delle etichette di TUTTI i blocchi del catalogo T-210 — narrativi e di dati — sono aggiunte ai cataloghi it ed es di P0"
+    - "Le etichette rese provengono dal catalogo del locale del sito, non da stringhe inline e non dal modello"
+    - "Nessun uso di dangerouslySetInnerHTML in alcun file sotto src/ui/site/**"
+    - "Nessun valore di colore letterale in alcun file sotto src/ui/site/**: i colori provengono dai token del tema"
     - "I componenti non importano src/ui/theme/tokens (regola ESLint di T-211)"
   acceptance_criteria:
     - id: AC-231-1
-      given: "un documento in cui description, un highlight e il nome di un'offerta contengono ciascuno un payload ostile diverso (un tag script, un tag img con attributo di evento, un iframe con srcdoc)"
-      when: "monto i blocchi e ispeziono l'albero reso"
-      then: "i tre payload compaiono come TESTO, e nessun elemento script, img o iframe nasce da quel testo: il numero di elementi di quei tipi nell'albero e quello atteso dal componente e non aumenta per effetto del payload"
+      given: "un documento in cui description e un highlight contengono ciascuno un payload ostile diverso (un tag script e un tag img con attributo di evento)"
+      when: "monto i blocchi narrativi e ispeziono l'albero reso"
+      then: "i due payload compaiono come TESTO, e nessun elemento script o img nasce da quel testo: il numero di elementi di quei tipi nell'albero e quello atteso dal componente e non aumenta per effetto del payload"
     - id: AC-231-2
-      given: "un documento il cui campo whatsapp contiene 'javascript:alert(1)' e il cui campo email contiene una stringa con uno schema non ammesso"
-      when: "monto il blocco contatti e ispeziono gli attributi href prodotti"
-      then: "nessun href ha uno schema diverso da quelli ammessi (https, tel, mailto): i valori non validi non producono un link, e nessun href contiene 'javascript:'"
+      given: "il catalogo dei blocchi di T-210 e i cataloghi i18n it ed es"
+      when: "per ogni blocco del catalogo cerco la chiave della sua etichetta nei due cataloghi"
+      then: "ogni chiave esiste in ENTRAMBI i cataloghi (nessun blocco senza etichetta, in nessuna delle due lingue); un blocco aggiunto a T-210 senza la sua chiave fa fallire questo controllo"
     - id: AC-231-3
-      given: "un documento derivato da un brief le cui offerte hanno photo_ref valorizzato con un URL di terzi"
-      when: "monto i blocchi e raccolgo tutti gli attributi src e href dell'albero"
-      then: "quell'URL non compare in nessun attributo: lo slot immagine e theme-placeholder e non porta URL (T-202)"
+      given: "lo stesso documento montato con locale 'it' e con locale 'es'"
+      when: "leggo le etichette rese dai blocchi narrativi"
+      then: "le etichette provengono dal catalogo del locale attivo e differiscono fra le due lingue; nessuna etichetta e una stringa inline nel componente"
     - id: AC-231-4
-      given: "i file dei componenti dei blocchi"
-      when: "cerco valori di colore letterali (notazione esadecimale, rgb(), hsl())"
-      then: "nessun componente ne contiene: i colori arrivano dai token del tema"
+      given: "tutti i file sotto src/ui/site/**"
+      when: "cerco valori di colore letterali (notazione esadecimale, rgb(), hsl()) e occorrenze di dangerouslySetInnerHTML"
+      then: "nessun file ne contiene: i colori arrivano dai token del tema e il testo non fidato attraversa solo il percorso di escape di React"
     - id: AC-231-5
-      given: "un brief in cui OGNI campo NON dichiarato in brief_fields_rendered per un dato blocco porta un marcatore unico e riconoscibile"
+      given: "un brief in cui OGNI campo NON dichiarato in brief_fields_rendered per un dato blocco narrativo porta un marcatore unico e riconoscibile"
       when: "monto quel blocco e cerco i marcatori nell'albero reso"
       then: "nessun marcatore dei campi non dichiarati compare: il blocco rende solo cio che ha dichiarato di rendere (T-210)"
-    - id: AC-231-6
-      given: "un documento con cinque offerte discordanti (nomi diversi, una senza prezzo, una con sezione, due nella stessa sezione) e orari con piu di una chiave"
-      when: "monto i blocchi offerte e orari"
-      then: "tutte e cinque le offerte e tutte le chiavi orario sono rese, ciascuna con i propri valori, e nessuna voce risulta duplicata o omessa"
   target_tests:
-    - file: "tests/site-blocks-render.test.ts"
-      covers: [AC-231-1, AC-231-6]
-    - file: "tests/site-blocks-untrusted.test.ts"
-      covers: [AC-231-2, AC-231-3, AC-231-5]
+    - file: "tests/site-blocks-narrative.test.ts"
+      covers: [AC-231-1, AC-231-5]
+    - file: "tests/site-blocks-i18n-labels.test.ts"
+      covers: [AC-231-2, AC-231-3]
     - file: "tests/site-blocks-style.test.ts"
       covers: [AC-231-4]
   security_notes:
-    - "CHIUDE il carry-over P1 §7 p.5: 'testo estratto = input non fidato in RENDERING anche per P2'. La superficie del modello e chiusa da T-220/T-222 e il rendering di P1 era sicuro, ma il sito generato consuma description/highlights/offerte e la sanificazione spettava a P2. E' questo task."
-    - "OWASP A03:2025 (XSS / injection in output): nessun dangerouslySetInnerHTML; il testo non fidato attraversa solo il percorso di escape di React. AC-231-1 asserisce l'assenza di ELEMENTI nati dal testo, che e la forma d'oracolo di P1."
-    - "AC-231-2 chiude una superficie specifica di P2: whatsapp/phone/email sono campi di TESTO LIBERO nel brief (max 40-320 caratteri, T-121) e possono venire da un sito terzo. Costruire wa.me/<valore> o href={valore} senza validare lo schema sarebbe un javascript: URL nel sito di un cliente."
+    - "OWASP A03:2025 (XSS / injection in output): nessun dangerouslySetInnerHTML sotto src/ui/site/**, verificato su tutta la directory e non per componente (AC-231-4), cosi che un blocco aggiunto dopo non sfugga al controllo. Il testo non fidato attraversa solo il percorso di escape di React."
+    - "Inizia a chiudere il carry-over P1 §7 p.5 ('testo estratto = input non fidato in RENDERING anche per P2') per la parte narrativa; la parte dei dati e in T-237 e la prova sull'EFFETTO in T-241."
+    - "P2-D10 come proprieta verificabile (AC-231-2, AC-231-3): le etichette vengono dai cataloghi e non dal modello, quindi la CTA derivata da primary_goal fa rispettare DAL CODICE la regola Meta del 15/01/2026 sugli agenti a scopo definito. Se le etichette le scrivesse il modello, quel vincolo dipenderebbe da una frase in un prompt."
+    - "AC-231-2 e totale sul catalogo: e la stessa forma di P1-D24 (un campo aggiunto a T-121 rompe il controllo e obbliga a decidere). Chiude il gap per cui P1 §6-bis p.13 osservava che i test catturano rinomine e rimozioni ma NON le aggiunte."
     - "LIMITE DICHIARATO: queste asserzioni girano in jsdom, che NON carica risorse. Provano 'nessun elemento nasce dal testo del brief', non 'nessuno script ha girato'. La prova sull'EFFETTO e in T-241, e per questo l'end-to-end esiste."
+    - "LIMITE DICHIARATO (eredita P1 §6-bis p.7): AC-231-3 asserisce che le etichette es sono presenti e diverse dalle it. Una traduzione SBAGLIATA ma diversa passerebbe."
   out_of_scope:
+    - "Blocchi di dati: offerte, orari, contatti, recensioni, galleria (T-237)"
     - "Anteprima a piena pagina (T-235)"
-    - "Selettore (T-232)"
     - "Sanificazione lato pubblicazione: P4"
+
+- id: T-237
+  title: "Blocchi di dati del sito + link costruiti da campi strutturati validati"
+  macrotask: "generation-ui"
+  depends_on: [T-210, T-211, T-231]
+  objective: >
+    Implementare i componenti dei blocchi che rendono i DATI del brief direttamente, senza
+    passare dal modello: offerte (con le varianti per verticale di T-210), orari, contatti e
+    mappa, recensioni, galleria. E' dove si concentra la superficie di rischio di P2: i nomi
+    e le descrizioni delle offerte sono testo non fidato, e whatsapp/phone/email sono campi
+    di TESTO LIBERO nel brief (T-121) da cui questi blocchi costruiscono i LINK. Nessun href
+    o src nasce dal testo libero: i link si costruiscono dai campi strutturati passati
+    attraverso un validatore di schema, e un valore non valido non produce un link.
+  definition_of_done:
+    - "Componenti in src/ui/site/blocks/ per i blocchi di dati del catalogo T-210 (offerte con varianti per verticale, orari, contatti/mappa, recensioni, galleria)"
+    - "I link (whatsapp, telefono, email, social) sono costruiti dai campi strutturati e validati sullo SCHEMA prima dell'uso; un valore non valido non produce alcun link"
+    - "Nessun href/src e costruito dal testo libero del brief; lo slot immagine e reso secondo la sua sorgente tipizzata (T-202)"
+    - "Le etichette provengono dalle chiavi i18n aggiunte da T-231, per il locale del sito"
+    - "La variante del blocco offerte segue il vertical del brief (T-210)"
+  acceptance_criteria:
+    - id: AC-237-1
+      given: "un documento il cui campo whatsapp contiene 'javascript:alert(1)', il cui phone contiene una stringa con caratteri non ammessi e il cui email contiene uno schema non ammesso"
+      when: "monto il blocco contatti e ispeziono gli attributi href prodotti"
+      then: "nessun href ha uno schema diverso da quelli ammessi (https, tel, mailto), nessun href contiene 'javascript:', e per i valori non validi non viene reso alcun link"
+    - id: AC-237-2
+      given: "un documento derivato da un brief le cui offerte hanno photo_ref valorizzato con un URL di terzi"
+      when: "monto i blocchi di dati e raccolgo tutti gli attributi src e href dell'albero"
+      then: "quell'URL non compare in nessun attributo: lo slot immagine e theme-placeholder e non porta URL (T-202)"
+    - id: AC-237-3
+      given: "un documento con cinque offerte discordanti (nomi diversi, una senza prezzo, una con sezione, due nella stessa sezione) e orari con piu di una chiave"
+      when: "monto i blocchi offerte e orari"
+      then: "tutte e cinque le offerte e tutte le chiavi orario sono rese, ciascuna con i propri valori, e nessuna voce risulta duplicata o omessa"
+    - id: AC-237-4
+      given: "un documento in cui il NOME di un'offerta contiene un tag script e la DESCRIZIONE di un'altra contiene un iframe con srcdoc"
+      when: "monto il blocco offerte e ispeziono l'albero reso"
+      then: "i due payload compaiono come TESTO e nessun elemento script o iframe nasce da quel testo"
+    - id: AC-237-5
+      given: "due documenti identici tranne il vertical del brief ('ristorazione' e 'salone_studio'), montati nello stesso locale"
+      when: "leggo l'etichetta e il layout del blocco offerte nei due casi"
+      then: "l'etichetta differisce e proviene dal catalogo i18n (non da una stringa inline), e il layout segue la variante dichiarata in T-210"
+  target_tests:
+    - file: "tests/site-blocks-data.test.ts"
+      covers: [AC-237-3, AC-237-5]
+    - file: "tests/site-blocks-untrusted.test.ts"
+      covers: [AC-237-1, AC-237-2, AC-237-4]
+  security_notes:
+    - "CHIUDE la parte piu esposta del carry-over P1 §7 p.5: le offerte e i contatti sono i campi che il sito generato rende direttamente dal brief, quindi senza passare dal filtro dell'allowlist del confine LLM. Sono la superficie di rendering piu larga di tutto P2."
+    - "AC-237-1 chiude una superficie specifica e facile da mancare: whatsapp/phone/email sono campi di TESTO LIBERO (max 40-320 caratteri, T-121) e possono venire da un sito terzo via fromUrl. Costruire wa.me/<valore> o href={valore} senza validare lo SCHEMA sarebbe un javascript: URL nel sito pubblico di un cliente pagante."
+    - "AC-237-2: nessuna richiesta di rete verso un host di terzi puo nascere da un photo_ref, perche il tipo dello slot immagine non ha un campo URL (T-202). E' cio che rende significativa l'asserzione end-to-end di T-241."
+    - "Trappola del test (correzione di metodo n.1 di P1): AC-237-3 usa CINQUE offerte con valori DISCORDANTI e orari con PIU DI UNA chiave — una fixture con un solo elemento non prova nulla sull'identita di quell'elemento, ed e il difetto che in P1 si e ripetuto tre volte con la suite verde."
+    - "LIMITE DICHIARATO: jsdom non carica risorse. La prova sull'EFFETTO e in T-241."
+  out_of_scope:
+    - "Blocchi narrativi e chiavi i18n (T-231)"
+    - "Anteprima a piena pagina (T-235)"
+    - "Ingest e ri-hosting delle foto reali: P4"
 
 - id: T-232
   title: "Selettore dei 5 mockup con lo stesso renderer + rigenera una variante"
   macrotask: "generation-ui"
-  depends_on: [T-230, T-231, T-214]
+  depends_on: [T-230, T-231, T-237, T-214]
   objective: >
     Implementare il selettore in src/ui/generation/: cinque card, ciascuna resa dallo
     STESSO renderer dell'anteprima (T-235) applicato a resolve(pool, ricetta_i, tema_i) —
@@ -333,7 +395,7 @@ dashboard. E' la prima cosa del progetto che chiede di essere guardata.
 - id: T-235
   title: "Anteprima navigabile /preview che legge il documento congelato"
   macrotask: "generation-ui"
-  depends_on: [T-233, T-231]
+  depends_on: [T-233, T-231, T-237]
   objective: >
     Implementare la rotta protetta /{locale}/preview/{siteId} che rende a piena pagina il
     documento CONGELATO, mai il pool: se rendesse dal pool, il sito tornerebbe a essere

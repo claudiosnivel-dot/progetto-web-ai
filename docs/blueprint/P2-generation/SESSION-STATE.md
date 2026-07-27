@@ -17,13 +17,13 @@
 
 | Macrotask | Stato | Checkpoint | Note |
 |---|---|---|---|
-| generation-model | **todo** | — | T-200..T-203 — i contratti: 2 tabelle con RLS, PoolSchema, SiteDocumentSchema, server action. **Introduce superficie DB nuova**: `rls:0` va riconquistato |
+| generation-model | **todo** | — | T-200..T-204 — i contratti: 2 tabelle con RLS, PoolSchema, SiteDocumentSchema, server action separate fra lettura/creazione e scrittura. **Introduce superficie DB nuova**: `rls:0` va riconquistato |
 | generation-engine | **todo** | — | T-210..T-215 — la trasformazione pura: blocchi, temi, ricette, pagesFor, resolve, generatable. Il cuore, e l'unico strato con oracoli pieni senza chiave API |
 | generation-llm | **todo** | — | T-220..T-225 — il confine: proiezione allowlist, normalizzatore, tool strict, prompt, `runGenerationTurn`, harness di misura |
-| generation-ui | **todo** | — | T-230..T-236 — rotta e stream, blocchi sanificati, selettore, congelamento, fase 2, anteprima, dashboard. **Il macrotask piu esposto** |
+| generation-ui | **todo** | — | T-230..T-237 — rotta e stream, blocchi narrativi (+ chiavi i18n) e blocchi di dati, selettore, congelamento, fase 2, anteprima, dashboard. **Il macrotask piu esposto** |
 | generation-e2e | **todo** | — | T-240..T-241 — il primo end-to-end vero del progetto, canary compreso |
 
-**→ 25 task atomici, 5 macrotask. Nessuno costruito.**
+**→ 27 task atomici, 5 macrotask. Nessuno costruito.**
 
 ## 2. Macrotask corrente
 
@@ -69,10 +69,26 @@
   index, or store` fuori dal progetto — le foto GBP **non sono ri-ospitabili**, e poiche la
   clausola dice `any content` il divieto va riletto anche contro l'import dei **dati**.
   Nota di aggiornamento aggiunta alla visione §12.
-- **Fase B (questo BOOTSTRAP)**: blueprint di 5 moduli e 25 task atomici generato dalla
+- **Fase B (questo BOOTSTRAP)**: blueprint di 5 moduli e **27 task atomici** generato dalla
   spec. **Nessun codice prodotto.**
-- **Self-check strutturale**: `validate_blueprint.mjs` sulla dir P2 — esito da registrare
-  in questa sessione.
+- **Self-check strutturale**: `validate_blueprint.mjs` sulla dir P2 — **EXIT 0**, tutti e 5
+  i controlli OK (campi obbligatori, copertura AC→test, DAG aciclico, id univoci, ownership).
+- **Self-check semantico** (punti 6–10): eseguito, **4 rilievi + 3 minori**, tutti portati
+  all'utente e da lui **approvati e applicati** nella stessa sessione:
+  1. `T-203` era troppo largo (sei azioni, 9 AC) → **split in T-203** (creazione/lettura +
+     riconciliazione) **e T-204** (scrittura + macchina a stati).
+  2. `T-231` era troppo largo → **split lungo la linea del RISCHIO** e non del conteggio:
+     **T-231** blocchi narrativi + fondamenta condivise, **T-237** blocchi di dati, dove si
+     concentra il testo non fidato e dove nascono i link da campi liberi.
+  3. **Gap di copertura chiuso**: le chiavi i18n delle etichette dei blocchi non erano di
+     nessun task (artefatto consumato e prodotto da nessuno) → ora sono nella DoD di T-231,
+     con un controllo **totale sul catalogo** che rompe se un blocco nuovo non porta la sua
+     chiave (chiude anche P1 §6-bis p.13, dove i test catturavano rinomine e rimozioni ma
+     non le aggiunte).
+  4. `T-230` segnalato **al limite** ma non splittato: paragonabile a T-150 di P1, che ha tenuto.
+  Minori applicati: `AC-223-6` ristretta a percorsi e valori esatti (evita falsi positivi),
+  `AC-223-1` resa **totale sull'enum dei locale** col limite residuo dichiarato,
+  `AC-240-1` ora nomina una risorsa attesa invece di asserire "non vuoto".
 
 ## 6. Copertura dichiarata (cosa NON e coperto, da subito)
 
@@ -125,7 +141,7 @@
 
 1. **Registrare l'esito del self-check strutturale** di `validate_blueprint.mjs` e
    committare il blueprint sul branch.
-2. **Primo BUILD su `generation-model`** (T-200..T-203), con riconferma esplicita del
+2. **Primo BUILD su `generation-model`** (T-200..T-204), con riconferma esplicita del
    deploy-coupling all'apertura.
 3. **Riconquistare `rls:0`** al checkpoint di `generation-model`: e superficie DB nuova, non
    ereditata.

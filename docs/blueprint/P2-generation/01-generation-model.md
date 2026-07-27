@@ -224,29 +224,24 @@ generazione morta di bloccare il sito per sempre.
     - "Sede definitiva del documento: decisione di P3"
 
 - id: T-203
-  title: "Server actions generations (create/writePool/choose/appendPages/get/list) + riconciliazione"
+  title: "Server actions generations in LETTURA e creazione (create/get/listStatuses) + riconciliazione"
   macrotask: "generation-model"
   depends_on: [T-200, T-202]
   objective: >
-    Implementare in src/data/generations.ts le server action eseguite solo server-side che
-    usano il client Supabase legato alla sessione (RLS attiva) e MAI la service_role:
-    createGeneration(siteId, maxPages), writePool(generationId, scope, variantIndex,
-    content), chooseVariant(generationId, index), appendPages(generationId, pages),
-    getGeneration(siteId), listGenerationStatuses(). L'account_id e derivato
-    dall'identita (auth.uid() -> owner_id, come sites/T-101 e briefs/T-123), non da input
-    client. writePool valida il content con parsePool (T-201) e chooseVariant/appendPages
-    validano il documento con parseDocument (T-202) prima di scrivere. Solo metodi tipati
-    (.eq/.select/.insert/.update), mai interpolazione in .or()/.filter().
+    Implementare in src/data/generations.ts le server action di creazione e lettura,
+    eseguite solo server-side, che usano il client Supabase legato alla sessione (RLS
+    attiva) e MAI la service_role: createGeneration(siteId, maxPages),
+    getGeneration(siteId), listGenerationStatuses(). L'account_id e derivato dall'identita
+    (auth.uid() -> owner_id, come sites/T-101 e briefs/T-123), non da input client. Solo
+    metodi tipati (.eq/.select/.insert), mai interpolazione in .or()/.filter().
     getGeneration applica la RICONCILIAZIONE: una riga 'generating' piu vecchia di
     GENERATION_TIMEOUTS.phase1, o 'chosen' senza pagine interne piu vecchia di
     GENERATION_TIMEOUTS.phase2, e riportata come 'failed' — altrimenti un processo morto
     bloccherebbe il sito per sempre attraverso l'indice UNIQUE parziale.
     listGenerationStatuses legge lo stato di TUTTI i siti dell'account in UNA query.
   definition_of_done:
-    - "Modulo server-side src/data/generations.ts con le sei azioni, invocabili solo dal server"
+    - "Modulo server-side src/data/generations.ts con createGeneration, getGeneration e listGenerationStatuses, invocabili solo dal server"
     - "l'account_id e derivato dall'appartenenza/owner dell'utente autenticato, non da input client arbitrario"
-    - "writePool rifiuta un content che non valida contro parsePool, senza scrivere nulla"
-    - "chooseVariant scrive chosen_variant e document (sola pagina home) e porta status a 'chosen'; appendPages estende document.pages e porta status a 'complete'"
     - "GENERATION_TIMEOUTS in costanti nominate; getGeneration riporta come 'failed' le righe stantie secondo P2-D15 senza cancellarle"
     - "listGenerationStatuses esegue UNA sola query per N siti (nessun N+1) e non fa select('*')"
     - "le azioni usano il client con sessione (RLS) e metodi tipati; nessuna interpolazione in .or()/.filter(); nessun uso della service_role"
@@ -261,45 +256,93 @@ generazione morta di bloccare il sito per sempre.
       then: "il risultato e vuoto/negato (la RLS isola per tenant); A che chiama getGeneration(S) ottiene la propria generazione"
     - id: AC-203-3
       given: "nessuna sessione autenticata"
-      when: "si invoca ciascuna delle sei azioni"
-      then: "ogni azione fallisce con errore di autenticazione e non viene scritta ne restituita alcuna riga"
+      when: "si invoca createGeneration, getGeneration e listGenerationStatuses"
+      then: "ognuna fallisce con errore di autenticazione e non viene scritta ne restituita alcuna riga"
     - id: AC-203-4
       given: "una generazione del sito S con status='generating'"
       when: "l'utente A chiama di nuovo createGeneration(S, ...)"
       then: "l'azione e rifiutata con un errore riconoscibile di generazione già in volo, e la riga esistente resta invariata (status e id inalterati)"
     - id: AC-203-5
-      given: "una generazione in stato 'generating'"
-      when: "chiamo writePool con un content che viola PoolSchema (uno slot fuori tetto)"
-      then: "l'azione e rifiutata con errore di validazione e nessuna riga generation_pools viene scritta"
-    - id: AC-203-6
-      given: "una generazione in stato 'ready' con un pool home"
-      when: "chiamo chooseVariant(G, 2) e poi getGeneration(S)"
-      then: "la generazione ha chosen_variant=2, status='chosen' e document con esattamente una pagina di role 'home'; una successiva appendPages porta status='complete' e document.pages a piu di una pagina"
-    - id: AC-203-7
       given: "una riga site_generations con status='generating' e updated_at piu vecchio di GENERATION_TIMEOUTS.phase1"
       when: "l'utente A chiama getGeneration(S)"
       then: "lo stato riportato e 'failed' e una successiva createGeneration(S, ...) riesce; la riga stantia non e stata cancellata"
-    - id: AC-203-8
+    - id: AC-203-6
       given: "un account con N siti (N maggiore di 1), ciascuno con una generazione, e un doppio del client che conta le chiamate"
       when: "chiamo listGenerationStatuses()"
       then: "il numero di chiamate al DB e 1 e resta 1 al crescere di N, e il risultato contiene lo stato di ciascuno degli N siti"
-    - id: AC-203-9
-      given: "l'utente B autenticato che NON e membro dell'account di A e la generazione G del sito S di A"
-      when: "B chiama writePool(G, ...) e chooseVariant(G, 0)"
-      then: "entrambe sono rifiutate (derivazione server-side dell'account e/o RLS) e nessuna riga della generazione di S viene modificata"
   target_tests:
-    - file: "tests/generations-actions.test.ts"
-      covers: [AC-203-1, AC-203-2, AC-203-3, AC-203-4, AC-203-5, AC-203-6, AC-203-7, AC-203-8, AC-203-9]
+    - file: "tests/generations-read-actions.test.ts"
+      covers: [AC-203-1, AC-203-2, AC-203-3, AC-203-4, AC-203-5, AC-203-6]
   security_notes:
-    - "R1/R4: l'isolamento cross-tenant delle sei azioni si appoggia alla RLS delle due tabelle (appartenenza account), verificato con client ad auth reale su Supabase locale (AC-203-2, AC-203-9)."
-    - "R7: la service_role bypassa la RLS ed e confinata server-side; la CRUD delle generazioni usa deliberatamente il client con sessione utente perche la RLS resti attiva."
+    - "R1/R4: l'isolamento cross-tenant si appoggia alla RLS delle due tabelle (appartenenza account), verificato con client ad auth reale su Supabase locale (AC-203-2)."
+    - "R7: la service_role bypassa la RLS ed e confinata server-side; queste azioni usano deliberatamente il client con sessione utente perche la RLS resti attiva."
     - "OWASP A01:2025: l'account_id e derivato dall'identita (auth.uid()->owner_id) e mai fidato dal client."
-    - "OWASP A05:2025 (injection, incl. PostgREST filter injection): solo metodi tipati .eq()/.insert()/.select()/.update(), mai .or()/.filter() con input interpolato; writePool ri-valida con parsePool (T-201) e chooseVariant/appendPages con parseDocument (T-202)."
-    - "Disponibilita (P2-D15): l'indice UNIQUE parziale e la difesa contro la doppia generazione ED E anche il modo di incastrarsi. La riconciliazione in lettura (AC-203-7) e il secondo meccanismo: senza, un processo morto renderebbe il sito non piu generabile in modo permanente. Servono entrambi, perche un finally non gira su un processo ucciso."
+    - "OWASP A05:2025 (injection, incl. PostgREST filter injection): solo metodi tipati .eq()/.insert()/.select(), mai .or()/.filter() con input interpolato."
+    - "Disponibilita (P2-D15): l'indice UNIQUE parziale e la difesa contro la doppia generazione ED E anche il modo di incastrarsi. La riconciliazione in lettura (AC-203-5) e il secondo meccanismo: senza, un processo morto renderebbe il sito non piu generabile in modo permanente. Servono entrambi, perche un finally non gira su un processo ucciso."
   out_of_scope:
+    - "Azioni di scrittura del pool e del documento (T-204)"
     - "Rotta HTTP e stream (T-230)"
-    - "Chiamata al modello (T-224)"
     - "Costruzione del documento (T-214)"
+
+- id: T-204
+  title: "Server actions generations in SCRITTURA (writePool/chooseVariant/appendPages)"
+  macrotask: "generation-model"
+  depends_on: [T-200, T-202]
+  objective: >
+    Implementare in src/data/generations.ts le server action di scrittura, server-side, col
+    client legato alla sessione (RLS attiva) e MAI la service_role: writePool(generationId,
+    scope, variantIndex, content), chooseVariant(generationId, index) e
+    appendPages(generationId, pages). writePool valida il content con parsePool (T-201);
+    chooseVariant e appendPages validano il documento con parseDocument (T-202) prima di
+    scrivere. Le tre azioni rispettano la macchina a stati di P2-D13: chooseVariant opera
+    su 'ready' e porta a 'chosen' scrivendo il documento con la sola home; appendPages opera
+    su 'chosen' e porta a 'complete' estendendo document.pages. Uno stato di partenza
+    sbagliato e un errore, non un no-op silenzioso.
+  definition_of_done:
+    - "writePool, chooseVariant e appendPages esportate da src/data/generations.ts, invocabili solo dal server"
+    - "writePool rifiuta un content che non valida contro parsePool, senza scrivere nulla"
+    - "chooseVariant scrive chosen_variant e document (sola pagina home) e porta status a 'chosen'; appendPages estende document.pages e porta status a 'complete'"
+    - "Le transizioni sono vincolate allo stato di partenza; una transizione non ammessa e rifiutata con un errore riconoscibile e non modifica la riga"
+    - "Un indice di variante fuori 0..4 e rifiutato prima di raggiungere il DB"
+    - "le azioni usano il client con sessione (RLS) e metodi tipati; nessuna interpolazione in .or()/.filter(); nessun uso della service_role"
+  acceptance_criteria:
+    - id: AC-204-1
+      given: "una generazione in stato 'generating'"
+      when: "chiamo writePool con un content che viola PoolSchema (uno slot fuori tetto)"
+      then: "l'azione e rifiutata con errore di validazione e nessuna riga generation_pools viene scritta"
+    - id: AC-204-2
+      given: "una generazione in stato 'ready' con un pool home"
+      when: "chiamo chooseVariant(G, 2) e poi appendPages(G, pagine)"
+      then: "dopo la prima la generazione ha chosen_variant=2, status='chosen' e document con esattamente una pagina di role 'home'; dopo la seconda status='complete' e document.pages ha piu di una pagina"
+    - id: AC-204-3
+      given: "nessuna sessione autenticata"
+      when: "si invoca writePool, chooseVariant e appendPages"
+      then: "ognuna fallisce con errore di autenticazione e nessuna riga viene scritta o modificata"
+    - id: AC-204-4
+      given: "l'utente B autenticato che NON e membro dell'account di A e la generazione G del sito S di A"
+      when: "B chiama writePool(G, ...), chooseVariant(G, 0) e appendPages(G, ...)"
+      then: "tutte e tre sono rifiutate (derivazione server-side dell'account e/o RLS) e nessuna riga della generazione di S viene modificata"
+    - id: AC-204-5
+      given: "una generazione in stato 'ready'"
+      when: "chiamo chooseVariant(G, 5) e chooseVariant(G, -1)"
+      then: "entrambe sono rifiutate prima di raggiungere il DB e chosen_variant resta invariato"
+    - id: AC-204-6
+      given: "una generazione in stato 'generating' (fase 1 non conclusa)"
+      when: "chiamo appendPages(G, pagine)"
+      then: "l'azione e rifiutata con un errore riconoscibile di transizione non ammessa, e la riga resta in 'generating' con document invariato"
+  target_tests:
+    - file: "tests/generations-write-actions.test.ts"
+      covers: [AC-204-1, AC-204-2, AC-204-3, AC-204-4, AC-204-5, AC-204-6]
+  security_notes:
+    - "R1/R4: l'isolamento cross-tenant delle tre scritture si appoggia alla RLS delle due tabelle, verificato con client ad auth reale su Supabase locale (AC-204-4)."
+    - "R7: nessun uso della service_role: la scrittura passa dal client con sessione perche la RLS resti attiva."
+    - "OWASP A05:2025 (validation): writePool ri-valida con parsePool (T-201) e chooseVariant/appendPages con parseDocument (T-202) — l'output del modello non viene mai scritto grezzo."
+    - "OWASP A01:2025: l'account_id e derivato dall'identita; l'indice di variante e vincolato prima del DB (AC-204-5), che e difesa in profondita rispetto al CHECK di T-200."
+    - "Integrita della macchina a stati (AC-204-6): una transizione non ammessa e un ERRORE e non un no-op. Un appendPages accettato su una generazione non scelta produrrebbe un documento incoerente senza che nulla protesti."
+  out_of_scope:
+    - "Azioni di creazione e lettura (T-203)"
+    - "Rotta HTTP e stream (T-230)"
+    - "Conferma utente sulla riscelta (T-233)"
 ```
 
 ## Self-check

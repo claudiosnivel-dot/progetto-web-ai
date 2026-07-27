@@ -50,9 +50,9 @@ e indistinguibile da *"la pagina non si e caricata"*.
     - "L'end-to-end gira al CHECKPOINT di macrotask e non nel giro per-task"
   acceptance_criteria:
     - id: AC-240-1
-      given: "l'harness avviato su Chromium e una pagina di anteprima da un documento-fixture innocuo"
+      given: "l'harness avviato su Chromium e una pagina di anteprima da un documento-fixture innocuo che contiene un nome di attivita noto"
       when: "carico la pagina e leggo le osservabili raccolte"
-      then: "la pagina risulta caricata (il contenuto atteso del documento e presente nel DOM), il contatore globale e zero, e l'elenco delle richieste di rete e delle navigazioni e disponibile e non vuoto per le sole risorse dell'applicazione"
+      then: "il nome dell'attivita del fixture e presente nel DOM, il contatore globale e zero, e fra le richieste raccolte compare il documento HTML della rotta di anteprima con esito 200 — cosi che 'nessuna richiesta verso host esterni' non possa risultare vera solo perche la raccolta e vuota"
     - id: AC-240-2
       given: "la pagina che monta il componente-canary deliberatamente insicuro"
       when: "applico a quella pagina lo STESSO helper di asserzioni usato dallo scenario reale"

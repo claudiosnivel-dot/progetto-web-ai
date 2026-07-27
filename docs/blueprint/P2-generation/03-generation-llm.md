@@ -207,9 +207,9 @@ solo posto, dichiarate provvisorie fino alla prima misura reale (`P2-D17`).
     - "Test che calcola costo_max per fase e per sito dalle costanti di GENERATION_BUDGET e lo asserisce sotto GENERATION_BUDGET.max_cost_per_site_usd"
   acceptance_criteria:
     - id: AC-223-1
-      given: "i due locale 'it' ed 'es'"
-      when: "leggo SYSTEM_PROMPTS per ciascuno"
-      then: "entrambi esistono, sono non vuoti e sono diversi fra loro"
+      given: "l'enum dei locale dichiarato in T-121"
+      when: "per OGNI locale dell'enum leggo SYSTEM_PROMPTS[locale]"
+      then: "esiste per ogni locale dell'enum — il record e TOTALE sul tipo, quindi un locale aggiunto a T-121 rompe il typecheck e obbliga a decidere —, ciascuno e non vuoto, i due sono diversi fra loro, e ciascuno nomina esplicitamente la propria lingua di destinazione"
     - id: AC-223-2
       given: "due brief DIVERSI dello stesso locale"
       when: "assemblo il payload per entrambi e confronto il prefisso che precede la parte volatile"
@@ -227,9 +227,9 @@ solo posto, dichiarate provvisorie fino alla prima misura reale (`P2-D17`).
       when: "assemblo il payload per ciascuno sullo stesso brief"
       then: "i due payload differiscono nella parte volatile e nella lista di slot richiesti, e condividono lo stesso system prompt per quel locale"
     - id: AC-223-6
-      given: "il modulo di budget"
-      when: "cerco nel resto del codice di P2 letterali numerici corrispondenti a max_tokens, timeout o ai tetti di proiezione"
-      then: "quei valori sono referenziati da GENERATION_BUDGET e non riscritti come letterali altrove"
+      given: "i valori ESATTI di GENERATION_BUDGET (max_tokens per fase, timeout, maxRetries, tetti dei due profili di proiezione) e i soli file sotto src/domain/generation/** e src/data/generations.ts, escluso il modulo che li dichiara"
+      when: "cerco in quei file l'occorrenza letterale di ciascuno di quei valori"
+      then: "nessuna occorrenza letterale e trovata: ogni uso passa da GENERATION_BUDGET. La ricerca e deliberatamente limitata a quei percorsi e ai valori esatti, per non produrre falsi positivi su numeri usati per altro"
   target_tests:
     - file: "tests/generation-prompt.test.ts"
       covers: [AC-223-1, AC-223-2, AC-223-3, AC-223-5]
@@ -239,6 +239,7 @@ solo posto, dichiarate provvisorie fino alla prima misura reale (`P2-D17`).
     - "OWASP A05:2025: AC-223-3 e la seconda rete anti-fuga, dopo quella sulla proiezione (T-220). Un assemblaggio che rileggesse il brief invece della proiezione riaprirebbe la superficie che T-220 chiude, e senza questo controllo la regressione sarebbe silenziosa."
     - "Il system prompt dice al modello che i valori non mostrati non gli sono disponibili: senza questa dichiarazione il modello li INVENTEREBBE, come registrato in P1-D24. E' l'unico punto in cui una frase nel prompt fa un lavoro reale, e non e contata come difesa di sicurezza."
     - "P2-D17: i numeri di GENERATION_BUDGET sono STIME dichiarate provvisorie, non misure. AC-223-4 asserisce la coerenza interna del bound, NON la correttezza delle stime — quella richiede la misura di T-225."
+    - "LIMITE DICHIARATO (eredita P1 §6-bis p.7): AC-223-1 asserisce che i prompt per-locale esistono per ogni locale, sono non vuoti e sono diversi fra loro. Una traduzione SBAGLIATA ma diversa passerebbe: la qualita linguistica del prompt non e oracolabile, e senza chiave API non e oracolabile nemmeno il suo effetto. La totalita sul tipo (un locale nuovo rompe il typecheck) e cio che il controllo garantisce davvero."
   out_of_scope:
     - "Chiamata effettiva e guardie sul ritorno (T-224)"
     - "Misura reale dei token (T-225)"
