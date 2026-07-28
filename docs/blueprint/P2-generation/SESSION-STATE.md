@@ -218,6 +218,16 @@ per nome (p.4); `P1-D11` sul contratto di altitudine, **ancora rinviato**.
 
 ## 8. Prossimi passi & decisioni
 
+0. **PRIMA del prossimo BUILD — audit degli oracoli di P0 e P1**, deciso dall'utente il
+   2026-07-28: piano in **`docs/blueprint/AUDIT-ORACOLI-P0-P1.md`**. Ampiezza scelta:
+   sweep di mutazione sulle sole **superfici di sicurezza** (tenancy, profili e
+   auto-provisioning, auth/sessione, siti, brief, SSRF dell'import), non la riverifica
+   completa dei 41 task. **Motivo, misurato**: il cambio di versione della skill
+   (0.1.0 → 0.2.0) e stato **escluso** confrontando i due alberi — identici salvo
+   un'allowlist di gitleaks presente solo nell'albero di sviluppo, quindi il checkpoint
+   del 28/07 ha girato sulla configurazione **piu severa**. Il motivo vero e un altro: in
+   questo macrotask, in **4 task su 5**, il difetto era nell'**oracolo** e non nel codice,
+   e P0/P1 sono stati costruiti prima che quelle lezioni esistessero.
 1. **Prossimo BUILD**: `generation-engine` (consigliato) oppure `generation-llm`.
 2. **Riconfermare il deploy-coupling** all'apertura, come si e fatto qui: non e una
    formalita, e la ragione per cui il merge di questo macrotask e stato autonomo.
