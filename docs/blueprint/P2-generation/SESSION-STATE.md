@@ -25,6 +25,26 @@
 
 **→ 27 task atomici, 5 macrotask. Uno costruito e chiuso, quattro da costruire.**
 
+### 1-bis. I cinque task chiusi, e cosa ha prodotto il verde
+
+| Task | Output | Oracolo che ha prodotto il verde | Rilievi |
+|---|---|---|---|
+| T-200 | migrazione `20260728000100_site_generations.sql` | `tests/site-generations-schema.test.ts` — 15 test, catalogo + runtime ad auth reale | 8, tutti verified |
+| T-201 | `slots.ts`, `pool.ts`, `gate.ts` | `tests/pool-schema.test.ts` — 26 test puri | 7 → 5 verified, 2 dichiarati |
+| T-202 | `document.ts` | `tests/site-document-schema.test.ts` — 49 test | 9 → 8 verified, 1 dichiarato |
+| T-203 | letture in `src/data/generations.ts`, `timeouts.ts` | `tests/generations-read-actions.test.ts` — 15 test DB-backed | 7 → 5 verified, 2 dichiarati |
+| T-204 | scritture in `src/data/generations.ts` | `tests/generations-write-actions.test.ts` — 21 test DB-backed | 10 → 9 verified, 1 dichiarato |
+
+**fix_state complessivo**: 41 rilievi → **35 verified**, **6 mitigated-residual dichiarati**
+(V-201-06, V-201-07, V-202-01, F-203-06, F-203-07, V-204-06), **0 open non dichiarati**.
+
+**Batteria di mutazione dell'orchestratore**: T-200 10/10 prese · T-201 13/13 sull'esito
+atteso (2 deliberatamente attese VERDI) · T-202 8/8 prese, con una mutazione malformata
+rifatta invece di essere registrata come buco inesistente. Ripristino verificato con hash
+sha256 a ogni giro. **Su T-203 e T-204 la batteria dell'orchestratore NON e stata girata**:
+le mutazioni le hanno eseguite builder, verifier e fixer (rispettivamente 20 e 24), con
+ripristino verificato per hash. E una differenza di metodo, dichiarata e non dedotta.
+
 ### Verdetto del checkpoint, letterale (dal JSON, non dall'exit code)
 
 ```
