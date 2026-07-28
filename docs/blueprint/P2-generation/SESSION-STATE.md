@@ -8,8 +8,8 @@
 |---|---|
 | **Progetto** | Belora |
 | **Ecosistema** | supabase-jsts (JS/TS + Supabase) |
-| **Ultimo aggiornamento** | 2026-07-26 (sessione CHIUSA: fase A design + fase B bootstrap, nessun codice) |
-| **Sessione corrente** | **CHIUSA.** Ha prodotto il design di P2 (17 decisioni chiuse in brainstorming, una domanda per volta), lo studio di fattibilita sull'ingest delle foto del cliente, e il blueprint completo: **5 macrotask, 27 task atomici, 156 acceptance criteria**. Self-check strutturale `validate_blueprint.mjs` **EXIT 0** prima e dopo l'applicazione dei rilievi semantici. **Nessun codice prodotto, nessun macrotask costruito, nessun checkpoint applicabile.** La prossima sessione riparte dal **primo BUILD su `generation-model`**. |
+| **Ultimo aggiornamento** | 2026-07-28 (primo BUILD di P2: macrotask `generation-model` costruito e chiuso) |
+| **Sessione corrente** | Ha costruito **l'intero macrotask `generation-model`** (T-200..T-204) con il metodo dynamic workflow a 2 agenti per ciclo (builder → verifier avversariale → fixer diversi), batteria di mutazione dell'orchestratore fra un task e l'altro, e **checkpoint deterministico VERDE 4/4** al confine. Cinque emendamenti al blueprint (`P2-D19`…`P2-D23`) nati da rilievi **misurati**, tutti approvati dall'umano. **+18 AC** rispetto al blueprint bootstrappato. Suite da 467 a **593 test**. |
 
 ---
 
@@ -17,157 +17,221 @@
 
 | Macrotask | Stato | Checkpoint | Note |
 |---|---|---|---|
-| generation-model | **todo** | — | T-200..T-204 — i contratti: 2 tabelle con RLS, PoolSchema, SiteDocumentSchema, server action separate fra lettura/creazione e scrittura. **Introduce superficie DB nuova**: `rls:0` va riconquistato |
-| generation-engine | **todo** | — | T-210..T-215 — la trasformazione pura: blocchi, temi, ricette, pagesFor, resolve, generatable. Il cuore, e l'unico strato con oracoli pieni senza chiave API |
-| generation-llm | **todo** | — | T-220..T-225 — il confine: proiezione allowlist, normalizzatore, tool strict, prompt, `runGenerationTurn`, harness di misura |
-| generation-ui | **todo** | — | T-230..T-237 — rotta e stream, blocchi narrativi (+ chiavi i18n) e blocchi di dati, selettore, congelamento, fase 2, anteprima, dashboard. **Il macrotask piu esposto** |
-| generation-e2e | **todo** | — | T-240..T-241 — il primo end-to-end vero del progetto, canary compreso |
+| generation-model | **done** | **VERDE 4/4** (2026-07-28) | T-200..T-204. `rls:0` **riconquistato** su superficie DB nuova. 126 test nuovi in 5 file |
+| generation-engine | **todo** | — | T-210..T-215 — la trasformazione pura. Eredita tre precondizioni misurate da T-202/T-204, gia scritte in `02-generation-engine.md` |
+| generation-llm | **todo** | — | T-220..T-225 — il confine. Indipendente da generation-engine |
+| generation-ui | **todo** | — | T-230..T-237 — il macrotask piu esposto |
+| generation-e2e | **todo** | — | T-240..T-241 — il primo end-to-end vero |
 
-**→ 27 task atomici, 5 macrotask. Nessuno costruito.**
+**→ 27 task atomici, 5 macrotask. Uno costruito e chiuso, quattro da costruire.**
 
-**Nessun checkpoint e applicabile in questa fase.** Il checkpoint gira al confine di un
-macrotask *costruito*, e non e stato scritto codice: dead-code, sicurezza, regressioni e
-conformita-logica sono **NON ESEGUITI**, cosi come `gitleaks`, `osv`, `semgrep` e `rls`.
-L'unico oracolo che ha girato in questa sessione e `validate_blueprint.mjs`. La colonna
-Checkpoint vuota va letta come **non eseguito**, non come "non ancora verde".
+### Verdetto del checkpoint, letterale (dal JSON, non dall'exit code)
+
+```
+checkpoint=VERDE | 1:dead-code=green 2:security=green 3:regressions=green 4:conformance=green
+  1 dead-code  green  nessuna regressione d'igiene NUOVA [dead-code:0 dup:60 cycle:0 twin:0]
+  2 security   green  nessun finding NUOVO >= HIGH [gitleaks:0 osv:0 semgrep:0 rls:0]
+  3 regressions green  test verdi
+  4 conformance green  test verdi
+degraded = []
+```
+
+**Riserva onesta sul controllo 1**: e verde perche le 18 duplicazioni nuove sono state
+**attribuite e catturate** nella baseline, non perche siano sparite — `dup:60` resta nel
+dettaglio. L'attribuzione e in §4.
 
 ## 2. Macrotask corrente
 
-- **Selezionato**: nessuno. Il primo BUILD deve partire da **`generation-model`**: e l'unico
-  senza dipendenze, e sia `generation-engine` sia `generation-llm` ne consumano i contratti.
+- **Selezionato**: nessuno. Il prossimo BUILD puo partire da **`generation-engine`**
+  (T-210..T-215) o da **`generation-llm`** (T-220..T-225): sono indipendenti fra loro nel
+  DAG e **entrambi** consumano solo i contratti di `generation-model`, che ora esistono.
+  `generation-ui` viene dopo entrambi.
+- **Consiglio operativo**: `generation-engine` prima, perche e l'unico strato con oracoli
+  pieni **senza chiave API** — e senza chiave `generation-llm` lascera T-225 non eseguito.
 - **Task atomici in corso**: nessuno.
-- **Criteri/test di riferimento**: vedi `01-generation-model.md` e i `target_tests` dei task
-  (oracolo del controllo 4 in BUILD).
 
 ## 3. Stato git
 
 | Campo | Valore |
 |---|---|
-| Branch di lavoro | `trueline/design/p2-generation` (fase A + questo BOOTSTRAP; **non** mergeato) |
-| Ultimo commit | `74293b4` — working tree pulito, `origin/trueline/design/p2-generation` allineato |
-| Stato merge su `main` | **NON mergeato.** Il branch porta solo documenti (spec, ricerca, blueprint): nessun codice, quindi nessun checkpoint applicabile. La decisione di mergiare e dell'utente, non un gate da superare |
-| Deploy-coupling | **`main_deploy_coupled: false` EREDITATO da P1, NON riconfermato in questa sessione** (nessun BUILD): da RICONFERMARE all'apertura del primo BUILD. P2 tocca aree deploy-sensibili in modo piu esteso di P1 (due rotte nuove, un endpoint `/api` nuovo, migrazioni DB): la riconferma non e una formalita. **Nessuna operazione distruttiva e nessun deploy in questa sessione** |
-
-Commit della sessione, in ordine:
-`d736dbe` studio di fattibilita sull'ingest delle foto · `67e419e` design di P2 (15 decisioni) ·
-`7df5f4a` multi-pagina in v1 (P2-D13) + budget provvisorio (P2-D17) · `2b20a5c` blueprint
-bootstrappato (25 task) · `74293b4` rilievi del self-check semantico applicati (27 task).
+| Branch di lavoro | `trueline/build/generation-model` (creato dal branch di design, che portava i soli documenti) |
+| Stato merge su `main` | **mergeato** sul verde del checkpoint, con i documenti del blueprint P2 al seguito (decisione di apertura) |
+| Deploy-coupling | **`main_deploy_coupled: false` RICONFERMATO** dall'utente all'apertura di questo BUILD. Merge autonomo sul verde; distruttive e deploy restano gated. Nessuna operazione distruttiva e nessun deploy in questa sessione |
 
 ## 4. Baseline & budget
 
-- **Baseline di sicurezza** (ereditata da P1): `gitleaks:0 · osv:0 · semgrep:0 · rls:0`.
-  **`rls:0` non e ereditabile**: P2 introduce due tabelle nuove, quindi va riconquistato al
-  checkpoint di `generation-model`.
-- **Baseline d'igiene** (ereditata da P1): `.trueline/hygiene-baseline.json`, **41 impronte**,
-  tracciata in git. Il controllo 1 e **rosso se la baseline manca**, anche con zero
-  duplicazioni nuove: non toccarla senza attribuzione.
-- **Suite ereditata**: 467 test in 56 file, 0 falliti, 0 skippati (di cui 56 DB-backed con
-  auth reale su 11 file). Nessuna regressione ammessa.
-- **Budget**: definito per-ciclo in BUILD. La forma che tiene, per esperienza di P1, e
-  **2 agenti per workflow** (builder + verifier), un task per volta, con la batteria di
-  mutazione dell'orchestratore fra un task e l'altro.
+- **Baseline di sicurezza**: `gitleaks:0 · osv:0 · semgrep:0 · rls:0`. **`rls:0` e stato
+  RICONQUISTATO** al checkpoint su due tabelle nuove, non ereditato da P1.
+- **Baseline d'igiene**: `.trueline/hygiene-baseline.json`, da **41 a 59 impronte**,
+  tracciata in git. Ricattura **approvata dall'utente dopo attribuzione**, verificata per
+  differenza: **+18 aggiunte, 0 sparite**, cioe esattamente i 18 blocker attribuiti — se
+  ne fossero comparse di piu, si sarebbe benedetto qualcosa di mai guardato.
+  **Cosa e stato benedetto, per fatti**:
+  - **12 nelle `.md` del blueprint P2** (8 in `05-generation-e2e.md`, 2 in `00-INDEX.md`,
+    1 in `prompts/project-start.md`, 1 in `VISION-AND-CONSTRAINTS.md`): impalcatura YAML
+    dei task, che nello schema trueline si ripete **per costruzione**. Quei documenti sono
+    entrati nell'albero col branch di design, **dopo** la cattura della baseline in P1.
+  - **6 in `src/data/generations.ts`**: il preambolo delle server action
+    (`createServerSupabaseClient` → `auth.getUser()` → `if (!user) return 401` → `safeParse`),
+    **identico** a quello di `src/data/briefs.ts` (T-123, gia verde in P1). Sei azioni
+    esportate in un modulo invece di tre superano la soglia di `jscpd`. Tenuto ripetuto
+    di proposito: la stessa ragione per cui `account_id` compare esplicito nel testo di
+    ogni policy RLS — una guardia di sicurezza nascosta in un helper non e piu visibile a
+    chi legge l'azione.
+  - Nessuna e dead-code (`dead-code:0`), nessuna e un ciclo, nessuna e un twin. Tutte `LOW`.
+- **Suite**: **593 test in 61 file**, 0 falliti, 0 skippati (misurata con `npm test` dopo
+  `db reset`, non dedotta). Erano 467 in 56 file: **+126 test in 5 file**
+  (15 + 26 + 49 + 15 + 21). *Nota*: la SESSION-STATE precedente diceva 56 file ed era
+  giusta — il "57" segnalato all'apertura di questa sessione era un errore di conteggio
+  dell'orchestratore, chiuso col numero reale.
+- **Budget**: la forma che ha tenuto e **2 agenti per workflow**, un task per volta, con
+  builder → verifier avversariale e, sui rilievi confermati, due fixer **diversi ancora**
+  in sequenza (modulo prima, oracolo poi). Nessun workflow e morto per limite di sessione;
+  `agents_error` controllato a ogni ritorno, sempre 0.
 
 ## 5. Esiti dell'ultima sessione (framing onesto)
 
-- **Fase A (design)**: 17 decisioni chiuse in brainstorming con l'utente, una domanda per
-  volta, e scritte in `docs/superpowers/specs/2026-07-26-p2-generation-design.md`.
-- **Ricerca collegata**: studio di fattibilita sull'ingest delle foto del cliente (4 angoli,
-  doppia refutazione, critico di completezza). Esito: iCloud non ha API per app web; gli
-  scope di lettura di Google Photos sono stati **rimossi** il 2025-03-31; il picker di
-  sistema del telefono raggiunge **già** entrambe le librerie cloud. Sede: **P4**. Una
-  contraddizione sui termini d'uso e registrata **come irrisolta**, non arbitrata.
-- **Rilievo che tocca P1.x**: le Business Profile API Policies vietano `pre-fetch, cache,
-  index, or store` fuori dal progetto — le foto GBP **non sono ri-ospitabili**, e poiche la
-  clausola dice `any content` il divieto va riletto anche contro l'import dei **dati**.
-  Nota di aggiornamento aggiunta alla visione §12.
-- **Fase B (questo BOOTSTRAP)**: blueprint di 5 moduli e **27 task atomici** generato dalla
-  spec. **Nessun codice prodotto.**
-- **Self-check strutturale**: `validate_blueprint.mjs` sulla dir P2 — **EXIT 0**, tutti e 5
-  i controlli OK (campi obbligatori, copertura AC→test, DAG aciclico, id univoci, ownership).
-- **Self-check semantico** (punti 6–10): eseguito, **4 rilievi + 3 minori**, tutti portati
-  all'utente e da lui **approvati e applicati** nella stessa sessione:
-  1. `T-203` era troppo largo (sei azioni, 9 AC) → **split in T-203** (creazione/lettura +
-     riconciliazione) **e T-204** (scrittura + macchina a stati).
-  2. `T-231` era troppo largo → **split lungo la linea del RISCHIO** e non del conteggio:
-     **T-231** blocchi narrativi + fondamenta condivise, **T-237** blocchi di dati, dove si
-     concentra il testo non fidato e dove nascono i link da campi liberi.
-  3. **Gap di copertura chiuso**: le chiavi i18n delle etichette dei blocchi non erano di
-     nessun task (artefatto consumato e prodotto da nessuno) → ora sono nella DoD di T-231,
-     con un controllo **totale sul catalogo** che rompe se un blocco nuovo non porta la sua
-     chiave (chiude anche P1 §6-bis p.13, dove i test catturavano rinomine e rimozioni ma
-     non le aggiunte).
-  4. `T-230` segnalato **al limite** ma non splittato: paragonabile a T-150 di P1, che ha tenuto.
-  Minori applicati: `AC-223-6` ristretta a percorsi e valori esatti (evita falsi positivi),
-  `AC-223-1` resa **totale sull'enum dei locale** col limite residuo dichiarato,
-  `AC-240-1` ora nomina una risorsa attesa invece di asserire "non vuoto".
-- **Nessuna fix applicata e nessuna batteria di mutazione**: entrambe operano sul codice, e
-  in questa sessione non ne e stato scritto. Non sono state saltate: sono **inapplicabili**.
-  L'equivalente di fase e stato il self-check semantico, con l'oracolo strutturale rieseguito
-  dopo l'applicazione dei rilievi. Gli split hanno fatto emergere AC che nel task monolitico
-  non esistevano: indice di variante respinto **prima** del DB, transizione di stato che e un
-  **errore** e non un no-op silenzioso, payload ostile dentro il **nome** di un'offerta.
+**Costruito**: T-200 (schema + RLS), T-201 (slot + `PoolSchema`), T-202
+(`SiteDocumentSchema`), T-203 (letture + riconciliazione), T-204 (scritture + macchina a
+stati). Piu due moduli non previsti dal blueprint e nati da rilievi:
+`src/domain/generation/gate.ts` (le due primitive condivise dai due gate) e
+`src/domain/generation/timeouts.ts` (perche un modulo `'use server'` non puo esportare
+costanti, e senza export l'invariante non era asseribile).
+
+**Il metodo ha funzionato dove serviva**: in **tutti e cinque** i task il verifier
+avversariale ha trovato buchi che la suite verde non vedeva, e in quattro casi su cinque
+il buco era nell'**oracolo**, non nel codice. I tre piu istruttivi:
+
+1. **T-203 / F-01 — il test misurava la grandezza sbagliata.** AC-203-6 dice "il numero di
+   chiamate al DB"; il doppio contava le invocazioni della propria trap `from`. Un N+1
+   reale instradato via `supabase.schema('public')` produce 1+13 round-trip veri e lasciava
+   la suite **14/14 verde**. Corretto misurando le **richieste HTTP** invece delle
+   invocazioni di metodo (`AC-203-6` emendato).
+2. **T-204 / V-204-01 — una difesa che esisteva ma non resisteva.** Rimuovendo *interamente*
+   il gate `parseDocument` da `appendPages` la suite restava **16/16 verde**, e con quella
+   mutazione si scriveva nel documento congelato uno slot immagine
+   `{source:'external', url:'https://evil.example/x.png'}` — cio che `document.ts` dichiara
+   irrappresentabile **per tipo**. Il gate c'era e funzionava: mancava l'oracolo.
+3. **T-200 / F-01 — un buco di autorizzazione riprodotto a runtime.** Con la FK semplice su
+   `generation_id`, un membro di un altro account poteva scrivere nel pool di una
+   generazione altrui e, occupando lo slot UNIQUE, impedire al proprietario di scrivere il
+   proprio. Riprodotto dall'orchestratore come ruolo `authenticated`, chiuso con la FK
+   composita (la stessa difesa di T-120).
+
+**Batterie di mutazione dell'orchestratore** (oltre a quelle degli agenti): 10/10 prese su
+T-200, 13/13 sull'esito atteso su T-201 (due deliberatamente **attese verdi**), 8/8 su
+T-202. Una mutazione malformata (`O7`) e stata rifatta invece di essere registrata come
+buco inesistente; una mutazione fatale (`N13`) e stata verificata a parte perche il
+classificatore la etichettava male.
+
+**Emendamenti al blueprint** (tutti approvati dall'umano, tutti da rilievi misurati):
+`P2-D19` FK composita sui pool + revoke ad anon · `P2-D20` catalogo asserito + errore
+limitato alla fonte + forma dello slug · `P2-D21` `max_bytes` sul caso multibyte +
+`recipe_id`/`theme_id` + home imposta + limitatore condiviso · `P2-D22` timestamp NOT NULL
++ N+1 misurato sul trasporto + invariante dei timeout · `P2-D23` firme reali + `max_pages`
+imposto + stati terminali + pool preteso + prova di vita sul solo ramo riuscito.
+`validate_blueprint.mjs` **EXIT 0** dopo ogni emendamento.
+
+**Misure vere, non stime**: documento al caso peggiore **3.357.278 byte** in ASCII e
+**6.397.198** in italiano/spagnolo accentato (rapporto **x1,905**); errore di `parsePool`
+da **100.256 byte a 341** dopo il tetto alla fonte; scrittura al tetto di **8.388.608 byte**
+attraverso il gateway, corpo HTTP **8.388.681 byte**, **accettata**.
 
 ## 6. Copertura dichiarata (cosa NON e coperto, da subito)
 
 > Il "fatto" si dichiara per fatti. Queste voci nascono **aperte** e non vanno confuse con
-> un verde.
+> un verde. Le prime nove sono ereditate dal bootstrap e restano valide.
 
-1. **Non esiste una chiave API.** Ogni oracolo di `generation-llm` mocka il confine. Gli
-   schemi strict **non sono provati contro l'API reale** (eredita P1 §6-bis p.2), e la
-   qualita del copy non e oracolata.
-2. **Le costanti di `GENERATION_BUDGET` sono stime, non misure** (`P2-D17`). I due candidati
-   piu probabili a essere rivisti **in alto**: la crescita del system prompt (1,5k → 3-5k
-   token) e l'uscita della fase 2 (~300 → 400-600 parole per pagina). Sede della misura:
-   **T-225**, che senza chiave si dichiara *non eseguito*.
-3. **La taratura crediti↔prezzi non e decisa** e non va decisa su queste stime. Registrato
-   che, con `build = 5 crediti`, il piano Studio a pieno consumo arriverebbe a **~49% del
-   ricavo** (~80% su Opus 5); il rimedio che esiste gia nella visione §7.3 e "1 credito per
-   pagina aggiunta". Decisione di **P5**.
-4. **La latenza non e misurata**, ne per la fase 1 (obiettivo secondo flush < 60 s) ne per
-   la fase 2. Il **tetto di durata delle funzioni** della piattaforma di hosting va
-   verificato contro il budget, non supposto.
-5. **L'anti-fuga e un match per sottostringa** su `JSON.stringify` (eredita P1 §6-bis
-   p.6-bis): prova che *questa* implementazione non perde, non che nessuna implementazione
-   possa perdere. Una fuga **trasformata** (base64, percent-encoding) le sfuggirebbe, e non
-   esiste barriera di tipo fra il Brief e la proiezione.
-6. **Lo stile non e asserito** (eredita P1 §6-bis p.8). I due controlli di `generation-engine`
-   provano che il layer dei temi e cablato e distinto, **non** che i temi siano belli.
-7. **Lo spagnolo eredita la debolezza dei cataloghi** (P1 §6-bis p.7): una traduzione
-   sbagliata ma diversa passa l'oracolo. E `es` e **una lingua sola**: l'ingresso in LATAM
-   chiedera varianti regionali.
-8. **Nulla limita la frequenza** delle generazioni per account. L'indice UNIQUE parziale
-   copre la concorrenza sul singolo sito, non la raffica su siti diversi: tetto complessivo
-   a **P5**.
-9. **L'end-to-end non percorre login e onboarding** (rate limit auth). Copre l'anteprima e
-   il percorso genera→scegli→anteprima, non il flusso di P1.
+1. **Non esiste una chiave API.** Ogni oracolo di `generation-llm` mockera il confine; gli
+   schemi strict non sono provati contro l'API reale; la qualita del copy non e oracolata.
+2. **`GENERATION_BUDGET` sono stime, non misure** (`P2-D17`). Sede: T-225, che senza chiave
+   si dichiara *non eseguito*.
+3. **La taratura crediti↔prezzi non e decisa** e non va decisa su quelle stime (P5).
+4. **La latenza non e misurata**, ne fase 1 ne fase 2.
+5. **L'anti-fuga e un match per sottostringa**: una fuga trasformata (base64,
+   percent-encoding) sfuggirebbe.
+6. **Lo stile non e asserito**: i controlli di `generation-engine` provano che il layer dei
+   temi e cablato e distinto, non che i temi siano belli.
+7. **Lo spagnolo eredita la debolezza dei cataloghi**; `es` e una lingua sola.
+8. **Nulla limita la frequenza** delle generazioni per account (tetto complessivo a P5).
+9. **L'end-to-end non percorre login e onboarding** (rate limit auth).
+10. **NUOVO — AC-204-7 certifica il gateway LOCALE, non la produzione.** La scrittura di un
+    documento da 8 MiB passa da Kong della CLI Supabase. Un gateway diverso in produzione
+    puo avere un `client_max_body_size` piu basso: **la misura va ripetuta la**, e il test
+    e l'oracolo gia pronto. Il modo di fallire sarebbe insidioso — un documento che il gate
+    ha dichiarato valido, respinto a livello HTTP con un errore opaco.
+11. **NUOVO — il `page_role` di uno slot non e pinnato** (T-201): cambiarlo lascia la suite
+    verde. Nessun AC lo chiede; **va pinnato dove qualcuno vi appoggera una decisione**
+    (T-210 o T-213), non qui.
+12. **NUOVO — `brief_fields_rendered` e una LISTA, non un insieme**: lo stesso nome ripetuto
+    e accettato. Il tetto limita il numero di voci, non l'insieme dei campi. Misurato e
+    pinnato al comportamento attuale; se deve essere un insieme, la sede e il modulo.
+13. **NUOVO — il CJK non entra in `max_bytes`**: lo stesso caso peggiore in ideogrammi pesa
+    9.437.118 byte contro un tetto di 8.388.608. Scelta dichiarata (non e un locale del
+    prodotto) e resa **falsificabile**: un test legge il vocabolario dei locale da
+    `BriefUpdateSchema` e diventa rosso il giorno in cui se ne aggiunge uno ideografico.
+14. **NUOVO — l'invariante dei timeout e pinnata nella RELAZIONE, non nei numeri**
+    (`AC-203-7`). Fessura dichiarata: un `max_request_lifetime` portato a 0 renderebbe
+    l'invariante banalmente vera. I numeri restano stime (P2-D17).
+15. **NUOVO — il ramo "il CAS perde la corsa" non e coperto**: la suite non ha concorrenza
+    reale. Comportamento dichiarato nel JSDoc.
+16. **NUOVO — `knip` NON puo testimoniare sugli export di `src/data/**`**, che sta in
+    `entry` di `knip.json`: non e mai la prova dell'assenza di export orfani in quei file.
+    (Serve `ts-prune` o una run con `src/data` fuori da `entry`.)
+17. **NUOVO — il fallback di `comeStato` e irraggiungibile** finche il CHECK di T-200
+    vincola il vocabolario: tenuto **per decisione dell'utente** come difesa contro un
+    futuro allentamento del CHECK, e dichiarato tale nel codice.
+18. **NUOVO — `social_links` accetta un URL di terzi nel documento.** L'irrappresentabilita
+    per TIPO copre lo **slot immagine e `photo_ref`**, non il documento intero. E scritto
+    nel modulo e pinnato da un test. La difesa sul link e del **validatore di campo**
+    (T-237) piu l'asserzione sull'**effetto** (T-241): chi implementa T-237 non deve
+    dedurre dallo schema che il valore sia gia sicuro.
 
-## 7. Carry-over ereditati da P1 che P2 tocca
+## 7. Carry-over
 
-- **CHIUSO da P2 (se il blueprint viene costruito come scritto)**: P1 §7 p.5
-  (sanificazione del testo importato nel sito generato → T-231 + T-241); P1 §6-bis p.2 per
-  la parte del nested `additionalProperties` senza `required` (→ T-222 AC-222-1);
-  P1 §7 p.16 (protezione del middleware su `/preview` riasserita → T-235);
-  P1 §7 p.15 per la parte di P2 (N+1 in dashboard → T-236 AC-236-1).
-- **RESTANO APERTI**: la corroborazione di `readyForReview` verifica la presenza e non la
-  provenienza (P1 §7 p.1) — P2 non ci poggia (T-215 AC-215-4) ma non la chiude;
-  la history della chat non e persistita (P1 §7 p.2); `upsertBrief` non riporta i campi
-  scartati (P1 §7 p.3, sede T-123); T-122 fonde le offerte per nome (P1 §7 p.4);
-  `P1-D11` sul contratto di altitudine, **ancora rinviato**.
+### Chiusi da questo macrotask
+- **P1 §6-bis p.10** (il peso della riga era un limite **senza oracolo**): il documento ha
+  ora un bound **misurato e applicato**, in due unita e due lingue (`AC-202-6`, `AC-202-7`).
+- **Anticipato su P1 §6-bis p.2** (nested `additionalProperties` senza `required`):
+  `SiteDocumentSchema` e strict a **ogni** livello annidato, e la trappola "lo strict di
+  zod non e ricorsivo" e stata provata con quattro mutazioni su quattro livelli distinti.
+  La chiusura formale resta di T-222 (`AC-222-1`), sul tool.
+
+### Precondizioni consegnate ai macrotask successivi (gia scritte nei moduli del blueprint)
+- **T-214**: la **partizione e portante**. Se `resolve` rende lo stesso campo in piu blocchi
+  della stessa pagina, il caso peggiore in italiano/spagnolo misura **11.813.858 byte** e il
+  documento viene **rifiutato**. Partizionato misura 6.397.198 e passa col 31% di margine.
+- **T-211/T-212**: gli id di temi e ricette devono nascere **versionati** (`nome-kebab@N`,
+  max 64 code unit): un id senza `@N` fa cadere l'intero documento.
+- **T-214/T-121**: nel documento la chiave di `hours` e vincolata per forma (alfanumerico
+  Unicode ai bordi), mentre `brief.ts` non impone nulla: un brief valido con una chiave non
+  conforme fa **rifiutare** il documento. `resolve` deve decidere se scartare o normalizzare.
+- **T-230/T-232**: la mappa fine `scope`→stato di `writePool` (fase 1 contro fase 2, e la
+  rigenerazione copy-on-write di `P2-D3`) **non** e stata indovinata qui.
+- **T-204 → T-230**: i rami di errore di `parsePool` e `parseDocument` sono limitati alla
+  fonte dallo **stesso** limitatore (24 issue, 120 code unit): dicono DOVE, non QUANTE volte.
+
+### Restano aperti da P1
+`readyForReview` verifica presenza e non provenienza (§7 p.1); la history della chat non e
+persistita (p.2); `upsertBrief` non riporta i campi scartati (p.3); T-122 fonde le offerte
+per nome (p.4); `P1-D11` sul contratto di altitudine, **ancora rinviato**.
 
 ## 8. Prossimi passi & decisioni
 
-1. **Registrare l'esito del self-check strutturale** di `validate_blueprint.mjs` e
-   committare il blueprint sul branch.
-2. **Primo BUILD su `generation-model`** (T-200..T-204), con riconferma esplicita del
-   deploy-coupling all'apertura.
-3. **Riconquistare `rls:0`** al checkpoint di `generation-model`: e superficie DB nuova, non
-   ereditata.
-4. **Non toccare la baseline d'igiene** senza attribuzione preventiva delle duplicazioni:
-   catturarla per far passare il controllo 1 benedirebbe anche le proprie (lezione di P1).
-5. **Decisioni ancora dell'utente**, non della skill: la taratura crediti/prezzi dopo la
-   misura di T-225, e l'eventuale attivazione del contratto `architecture:` (`P1-D11`).
-6. **Nota operativa verificata**: gli script trueline sono presenti in due percorsi — la cache
-   dei plugin (`~/.claude/plugins/cache/trueline-local/trueline/0.1.0/skills/trueline/`, quello
-   registrato in P1 §6) e la dist su Desktop, da cui la skill si e risolta in questa sessione.
-   `validate_blueprint.mjs` e **il medesimo file** nei due percorsi (stessa dimensione, stesso
-   timestamp): il percorso registrato in P1 resta valido, non c'e nulla da correggere.
+1. **Prossimo BUILD**: `generation-engine` (consigliato) oppure `generation-llm`.
+2. **Riconfermare il deploy-coupling** all'apertura, come si e fatto qui: non e una
+   formalita, e la ragione per cui il merge di questo macrotask e stato autonomo.
+3. **Decisioni ancora dell'utente**: taratura crediti/prezzi dopo T-225; attivazione del
+   contratto `architecture:` (`P1-D11`).
+4. **Nota sullo strumento, verificata**: durante questa sessione il plugin trueline e stato
+   aggiornato **da 0.1.0 a 0.2.0** e la directory di versione e cambiata sotto la sessione
+   (un percorso che aveva appena funzionato ha smesso di risolvere). Il percorso valido oggi
+   e `~/.claude/plugins/cache/trueline-local/trueline/**0.2.0**/skills/trueline/`, con una
+   copia in `C:/Users/claud/Desktop/Trueline Skill/trueline/`. La baseline e stata catturata
+   e riverificata **con la stessa versione**: catturare con uno strumento e verificare con
+   un altro produce un verde che non significa nulla.
+5. **Invocazione del checkpoint** (funzionante, per non ricercarla):
+   `node <trueline>/scripts/checkpoint/run_checkpoint.mjs <repo> --in-place --mode build`,
+   **senza** `--blueprint`, con `.env.local` fuori dal repo e le variabili esportate dalla
+   shell, dopo `db reset` + `docker restart supabase_kong_progetto-web-ai` e attesa che
+   `/auth/v1/health` risponda 200 — un rosso da kong non spento sarebbe **falso**.
