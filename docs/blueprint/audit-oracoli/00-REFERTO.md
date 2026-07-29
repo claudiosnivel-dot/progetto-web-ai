@@ -231,18 +231,29 @@ registrarle, perché l'ordine in cui sono cadute è il metodo:
 3. *«Manca `--baseline` nell'invocazione»* — **falso**. Passato esplicitamente, l'esito non
    cambia: `1:dead-code=red, 8 duplication NUOVO`.
 
-**La causa vera, misurata**: sullo **stesso albero** e con la **stessa baseline**, i due
-strumenti non contano la stessa cosa.
+4. *«Sono due scanner diversi»* — **falso**, e anche questa formulazione (mia, in una stesura
+   precedente) è stata smentita: `oracleInvocation` chiama `run_dupcheck.mjs` **in entrambe**
+   le versioni, e `minTokens` vale **50** su tutti e due i percorsi.
+5. *«La versione nuova lo risolve»* — **falso**, misurato su richiesta dell'utente. In 0.3.0
+   `checkpoint.mjs`, `baseline.mjs` e `gitleaks.toml` sono cambiati ed è comparso
+   `scan_scope.mjs`, ma l'esito è **identico**: `1:dead-code=red, 8 duplication NUOVO`, stesse
+   posizioni. La ricattura con 0.3.0 produce anch'essa una baseline **invariata**
+   (59 impronte, 0 aggiunte, 0 sparite).
 
-| Strumento | Blocchi |
-|---|---|
-| `baseline.mjs capture/delta --hygiene` (**cattura** la baseline) | **61** → `new=0` |
-| `run_dupcheck.mjs` (**verifica** nel checkpoint) | **63** → `8 nuovi` |
+**La causa vera, misurata**: dallo **stesso** output grezzo di jscpd, i due percorsi
+**normalizzano in modo diverso**.
 
-La baseline è prodotta da uno scanner e verificata da un altro. È esattamente ciò contro cui
-SESSION-STATE §8.4 mette in guardia — *«catturare con uno strumento e verificare con un altro
-produce un verde che non significa nulla»* — con l'unica differenza che qui produce un
-**rosso** che non significa nulla.
+| Percorso | Finding | Impronte |
+|---|---|---|
+| `run_dupcheck.mjs` (output grezzo) | 63 coppie | — |
+| `baseline.mjs capture/delta --hygiene` (**cattura**) | **61** | 59 → `new=0` |
+| `checkpoint.mjs` (**verifica**) | **63** | → **8 non presenti in baseline** |
+
+Le 8 impronte che il checkpoint segnala come «nuove» **non possono esistere nella baseline**,
+perché la baseline non le produce nemmeno partendo dagli stessi dati. È lo stesso genere di
+errore contro cui SESSION-STATE §8.4 mette in guardia — *«catturare con uno strumento e
+verificare con un altro produce un verde che non significa nulla»* — con la differenza che qui
+produce un **rosso** che non significa nulla.
 
 **Conseguenza operativa**: il controllo 1 **non può essere reso verde da nessuna azione sul
 repository**. Ricatturare non serve (la baseline è già corretta e la ricattura usa lo scanner
