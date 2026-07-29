@@ -280,4 +280,137 @@ describe.skipIf(!SB)('T-063 isolamento tenant (runtime, client auth reale su Sup
     expect(checkErr).toBeNull(); // covers: AC-063-7
     expect(check ?? []).toHaveLength(0); // covers: AC-063-7
   });
+
+  // ── DELETE su account_members esercitato come utente NON autorizzato ─────────
+  // Prima di questi test nessun .delete() del repo colpiva account_members: la
+  // policy account_members_delete_owner era provata solo per ESPRESSIONE (catalogo
+  // statico), mai per COMPORTAMENTO. I test seguenti la esercitano a runtime.
+  //
+  // Due invarianti di metodo, applicate a tutti e quattro:
+  //  1) guardrail service_role — la riga bersaglio ESISTEVA prima ed ESISTE ancora
+  //     dopo: un "0 righe eliminate" da solo non distingue la RLS dai dati assenti;
+  //  2) fixture con PIU righe DISCORDANTI (accountA: A owner + E editor;
+  //     accountB: B owner) — con una riga sola "cancella quella giusta" e "cancella
+  //     tutto" sarebbero indistinguibili.
+  // Nota: asserire error === null (e non 42501) dimostra che il DELETE raggiunge
+  // davvero la tabella (il GRANT c'e) e che a fermarlo e la RLS, non un privilegio.
+  // Nessun sign-in nuovo: si riusano clientA / clientE del beforeAll (rate limit auth).
+
+  // Stato delle membership letto via service_role (bypassa la RLS), come chiave
+  // stabile e ordinata: confrontabile con toEqual senza dipendere dall'ordine.
+  const membersOf = async (accountIds: string[]): Promise<string[]> => {
+    const { data, error } = await adminClient()
+      .from('account_members')
+      .select('account_id, user_id, role')
+      .in('account_id', accountIds);
+    expect(error).toBeNull();
+    return (data ?? []).map((r) => `${r.account_id}|${r.user_id}|${r.role}`).sort();
+  };
+
+  // covers: AC-063-5 — l'AC nomina la delete su accounts; qui la STESSA proprieta
+  // ("0 righe eliminate e la riga esiste ancora") e provata su account_members, la
+  // cui policy DELETE e owner-only. Copertura AGGIUNTIVA oltre l'AC: il DELETE
+  // cross-tenant su account_members non era esercitato da alcun test.
+  it("A NON puo eliminare la membership dell'account di B: 0 righe eliminate, la membership di B resta", async () => {
+    // Guardrail service_role PRIMA: le righe bersaglio esistono davvero.
+    const before = await membersOf([accountAId, accountBId]);
+    expect(before).toHaveLength(3); // covers: AC-063-5 — A owner + E editor (accountA), B owner (accountB)
+    expect(before).toContain(`${accountBId}|${userBId}|owner`); // covers: AC-063-5
+
+    const { data: deleted, error } = await clientA
+      .from('account_members')
+      .delete()
+      .eq('account_id', accountBId)
+      .select();
+    // A non e owner di accountB -> la USING owner-only non qualifica alcuna riga.
+    expect(error).toBeNull(); // covers: AC-063-5
+    expect(deleted ?? []).toHaveLength(0); // covers: AC-063-5
+
+    // Guardrail service_role DOPO: nulla cancellato, nemmeno collateralmente su accountA.
+    expect(await membersOf([accountAId, accountBId])).toEqual(before); // covers: AC-063-5
+  });
+
+  // covers: AC-063-7 — l'AC nomina update/insert; qui la stessa proprieta di
+  // "nessuna escalation intra-tenant" sul DELETE. Copertura AGGIUNTIVA oltre l'AC:
+  // il DE-PROVISIONING dell'OWNER da parte di un EDITOR. E vede la riga di A per
+  // appartenenza (SELECT per membership) ma la DELETE e owner-only: vedere != poter
+  // cancellare.
+  it("l'editor E NON puo cancellare la membership OWNER di A: 0 righe eliminate, A resta owner", async () => {
+    // Il verde non deriva da "riga invisibile a E": E VEDE la membership owner di A.
+    const seen = await clientE
+      .from('account_members')
+      .select('account_id, user_id, role')
+      .eq('account_id', accountAId)
+      .eq('user_id', userAId);
+    expect(seen.error).toBeNull(); // covers: AC-063-7
+    expect(seen.data).toHaveLength(1); // covers: AC-063-7
+    expect(seen.data?.[0].role).toBe('owner'); // covers: AC-063-7
+
+    // Guardrail service_role PRIMA: due righe DISCORDANTI su accountA.
+    const before = await membersOf([accountAId]);
+    expect(before).toContain(`${accountAId}|${userAId}|owner`); // covers: AC-063-7
+    expect(before).toContain(`${accountAId}|${userEId}|editor`); // covers: AC-063-7
+
+    const { data: deleted, error } = await clientE
+      .from('account_members')
+      .delete()
+      .eq('account_id', accountAId)
+      .eq('user_id', userAId)
+      .select();
+    expect(error).toBeNull(); // covers: AC-063-7
+    expect(deleted ?? []).toHaveLength(0); // covers: AC-063-7
+
+    // Guardrail service_role DOPO: la membership owner di A esiste ancora...
+    expect(await membersOf([accountAId])).toEqual(before); // covers: AC-063-7
+    // ...e A e ancora owner del proprio account (accounts.owner_id invariato).
+    const acc = await adminClient()
+      .from('accounts')
+      .select('owner_id')
+      .eq('id', accountAId)
+      .single();
+    expect(acc.error).toBeNull(); // covers: AC-063-7
+    expect(acc.data?.owner_id).toBe(userAId); // covers: AC-063-7
+  });
+
+  // covers: AC-063-7 — RAGGIO D'AZIONE del DELETE, copertura AGGIUNTIVA oltre l'AC:
+  // un delete ad ampio raggio (tutto accountA) da parte dell'editor non cancella
+  // NULLA, nemmeno la sua PROPRIA riga: la policy e owner-only, non "membro-only".
+  // Le due righe di accountA hanno valori DISCORDANTI (owner vs editor), quindi
+  // "cancella quella giusta" e "cancella tutto" restano distinguibili.
+  it("l'editor E NON puo svuotare account_members del proprio account: 0 righe, entrambe le membership restano", async () => {
+    const before = await membersOf([accountAId]);
+    expect(before).toHaveLength(2); // covers: AC-063-7
+
+    const { data: deleted, error } = await clientE
+      .from('account_members')
+      .delete()
+      .eq('account_id', accountAId)
+      .select();
+    expect(error).toBeNull(); // covers: AC-063-7
+    expect(deleted ?? []).toHaveLength(0); // covers: AC-063-7
+
+    expect(await membersOf([accountAId])).toEqual(before); // covers: AC-063-7
+  });
+
+  // covers: AC-063-7 — controllo POSITIVO del DELETE (copertura AGGIUNTIVA oltre
+  // l'AC). Senza di esso un "0 righe eliminate" potrebbe derivare da un DELETE che
+  // non funziona per NESSUNO: qui l'owner A cancella la membership di E e SOLO
+  // quella, mentre la propria riga owner (valore DISCORDANTE) sopravvive.
+  // Va per ULTIMO nel file: modifica la fixture (E non e piu membro di accountA).
+  it("controllo positivo: l'owner A cancella la membership dell'editor E e SOLO quella", async () => {
+    expect(await membersOf([accountAId])).toHaveLength(2); // covers: AC-063-7
+
+    const { data: deleted, error } = await clientA
+      .from('account_members')
+      .delete()
+      .eq('account_id', accountAId)
+      .eq('user_id', userEId)
+      .select();
+    expect(error).toBeNull(); // covers: AC-063-7
+    expect(deleted ?? []).toHaveLength(1); // covers: AC-063-7 — il DELETE funziona davvero, per l'owner
+    expect(deleted?.[0].user_id).toBe(userEId); // covers: AC-063-7
+
+    // Guardrail service_role: resta ESATTAMENTE la membership owner di A.
+    expect(await membersOf([accountAId])).toEqual([`${accountAId}|${userAId}|owner`]); // covers: AC-063-7
+  });
 });

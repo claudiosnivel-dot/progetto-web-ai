@@ -164,6 +164,72 @@ describe.skipIf(!DB)('T-120 site_briefs schema + RLS (catalogo)', () => {
       expect(blob).toContain('account_id'); // covers: AC-120-4
     }
   });
+
+  // covers: AC-120-4
+  //
+  // PERCHE L'UGUAGLIANZA ESATTA (e perche il test qui sopra non basta). Quello asserisce
+  // due proprieta DEBOLI: che l'espressione CONTENGA la sottostringa 'account_id', e che
+  // non sia la costante letterale 'true'. Entrambe sono superate da un predicato
+  // COMPLETAMENTE PERMISSIVO. Contro-esempio MISURATO su questo repo: sostituendo la sola
+  // policy DELETE con
+  //     using (account_id is not null)
+  // — che consente a QUALUNQUE utente autenticato di cancellare QUALUNQUE brief di
+  // QUALUNQUE account — la suite resta interamente VERDE, perche quel predicato contiene
+  // 'account_id' e non e la costante true. (La stessa mutazione sulla policy DELETE di
+  // sites lascia verdi 35 test su 35.)
+  // Da qui la forma di questo test:
+  //  - insieme ESATTO dei comandi con toEqual, non "contiene": e questo che rende rossa
+  //    anche l'AGGIUNTA di una quinta policy permissiva accanto alle quattro giuste;
+  //  - uguaglianza ESATTA di qual e with_check, clausola per clausola;
+  //  - unica normalizzazione ammessa: comprimere gli spazi e togliere il prefisso
+  //    `public.` (pg_policies rende i nomi secondo il search_path). Non allenta nulla
+  //    del predicato — nessun toContain, nessuna regex permissiva.
+  it("le QUATTRO policy di site_briefs sono TO authenticated e l'espressione di ciascuna e ESATTAMENTE is_account_member(account_id) nella clausola giusta", async () => {
+    const pols = await pgQuery<{
+      cmd: string;
+      roles: string[];
+      qual: string | null;
+      with_check: string | null;
+    }>(
+      `select cmd, roles::text[] as roles, qual, with_check
+         from pg_policies
+        where schemaname = 'public' and tablename = 'site_briefs'`,
+    );
+
+    const norm = (e: string | null): string | null =>
+      e == null ? null : e.replace(/\s+/g, ' ').replace(/\bpublic\./g, '').trim();
+    const EXPR = 'is_account_member(account_id)';
+
+    // Insieme ESATTO dei comandi coperti: quattro policy, una per comando.
+    expect(pols.map((p) => p.cmd).sort()).toEqual(['DELETE', 'INSERT', 'SELECT', 'UPDATE']); // covers: AC-120-4
+    for (const p of pols) {
+      expect(p.roles).toEqual(['authenticated']); // covers: AC-120-4
+    }
+    const byCmd = Object.fromEntries(pols.map((p) => [p.cmd, p]));
+
+    // USING sulle righe leggibili/modificabili/cancellabili; WITH CHECK su quelle
+    // scrivibili. L'asserzione che la clausola NON pertinente sia `null` va OLTRE la
+    // lettera di AC-120-4 (che parla dei comandi, dei ruoli e dell'isolamento per
+    // account): un WITH CHECK su SELECT/DELETE, o un USING su INSERT, e comunque una
+    // deviazione dal testo della migrazione e va vista.
+    expect(norm(byCmd['SELECT'].qual)).toBe(EXPR); // covers: AC-120-4
+    expect(byCmd['SELECT'].with_check).toBeNull(); // oltre AC-120-4: clausola non pertinente
+
+    expect(byCmd['INSERT'].qual).toBeNull(); // oltre AC-120-4: clausola non pertinente
+    expect(norm(byCmd['INSERT'].with_check)).toBe(EXPR); // covers: AC-120-4
+
+    // UPDATE ha ENTRAMBE le clausole, e vanno asserite SEPARATAMENTE: USING filtra le
+    // righe modificabili, WITH CHECK e cio che impedisce di "spostare" un brief verso un
+    // account non proprio riscrivendo account_id. Un'asserzione sola sulla coppia
+    // lascerebbe passare la sparizione della seconda.
+    expect(norm(byCmd['UPDATE'].qual)).toBe(EXPR); // covers: AC-120-4
+    expect(norm(byCmd['UPDATE'].with_check)).toBe(EXPR); // covers: AC-120-4
+
+    // DELETE: il comando dello Schema A del referto — quello che nessun test esercita a
+    // runtime. Qui e pinnato alla lettera.
+    expect(norm(byCmd['DELETE'].qual)).toBe(EXPR); // covers: AC-120-4
+    expect(byCmd['DELETE'].with_check).toBeNull(); // oltre AC-120-4: clausola non pertinente
+  });
 });
 
 describe.skipIf(!SB)('T-120 site_briefs vincoli a runtime (UNIQUE / CHECK / cross-tenant)', () => {
