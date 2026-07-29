@@ -4,18 +4,36 @@
 >
 > | Schema | Stato | Esito misurato |
 > |---|---|---|
-> | **A** — il comando che nessuno esercita | **CHIUSO**, mergeato su `main` | catalogo **6/6** e runtime **4/4** da VERDE a ROSSO, piu il raggio d'azione di `deleteSite`. Chiude **T-02, S2-01, S45-01, S45-02** |
-> | B — presenza invece di valore | da fare | — |
-> | C — solo il negativo, mai il positivo | da fare | — |
-> | D — caso nominale invece della proprieta | da fare | — |
+> | **A** — il comando che nessuno esercita | **CHIUSO** su `main` | catalogo **6/6** e runtime **4/4** da VERDE a ROSSO, piu il raggio d'azione di `deleteSite`. Chiude **T-02, S2-01, S45-01, S45-02** |
+> | **B** — presenza invece di valore | **CHIUSO** su `main` | **7/7** da VERDE a ROSSO. Chiude **T-01, S2-03, A3-07** e il lato (b) di **S2-05** |
+> | **C** — solo il negativo, mai il positivo | **CHIUSO** su `main` | la mutazione «nessuno puo scrivere» da VERDE 16/16 a ROSSO. Chiude **T-03** |
+> | D — caso nominale invece della proprieta | da fare | gli 8 rilievi di auth |
 >
-> Schema A in numeri: **947 righe aggiunte, 0 cancellate** su 8 file di test; suite da
-> **593 a 612 test**; checkpoint **VERDE 4/4**, `degraded: []`, `dup:63` invariato (zero
-> duplicazioni introdotte).
-> **Costo dichiarato di A**: l'uguaglianza esatta rende l'oracolo **rigido** alle riscritture
-> equivalenti del testo delle policy — misurato, 2 mutazioni su 2 che erano attese-verdi ora
-> diventano rosse. E il compromesso che P2 aveva gia accettato, ed e lo stesso difetto
-> contestato in S2-05: va dichiarato, non nascosto.
+> Suite: **593 → 622 test**. Checkpoint **VERDE 4/4**, `degraded: []`, `dup:63` invariato a
+> ogni passo: ~1500 righe di test aggiunte, **zero duplicazioni introdotte**.
+>
+> **Due buchi NUOVI trovati durante le fix**, non presenti in questo referto:
+> una **GUC estranea** attaccata a una funzione SECURITY DEFINER (`set role`,
+> `set row_security`) passava l'asserzione esistenziale su `proconfig`; e togliere la guardia
+> `if v_account_id is null` dall'auto-provision era **invisibile all'intera suite**, perche la
+> stringa cercata dai `toContain` sta nella SELECT di lookup che la mutazione non tocca.
+>
+> **Costi e limiti dichiarati**
+> - **A**: l'uguaglianza esatta rende l'oracolo **rigido** alle riscritture equivalenti del
+>   testo delle policy (misurato: 2 su 2 ora rosse). Compromesso gia accettato da P2, ed e lo
+>   stesso difetto contestato in S2-05: va dichiarato, non nascosto.
+> - **B**: il lato **(a)** di S2-05 — la rigidita dei tre `toContain` sull'idempotenza —
+>   **non e chiuso**. Il nuovo test strutturale tollera le riscritture equivalenti, i tre
+>   preesistenti no.
+> - **Deviazione di processo, dichiarata**: il commit dello schema C (`2ccdda6`) e finito
+>   **direttamente su `main`** senza passare da un branch. Il gate sostanziale ha tenuto — il
+>   checkpoint era verde prima del push — ma lo strato branch previsto dall'invariante e stato
+>   saltato. Non e stata riscritta la storia: il rimedio sarebbe peggiore del difetto.
+>
+> **Emerso dallo scout su P2** (sola lettura, da decidere se estendere): su
+> `site_generations.DELETE`, `generation_pools.UPDATE` e `generation_pools.DELETE` la policy e
+> il GRANT sono asseriti a catalogo ma **non sono mai esercitati a runtime**, ne in positivo ne
+> in negativo. Stessa famiglia dello schema A/C, su tabelle costruite dopo.
 
 
 > Esecuzione completa del piano `docs/blueprint/AUDIT-ORACOLI-P0-P1.md`.
