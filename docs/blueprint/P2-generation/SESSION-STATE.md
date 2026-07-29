@@ -8,8 +8,9 @@
 |---|---|
 | **Progetto** | Belora |
 | **Ecosistema** | supabase-jsts (JS/TS + Supabase) |
-| **Ultimo aggiornamento** | 2026-07-28 (primo BUILD di P2: macrotask `generation-model` costruito e chiuso) |
-| **Sessione corrente** | Ha costruito **l'intero macrotask `generation-model`** (T-200..T-204) con il metodo dynamic workflow a 2 agenti per ciclo (builder → verifier avversariale → fixer diversi), batteria di mutazione dell'orchestratore fra un task e l'altro, e **checkpoint deterministico VERDE 4/4** al confine. Cinque emendamenti al blueprint (`P2-D19`…`P2-D23`) nati da rilievi **misurati**, tutti approvati dall'umano. **+18 AC** rispetto al blueprint bootstrappato. Suite da 467 a **593 test**. |
+| **Ultimo aggiornamento** | 2026-07-29 (audit degli ORACOLI di P0/P1 + la sua fase di fix; **nessun macrotask P2 costruito**) |
+| **Sessione corrente** | **Non un BUILD**: ha eseguito l'audit degli oracoli delle 6 superfici di sicurezza (prerequisito di §8.0) e poi le fix, per schema A→B→C→D, piu l'estensione a P2 e la CI. **72 mutazioni** in audit (22 sopravvissute = i rilievi), **38 dopo le fix (38 uccise, 0 sopravvissute)**, ripristini verificati per hash. **26 rilievi, ZERO difetti attivi.** Suite da 593 a **643 test**. **`src/` mai modificato.** Referto: `docs/blueprint/audit-oracoli/`. |
+| **Sessione precedente** | Primo BUILD di P2: macrotask `generation-model` (T-200..T-204) costruito e chiuso col checkpoint VERDE 4/4. Cinque emendamenti al blueprint (`P2-D19`…`P2-D23`), **+18 AC**, suite da 467 a 593 test. |
 
 ---
 
@@ -24,6 +25,9 @@
 | generation-e2e | **todo** | — | T-240..T-241 — il primo end-to-end vero |
 
 **→ 27 task atomici, 5 macrotask. Uno costruito e chiuso, quattro da costruire.**
+
+*Invariato da questa sessione: l'audit non ha costruito macrotask. Il prossimo BUILD e
+`generation-engine`, ora sbloccato perche il prerequisito di §8.0 e soddisfatto.*
 
 ### 1-bis. I cinque task chiusi, e cosa ha prodotto il verde
 
@@ -74,19 +78,29 @@ dettaglio. L'attribuzione e in §4.
 
 | Campo | Valore |
 |---|---|
-| Branch di lavoro | `trueline/build/generation-model` (creato dal branch di design, che portava i soli documenti) |
-| Stato merge su `main` | **mergeato** sul verde del checkpoint, con i documenti del blueprint P2 al seguito (decisione di apertura) |
-| Deploy-coupling | **`main_deploy_coupled: false` RICONFERMATO** dall'utente all'apertura di questo BUILD. Merge autonomo sul verde; distruttive e deploy restano gated. Nessuna operazione distruttiva e nessun deploy in questa sessione |
+| Branch di lavoro | Cinque: `trueline/audit/oracoli-p0-p1` e i quattro di fix (`schema-A…`, `schema-B…`, `schema-D…`, `estensione-P2-e-CI`). **29 commit su `main`**, `main == origin/main`, working tree pulito |
+| Stato merge su `main` | **Tutti mergeati sul verde** del rispettivo checkpoint. Nessun merge sospeso |
+| Deviazione dichiarata | Il commit dello schema C (`2ccdda6`) e finito **direttamente su `main`** senza branch: non l'avevo creato. Il gate sostanziale ha tenuto (checkpoint verde prima del push), lo strato branch no. Storia **non** riscritta |
+| Deploy-coupling | **`main_deploy_coupled: false` RICONFERMATO** all'apertura. Merge autonomi sul verde; distruttive e deploy restano gated. **Nessun deploy, nessuna operazione distruttiva**: i `db reset` sono sul DB locale, ricostruito dalle migrazioni, ed erano gia procedura documentata |
 
 ## 4. Baseline & budget
 
-- **Baseline di sicurezza**: `gitleaks:0 · osv:0 · semgrep:0 · rls:0`. **`rls:0` e stato
-  RICONQUISTATO** al checkpoint su due tabelle nuove, non ereditato da P1.
-- **Baseline d'igiene**: `.trueline/hygiene-baseline.json`, da **41 a 59 impronte**,
-  tracciata in git. Ricattura **approvata dall'utente dopo attribuzione**, verificata per
-  differenza: **+18 aggiunte, 0 sparite**, cioe esattamente i 18 blocker attribuiti — se
-  ne fossero comparse di piu, si sarebbe benedetto qualcosa di mai guardato.
-  **Cosa e stato benedetto, per fatti**:
+- **Baseline di sicurezza**: `gitleaks:0 · osv:0 · semgrep:0 · rls:0`, **con una riserva
+  misurata il 29/07**: `rls:0` significa «nessun rilievo prodotto», non «tutte le tabelle
+  auditate». Su **2 tabelle su 7** l'oracolo statico non guarda: `generation_pools` (parse
+  failure su `unique nulls not distinct`, rimedio misurato e a semantica invariata) e
+  `profiles` (fuori dall'euristica per progetto). **Il `rls:0` di `generation_pools` non e
+  una prova.** Dettagli in `docs/blueprint/audit-oracoli/00-copertura-oracolo-rls.md`.
+  *(Resta vero che al checkpoint del 28/07 `rls:0` fu RICONQUISTATO sulle tabelle nuove e non
+  ereditato da P1: e la portata di quel verde a essere piu stretta di quanto sembrasse.)*
+- **Baseline d'igiene**: `.trueline/hygiene-baseline.json`, da 59 a **67 impronte** (29/07),
+  tracciata in git. Le 8 aggiunte **non sono duplicazioni nuove**: sono impronte prodotte
+  dalla normalizzazione di `checkpoint.mjs`, che differisce da quella di `baseline.mjs` sullo
+  stesso output di jscpd (**R-04**). Attribuite una per una alle due classi gia benedette in
+  P2, **prima** della ricattura. Verificato per differenza con e senza i documenti dell'audit:
+  **63 blocchi in entrambi i casi, output byte-identici**; ricattura **+8, 0 sparite**, tutte
+  `duplication`/`LOW`.
+  **Cosa era stato benedetto nel BUILD precedente, per fatti**:
   - **12 nelle `.md` del blueprint P2** (8 in `05-generation-e2e.md`, 2 in `00-INDEX.md`,
     1 in `prompts/project-start.md`, 1 in `VISION-AND-CONSTRAINTS.md`): impalcatura YAML
     dei task, che nello schema trueline si ripete **per costruzione**. Quei documenti sono
@@ -99,17 +113,19 @@ dettaglio. L'attribuzione e in §4.
     ogni policy RLS — una guardia di sicurezza nascosta in un helper non e piu visibile a
     chi legge l'azione.
   - Nessuna e dead-code (`dead-code:0`), nessuna e un ciclo, nessuna e un twin. Tutte `LOW`.
-- **Suite**: **593 test in 61 file**, 0 falliti, 0 skippati (misurata con `npm test` dopo
-  `db reset`, non dedotta). Erano 467 in 56 file: **+126 test in 5 file**
-  (15 + 26 + 49 + 15 + 21). *Nota*: la SESSION-STATE precedente diceva 56 file ed era
-  giusta — il "57" segnalato all'apertura di questa sessione era un errore di conteggio
-  dell'orchestratore, chiuso col numero reale.
+- **Suite**: **643 test in 61 file**, 0 falliti, 0 skippati (misurata con `npm test` dopo
+  `db reset`, non dedotta). Erano 593: **+50 test**, ~2700 righe, `dup:63` invariato — zero
+  duplicazioni introdotte, e **nessun file nuovo**: tutte aggiunte a oracoli esistenti.
 - **Budget**: la forma che ha tenuto e **2 agenti per workflow**, un task per volta, con
   builder → verifier avversariale e, sui rilievi confermati, due fixer **diversi ancora**
   in sequenza (modulo prima, oracolo poi). Nessun workflow e morto per limite di sessione;
   `agents_error` controllato a ogni ritorno, sempre 0.
 
-## 5. Esiti dell'ultima sessione (framing onesto)
+## 5. Esiti del BUILD di `generation-model` (framing onesto)
+
+> *Questa sezione descrive il BUILD del **28/07**, non la sessione del 29/07 (che e stata
+> l'audit degli oracoli: vedi l'intestazione, §4 e §8.0). E tenuta perche resta la fonte di
+> verita su come `generation-model` e stato chiuso.*
 
 **Costruito**: T-200 (schema + RLS), T-201 (slot + `PoolSchema`), T-202
 (`SiteDocumentSchema`), T-203 (letture + riconciliazione), T-204 (scritture + macchina a
@@ -206,10 +222,32 @@ attraverso il gateway, corpo HTTP **8.388.681 byte**, **accettata**.
     nel modulo e pinnato da un test. La difesa sul link e del **validatore di campo**
     (T-237) piu l'asserzione sull'**effetto** (T-241): chi implementa T-237 non deve
     dedurre dallo schema che il valore sia gia sicuro.
+19. **NUOVO (29/07) — `rls:0` non copre `generation_pools`.** Misurato con prova
+    differenziale su tutte e 7 le tabelle: 5 auditate, 2 no. Il rimedio DDL e misurato ma
+    **non applicato**.
+20. **NUOVO (29/07) — la CI non aveva mai eseguito un test DB-backed.** Ora lo stack e
+    provisionato e una guardia rende rossa una CI senza database. **Non verificato**: il
+    workflow non e provato da una run reale (`gh` non installato). La prima run puo far
+    emergere fallimenti mai visti — esito desiderato, non rischio.
+21. **NUOVO (29/07) — costo dichiarato dello schema A**: l'uguaglianza esatta sulle policy
+    rende gli oracoli **rigidi** alle riscritture equivalenti del testo (misurato: 2 su 2 ora
+    rosse). E il lato (a) di S2-05 — la rigidita dei tre `toContain` sull'idempotenza —
+    **resta aperto**.
 
 ## 7. Carry-over
 
-### Chiusi da questo macrotask
+### Chiusi dall'audit e dalle sue fix (2026-07-29)
+- **T-01…T-03, S2-01…S2-05, S45-01/02, A3-01…A3-08**: 26 rilievi, tutti oracoli deboli,
+  chiusi per schema con **38 mutazioni uccise su 38**.
+- **P1 §7 p.1** (*«`isBriefComplete` verifica presenza e non provenienza»*): **resta aperto** —
+  l'audit non l'ha toccato, lo chiudera `AC-215-4` in `generation-engine`.
+
+### Aperti, dichiarati (2026-07-29)
+- **R-01/R-03** (cecita di `RLS004`, `parse_warnings` non fatali) e **R-04** (le due
+  normalizzazioni divergenti): vivono nella **skill trueline**, non nel repo.
+- Il lato (a) di **S2-05**; il costo di rigidita dello schema A.
+
+### Chiusi dal macrotask `generation-model` (28/07)
 - **P1 §6-bis p.10** (il peso della riga era un limite **senza oracolo**): il documento ha
   ora un bound **misurato e applicato**, in due unita e due lingue (`AC-202-6`, `AC-202-7`).
 - **Anticipato su P1 §6-bis p.2** (nested `additionalProperties` senza `required`):
