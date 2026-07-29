@@ -7,6 +7,17 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    env:
+      # supabase/config.toml referenzia questi due valori con la sostituzione
+      # `env(...)` su [auth.external.google], che e `enabled = true`. In locale
+      # arrivano da .env.local; in CI non esiste .env.local, e senza un valore la
+      # sostituzione lascia i campi vuoti (misurato in locale: la CLI emette
+      # `WARN: environment variable is unset: SUPABASE_AUTH_EXTERNAL_GOOGLE_*`).
+      # Sono segnaposto DICHIARATI, non credenziali: nessun flusso OAuth reale gira
+      # in CI — l'unico test su Google OAuth (tests/auth-google-oauth.test.ts) e
+      # interamente su mock e non tocca il provider dello stack.
+      SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID: ci-placeholder.apps.googleusercontent.com
+      SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET: ci-placeholder-secret
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -14,6 +25,55 @@ jobs:
           node-version: '22'
           cache: 'npm'
       - run: npm ci
+
+      # Gate statici prima di pagare l'avvio di Docker: se typecheck o lint sono
+      # rossi non ha senso provisionare il database.
       - run: npm run typecheck
+      # Il lint non era invocato ne dalla suite ne dalla CI: la regola ESLint che
+      # difende il confine service_role (eslint.config.mjs) non era eseguita da alcun
+      # gate automatico. Ora lo e.
+      - run: npm run lint
+
+      # --- Supabase locale: senza questo, 139 test su 632 si SKIPPANO in silenzio ---
+      # e cioe l'INTERA superficie di sicurezza (RLS, tenancy, auth, siti, brief,
+      # generazioni) non viene mai eseguita da una run di CI.
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      # `supabase start` avvia lo stack e applica le migrazioni di supabase/migrations.
+      - run: supabase start
+
+      # Le quattro variabili NON sono hardcodate: le emette la CLI.
+      # `supabase status -o env` scrive su stdout SOLO righe `NOME="valore"` (le
+      # WARN, la riga "Stopped services:" e l'avviso di aggiornamento vanno su
+      # stderr: verificato in locale con la CLI 2.106.0), e `--override-name`
+      # rinomina le chiavi della CLI nei nomi che il codice legge davvero:
+      #   api.url               -> NEXT_PUBLIC_SUPABASE_URL
+      #   auth.anon_key         -> NEXT_PUBLIC_SUPABASE_ANON_KEY
+      #   auth.service_role_key -> SUPABASE_SERVICE_ROLE_KEY
+      #   db.url                -> DATABASE_URL
+      # (sono i quattro nomi letti da tests/helpers/supabase-test.ts, tests/helpers/pg.ts
+      # e dalle guardie `skipIf` dei test DB-backed).
+      # Le virgolette vanno TOLTE: GITHUB_ENV non le interpreta, finirebbero dentro
+      # al valore. Il conteggio a 4 rende rossa e leggibile una CI in cui la CLI
+      # cambiasse i nomi delle chiavi, invece di lasciar ripartire lo skip silenzioso.
+      - name: Esporta le variabili dello stack locale in GITHUB_ENV
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase status -o env \
+            --override-name api.url=NEXT_PUBLIC_SUPABASE_URL \
+            --override-name auth.anon_key=NEXT_PUBLIC_SUPABASE_ANON_KEY \
+            --override-name auth.service_role_key=SUPABASE_SERVICE_ROLE_KEY \
+            --override-name db.url=DATABASE_URL > "$RUNNER_TEMP/supabase-status.env"
+          grep -E '^(NEXT_PUBLIC_SUPABASE_URL|NEXT_PUBLIC_SUPABASE_ANON_KEY|SUPABASE_SERVICE_ROLE_KEY|DATABASE_URL)=' \
+            "$RUNNER_TEMP/supabase-status.env" > "$RUNNER_TEMP/supabase-status.filtered"
+          count=$(wc -l < "$RUNNER_TEMP/supabase-status.filtered")
+          if [ "$count" -ne 4 ]; then
+            echo "::error::attese 4 variabili da 'supabase status -o env', trovate $count — i test DB-backed si skipperebbero in silenzio"
+            exit 1
+          fi
+          sed -E 's/^([A-Z0-9_]+)="(.*)"$/\1=\2/' "$RUNNER_TEMP/supabase-status.filtered" >> "$GITHUB_ENV"
+
       - run: npm test
       - run: npm run knip
