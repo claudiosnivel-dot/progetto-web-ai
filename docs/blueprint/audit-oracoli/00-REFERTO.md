@@ -10,7 +10,7 @@
 
 **Non è stato trovato nessun difetto attivo.** In 72 mutazioni su sei superfici, nessuna ha
 rivelato una policy sbagliata, un vincolo mancante o una guardia difettosa **oggi**. Tutti i
-19 rilievi sono **oracoli deboli**: modi in cui una regressione *futura* non verrebbe vista.
+**26 rilievi** sono **oracoli deboli**: modi in cui una regressione *futura* non verrebbe vista.
 
 La distinzione va tenuta ferma leggendo il resto: il codice di P0 e P1 è corretto. Ciò che
 non è affidabile è la rete che dovrebbe accorgersi se smettesse di esserlo.
@@ -19,9 +19,9 @@ non è affidabile è la rete che dovrebbe accorgersi se smettesse di esserlo.
 
 | | |
 |---|---|
-| Mutazioni **applicate** ed eseguite | **72** |
-| Prese da un oracolo | **43** |
-| **Non** prese (buchi) | **19** |
+| Mutazioni **applicate** ed eseguite | **72** (22 · 16 · 15 · 10 · 9 sulle sei superfici) |
+| **Rilievi numerati** | **26** — T-01…07 · S2-01…05 · A3-01…08 · S45-01…02 · R-01…04 |
+| Esiti **VERDI non attesi** (la mutazione non è stata presa) | **22** |
 | Prove di equivalenza (attese verdi) | **9**, di cui 8 verdi e **1 rossa** (oracolo rigido) |
 | Ripristini verificati (hash o sha256) | **72 su 72** |
 | Mutazioni **rifatte** invece che registrate | 5 (non applicate: CRLF, stringa non trovata) |
