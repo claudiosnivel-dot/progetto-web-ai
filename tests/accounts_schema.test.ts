@@ -20,6 +20,39 @@ type PolicyRow = {
   with_check: string | null;
 };
 
+// Riga di pg_proc per la funzione SECURITY DEFINER che regge le policy di lettura.
+type ProcRow = {
+  prosecdef: boolean;
+  proconfig: string[] | null;
+  provolatile: string;
+  identity_args: string;
+  result_type: string;
+  acl: string[] | null;
+  authenticated_can_execute: boolean;
+};
+
+// Valore CANONICO che Postgres memorizza in pg_proc.proconfig per
+// `set search_path = public, pg_temp`. Postgres appiattisce la lista GUC in questa
+// forma (verificato sul catalogo: tutte le proconfig dell'istanza sono `name=v1, v2`),
+// quindi l'uguaglianza esatta e sensibile all'ORDINE e ai VALORI, non alla
+// formattazione della migrazione.
+const SEARCH_PATH_PINNED = 'search_path=public, pg_temp';
+
+// Interrogazione unica del catalogo per public.is_account_member: filtra per NOME e
+// non per firma (`::regprocedure` solleverebbe un errore di cast invece di dare una
+// riga in meno), cosi l'assenza della funzione e un'asserzione fallita e leggibile.
+const IS_ACCOUNT_MEMBER_PROC_SQL = `
+  select p.prosecdef,
+         p.proconfig,
+         p.provolatile,
+         pg_get_function_identity_arguments(p.oid) as identity_args,
+         pg_get_function_result(p.oid) as result_type,
+         p.proacl::text[] as acl,
+         has_function_privilege('authenticated', p.oid, 'EXECUTE') as authenticated_can_execute
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public' and p.proname = 'is_account_member'`;
+
 // pg_policies rende l'espressione secondo il search_path: `public.` puo comparire o
 // no, e gli spazi non sono significativi. E l'UNICA normalizzazione ammessa dai due
 // test di uguaglianza ESATTA piu sotto: comprime gli spazi e toglie il prefisso di
@@ -293,6 +326,113 @@ describe.skipIf(!DB)('T-060 schema accounts + account_members (cataloghi)', () =
       .map((p) => p.cmd);
     expect(amCmds).toContain('UPDATE'); // covers: AC-060-6
     expect(amCmds).toContain('SELECT'); // covers: AC-060-6
+  });
+
+  // ── public.is_account_member(uuid) — il contratto di CATALOGO della funzione ──
+  //
+  // OLTRE gli AC di T-060: nessun AC nomina il search_path. AC-060-5 prova a runtime
+  // che la funzione RITORNI true per il proprio account e false per un altro, e resta
+  // verde con QUALUNQUE search_path. L'unica dichiarazione dell'hardening sta nel
+  // commento della migrazione 20260723000100 (righe 33-38: "search_path fisso e corpo
+  // solo-parametro ... prevengono hijack/injection (R8/R9)"), e nessun test la
+  // copriva. Misurato nell'audit degli oracoli (rilievo T-01, HIGH): togliere
+  // `set search_path = public, pg_temp` lascia verdi 21 test su 21 E l'oracolo RLS
+  // statico del checkpoint (`findings: 0`). E la funzione piu condivisa del progetto
+  // — regge la lettura di accounts, account_members, sites, site_briefs,
+  // site_generations, generation_pools — e nessuno la proteggeva.
+  //
+  // Il pattern non e inventato: e lo stesso di tests/auto_provision_secdef.test.ts
+  // per l'ALTRA funzione SECURITY DEFINER del progetto (handle_new_user). La
+  // differenza rispetto a quel test e che qui si asserisce il VALORE di proconfig,
+  // non la sua presenza.
+  //
+  // MUTAZIONI CONCRETE che questo test rende ROSSE (tutte misurate/attese VERDI prima):
+  //  1. `set search_path` RIMOSSO dalla funzione (mutazione A10 dell'audit) ->
+  //     proconfig null;
+  //  2. `set search_path = pg_temp, public` — lo schema TEMPORANEO davanti. Chiunque
+  //     puo creare oggetti in pg_temp: `account_members` si risolverebbe li dentro e
+  //     la funzione, che gira con i privilegi del PROPRIETARIO, leggerebbe la tabella
+  //     dell'attaccante. E l'ORDINE a distinguere la forma sicura da quella hijackabile,
+  //     e un controllo di sola presenza non lo vede;
+  //  3. `set search_path = public` — NON e equivalente: se pg_temp non e elencato,
+  //     Postgres lo cerca comunque e lo cerca PER PRIMO. Elencarlo per ULTIMO e cio
+  //     che lo declassa. E per questo che la difesa e il valore esatto;
+  //  4. una GUC AGGIUNTA alla funzione (`set row_security = off`, `set role = ...`):
+  //     un controllo che cercasse solo la riga search_path non se ne accorgerebbe,
+  //     l'uguaglianza dell'INTERO array si;
+  //  5. `security definer` -> `security invoker`: la policy SELECT di account_members
+  //     chiama questa funzione, che deve leggere account_members BYPASSANDO la RLS,
+  //     altrimenti ricorsione infinita di policy;
+  //  6. `stable` -> `volatile`: il planner non puo piu inlinare la funzione SQL nel
+  //     predicato di policy (R9, caching); `stable` -> `immutable` e peggio, perche il
+  //     risultato dipende da (select auth.uid()) e dal contenuto di account_members, e
+  //     dichiararlo costante autorizza il planner a piegarlo a costante e riusarlo.
+  it("is_account_member(uuid) e SECURITY DEFINER, STABLE, e il suo search_path vale ESATTAMENTE 'public, pg_temp' — in quest'ordine", async () => {
+    const rows = await pgQuery<ProcRow>(IS_ACCOUNT_MEMBER_PROC_SQL);
+
+    // Esattamente una funzione con questo nome: un OVERLOAD aggiunto (es. una
+    // is_account_member(text) permissiva) sarebbe un secondo punto d'ingresso alle
+    // policy, e questa uguaglianza lo prende.
+    expect(rows).toHaveLength(1);
+    const fn = rows[0];
+
+    // Firma del contratto (DoD T-060): un solo parametro uuid, ritorna boolean.
+    expect(fn.identity_args).toBe('a_id uuid');
+    expect(fn.result_type).toBe('boolean');
+
+    // SECURITY DEFINER: e cio che permette alla policy di leggere account_members
+    // senza ricorsione. Toglierlo rompe la lettura, non la sicurezza — ma e comunque
+    // una deviazione dal contratto, e va vista.
+    expect(fn.prosecdef).toBe(true);
+
+    // Volatilita del contratto: STABLE ('s'). Non VOLATILE ('v'), non IMMUTABLE ('i').
+    expect(fn.provolatile).toBe('s');
+
+    // proconfig per INTERO: una sola GUC pinnata sulla funzione, ed e il search_path
+    // con il valore esatto. Questa singola riga copre le mutazioni 1, 2, 3 e 4.
+    expect(fn.proconfig).toEqual([SEARCH_PATH_PINNED]);
+
+    // La stessa cosa detta come PROPRIETA e non come stringa, perche sia il
+    // FALLIMENTO a spiegare cosa e andato storto: la lista degli schemi, nell'ordine
+    // di risoluzione dei nomi, con pg_temp per ULTIMO.
+    const schemas = (fn.proconfig ?? [])[0]
+      .slice('search_path='.length)
+      .split(',')
+      .map((s) => s.trim());
+    expect(schemas).toEqual(['public', 'pg_temp']);
+    expect(schemas[schemas.length - 1]).toBe('pg_temp');
+  });
+
+  // covers: AC-060-5 (il presupposto di), OLTRE gli AC per la parte sul GRANT esplicito
+  //
+  // PERCORSO POSITIVO (schema C dell'audit): gli oracoli di questa superficie provano
+  // quasi solo che l'attaccante NON puo. Qui si prova che il chiamante LEGITTIMO puo:
+  // `authenticated` deve poter ESEGUIRE la funzione, perche la chiama sia via RPC
+  // (AC-060-5) sia dentro la policy SELECT, valutata come quel ruolo.
+  //
+  // Le DUE asserzioni non sono ridondanti, ed e questo il punto del rilievo T-01:
+  //  - `revoke execute ... from public, authenticated` -> has_function_privilege
+  //    diventa false: lo prende la prima;
+  //  - la riga `grant execute on function public.is_account_member(uuid) to
+  //    authenticated` CANCELLATA dalla migrazione -> proacl torna NULL, cioe il
+  //    default (EXECUTE a PUBLIC), e has_function_privilege resta TRUE. La prima
+  //    asserzione non se ne accorgerebbe. Lo prende solo la seconda, che pretende il
+  //    GRANT ESPLICITO. E esattamente il caso contro cui la migrazione mette in
+  //    guardia (righe 147-150: con auto_expose off il default a PUBLIC puo essere
+  //    revocato, e allora la RPC dell'utente smette di funzionare).
+  it('authenticated puo ESEGUIRE is_account_member, e per GRANT ESPLICITO — non per il default a PUBLIC', async () => {
+    const rows = await pgQuery<ProcRow>(IS_ACCOUNT_MEMBER_PROC_SQL);
+    expect(rows).toHaveLength(1);
+
+    // (a) La proprieta semantica: il ruolo che chiama DEVE poter eseguire.
+    expect(rows[0].authenticated_can_execute).toBe(true);
+
+    // (b) Il GRANT esplicito e nell'ACL. Le voci hanno forma `grantee=PRIVS/grantor`;
+    //     `X` e il privilegio EXECUTE.
+    const acl = rows[0].acl ?? [];
+    const authEntry = acl.find((e) => e.startsWith('authenticated='));
+    expect(authEntry).toBeDefined();
+    expect(authEntry!.split('/')[0].split('=')[1]).toContain('X');
   });
 
   // Emendamento ledger 2026-07-23: UNIQUE(owner_id) su accounts (un utente possiede
