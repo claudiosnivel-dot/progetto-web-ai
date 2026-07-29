@@ -103,4 +103,89 @@ describe.skipIf(!SB)('T-061 profiles RLS (runtime, Supabase locale)', () => {
     expect(after.data?.display_name).toBe(before.data?.display_name);
     expect(after.data?.display_name).not.toBe('hacked-by-A');
   });
+
+  // ── DELETE su profiles esercitato come utente autenticato ───────────────────
+  // profiles NON ha alcuna policy DELETE, ma la migrazione concede
+  // "grant select, insert, update, delete ... to authenticated": la proprieta
+  // "nessun utente autenticato cancella righe profilo" regge SOLO sul default-deny
+  // della RLS. Prima di questi test nessun .delete() del repo colpiva profiles.
+  // Metodo, per ognuno: guardrail service_role (la riga esisteva PRIMA ed esiste
+  // ancora DOPO — un "0 righe" da solo non distingue la RLS dai dati assenti) e
+  // fixture di DUE righe con id DISCORDANTI (A e B).
+  // Asserire error === null (e non 42501) dimostra che il DELETE raggiunge davvero
+  // la tabella (il GRANT c'e) e che a fermarlo e il default-deny, non un privilegio.
+  // Nessun sign-in nuovo: si riusa clientA del beforeAll (rate limit auth).
+
+  // Stato delle due righe profilo letto via service_role (bypassa la RLS), come
+  // chiave stabile e ordinata: confrontabile con toEqual senza dipendere dall'ordine.
+  const profileRows = async (): Promise<string[]> => {
+    const { data, error } = await adminClient()
+      .from('profiles')
+      .select('id, display_name, locale')
+      .in('id', [userAId, userBId]);
+    expect(error).toBeNull();
+    return (data ?? []).map((r) => `${r.id}|${r.display_name}|${r.locale}`).sort();
+  };
+
+  it('A non puo cancellare la riga profilo di B: 0 righe eliminate e la riga di B resta', async () => {
+    // covers: AC-061-5 — l'AC nomina select+update; qui la STESSA proprieta di
+    // isolamento provata sul DELETE. Copertura AGGIUNTIVA oltre l'AC: profiles non
+    // ha policy DELETE, quindi si prova il default-deny a comportamento.
+    const before = await profileRows();
+    expect(before).toHaveLength(2); // due righe con id DISCORDANTI (A e B)
+
+    const { data: deleted, error } = await clientA
+      .from('profiles')
+      .delete()
+      .eq('id', userBId)
+      .select();
+    expect(error).toBeNull();
+    expect(deleted ?? []).toHaveLength(0);
+
+    // Guardrail service_role: entrambe le righe sono ancora li, invariate.
+    expect(await profileRows()).toEqual(before);
+  });
+
+  it('A non puo cancellare NEMMENO la propria riga profilo: 0 righe eliminate e la riga di A resta', async () => {
+    // covers: AC-061-5 — copertura AGGIUNTIVA oltre l'AC, e la parte controintuitiva:
+    // profiles ha policy "own" per SELECT/INSERT/UPDATE ma NESSUNA per DELETE, e
+    // l'assenza di policy non e implicitamente permissiva nemmeno verso se stessi.
+    // Il verde non deriva da "riga invisibile": A VEDE la propria riga.
+    const own = await clientA.from('profiles').select('id').eq('id', userAId);
+    expect(own.error).toBeNull();
+    expect(own.data).toHaveLength(1);
+
+    const before = await profileRows();
+    const { data: deleted, error } = await clientA
+      .from('profiles')
+      .delete()
+      .eq('id', userAId)
+      .select();
+    expect(error).toBeNull();
+    expect(deleted ?? []).toHaveLength(0);
+
+    // Guardrail service_role: la riga di A esisteva prima ed esiste ancora dopo.
+    const after = await profileRows();
+    expect(after).toEqual(before);
+    expect(after.some((k) => k.startsWith(`${userAId}|`))).toBe(true);
+  });
+
+  it('un delete ad ampio raggio su profiles non cancella nulla: le righe di A e B restano entrambe', async () => {
+    // covers: AC-061-5 — RAGGIO D'AZIONE, copertura AGGIUNTIVA oltre l'AC: A prova a
+    // colpire in un colpo solo la propria riga E quella di B. Le due righe hanno id
+    // DISCORDANTI: con una riga sola "cancella quella giusta" e "cancella tutto"
+    // sarebbero indistinguibili.
+    const before = await profileRows();
+    expect(before).toHaveLength(2);
+
+    const { data: deleted, error } = await clientA
+      .from('profiles')
+      .delete()
+      .in('id', [userAId, userBId])
+      .select();
+    expect(error).toBeNull();
+    expect(deleted ?? []).toHaveLength(0);
+
+    expect(await profileRows()).toEqual(before);
+  });
 });
