@@ -1,8 +1,9 @@
 # Audit degli oracoli — Superficie 3: AUTH E SESSIONE
 
 > Piano `AUDIT-ORACOLI-P0-P1.md` §3. Data: 2026-07-29.
-> Baseline: **6 file, 25 test, 0 falliti, 0 skippati**.
-> **12 mutazioni applicate, 12 esiti registrati, 12 ripristini verificati per sha256.**
+> Baseline: **6 file, 25 test** (7 file / 29 test nel secondo giro), 0 falliti, 0 skippati.
+> **15 mutazioni applicate, 15 esiti registrati, 15 ripristini verificati per sha256.**
+> **Otto buchi: e la superficie peggiore delle sei.**
 >
 > E la superficie piu esposta delle sei, e va detto perche: **qui non c'e la RLS a fare da
 > seconda linea**. Sulle superfici 1, 2, 4 e 5 una guardia applicativa che cade trova ancora
@@ -71,6 +72,33 @@ della superficie: ogni test sulla guardia resta verde mentre la protezione e dis
 ### A3-05 — MEDIUM · la sanificazione della query nel redirect non e asserita
 Rimuovere `loginUrl.search = ''` lascia tutto verde: i parametri dell'URL richiesto
 sopravvivono nel redirect verso il login.
+
+### A3-06 — HIGH · gli attributi dei cookie di sessione non sono mai asseriti
+Smettere di propagare `options` in `cookieStore.set(name, value, options)` lascia **29 test
+su 29 verdi** (AU11). Con quella riga, ogni cookie di sessione perde **httpOnly, Secure e
+SameSite** — cioe la differenza fra una sessione rubabile da un XSS e una che non lo e.
+**Causa**: in tutti i file di test il cookie store finto e `set: (name, value) => store.set(name, value)`
+— la firma **non accetta nemmeno** il terzo argomento. Il caso e esercitato, mai asserito.
+
+### A3-07 — HIGH · la regola ESLint che difende il confine `service_role` puo essere spenta
+Sostituire l'intera regola `no-restricted-imports` con `'off'` lascia 29 test su 29 verdi
+(AU12). L'oracolo (`supabase-clients.test.ts`) legge `eslint.config.mjs` **come testo** e
+verifica che contenga le stringhe `'no-restricted-imports'` e `'supabase-admin'`: entrambe
+restano presenti altrove nel file anche a regola disattivata. **Presenza invece di valore**,
+lo stesso schema di S2-03.
+**Il pattern giusto esiste gia nel repo**: `anthropic-boundary.test.ts` istanzia `new ESLint()`
+ed **esegue** il lint sui moduli client reali, verificando `severity === 2` e il messaggio.
+Il confine Anthropic (P1) e difeso davvero; quello `service_role` (P0) no.
+**Aggravante misurata**: `npm test` non invoca mai `npm run lint`, e nemmeno la CI lo fa —
+quindi la regola non e comunque eseguita da alcun gate automatico.
+
+### A3-08 — HIGH · l'allowlist del locale non riceve mai un valore ostile
+Rimuovere `hasLocale(routing.locales, rawLocale)` dal callback lascia 29 test su 29 verdi
+(AU13). Il segmento `[locale]` **e input del client** e viene interpolato in ogni destinazione
+di redirect. Ogni test passa sempre `'it'` o `'es'`: nessuno prova `..`, `\\evil.example.com`
+o una forma percent-encoded. Aggravante nota nel codice stesso: il matcher del middleware
+esclude i pathname che contengono un punto, quindi per un locale come `\evil.example.com` il
+route handler e **l'unica** sede di validazione.
 
 ## 3. Lo schema che questa superficie rende evidente
 
