@@ -171,4 +171,52 @@ da misure:
 | Ogni superficie ha una batteria eseguita, con le mutazioni **applicate** e il loro esito, mai saltate in silenzio | **fatto** — 72/72 registrate, 5 rifatte invece che dedotte |
 | I rilievi confermati sono chiusi **o dichiarati aperti** | **dichiarati aperti** — le fix sono differite per decisione dell'utente (sweep completo, poi fix in blocco) |
 | Si decide con i dati se estendere | **fatto** — §9 |
-| Checkpoint verde al termine e SESSION-STATE aggiornata | il checkpoint appartiene alla **fase di fix**: in questa sessione nessun file di codice è stato modificato (solo documenti), e la suite completa è stata rieseguita come prova di assenza di residui |
+| Checkpoint verde al termine e SESSION-STATE aggiornata | **eseguito, ed è NON-VERDE** — per una causa che pre-esiste a questo branch. Vedi §11 |
+
+## 11. Il checkpoint di chiusura, e cosa ha rivelato
+
+**Suite completa dopo la sweep**: 61 file, **593 test, 0 falliti, 0 skippati** — identica alla
+baseline di SESSION-STATE. Nessun residuo delle 72 mutazioni.
+
+**Checkpoint deterministico**: `1:dead-code=red · 2:security=green · 3:regressions=green ·
+4:conformance=green`, `degraded: []`.
+
+### Il rosso del controllo 2 al primo tentativo era MIO, non del codice
+Il primo giro riportava **28 finding gitleaks CRITICAL**. Tutti e 28 erano dentro **`.next/`**,
+la cache di build di Next: avevo saltato `rm -rf .next`, che la procedura documentata in
+SESSION-STATE §8.5 elenca esplicitamente. Rieseguito con la procedura completa: **`gitleaks:0`,
+controllo 2 verde**. È lo stesso genere di falso rosso del «kong non riavviato» già annotato
+nel progetto, e va registrato come tale invece di essere raccontato come una scoperta.
+
+### Il rosso del controllo 1 pre-esiste a questo branch — attribuito, non dedotto
+`dup:63`, **8 duplicazioni «nuove»** in `05-generation-e2e.md`, `updateProfileLocale.ts`,
+`sites.ts` e `generations.ts` — cioè **file che questo branch non tocca** (il diff contro
+`main` è di 7 soli documenti nuovi, 840 righe, tutte in `docs/blueprint/audit-oracoli/`).
+
+**Attribuzione per misura differenziale**, non per ragionamento: `run_dupcheck` eseguito due
+volte, con e senza i 7 documenti nuovi.
+
+| | blocchi |
+|---|---|
+| albero **con** i documenti dell'audit | 63 |
+| albero **senza** (= `main`) | 63 |
+| blocchi presenti **solo** con i miei documenti | **0** |
+
+I due output sono perfino **byte-identici** (40 336 byte entrambi). Inoltre: la baseline
+committata ha **59 impronte**, **nessuna** delle 8 bloccanti vi compare, e questo branch non
+ha mai toccato `.trueline/hygiene-baseline.json` (ultimo commit a toccarla: `30c987d`, la
+chiusura di P2).
+
+**Conclusione, come rilievo a sé**:
+
+### R-04 — MEDIUM · la baseline d'igiene committata a fine P2 non corrisponde più all'albero
+Il checkpoint di `generation-model` (28/07) riportava `dup:60` e controllo 1 verde. Oggi
+l'albero produce **63** blocchi con **8 impronte mai attribuite**, e la divergenza **non è
+prodotta da questo branch**. Finché resta così, **ogni checkpoint futuro parte rosso** e il
+controllo 1 smette di distinguere una regressione vera da un rumore di fondo.
+
+**Non ho ricatturato la baseline.** Ricatturare adesso farebbe passare il controllo
+benedicendo 8 impronte che nessuno ha mai guardato — esattamente ciò che la regola del
+progetto vieta («attribuisci SEMPRE prima di ricatturare; catturare per far passare il
+controllo benedirebbe anche le tue»). L'attribuzione delle 8 è lavoro da fare **con l'umano**,
+e va fatta prima del prossimo BUILD.
