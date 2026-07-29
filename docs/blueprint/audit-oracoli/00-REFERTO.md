@@ -207,16 +207,48 @@ committata ha **59 impronte**, **nessuna** delle 8 bloccanti vi compare, e quest
 ha mai toccato `.trueline/hygiene-baseline.json` (ultimo commit a toccarla: `30c987d`, la
 chiusura di P2).
 
-**Conclusione, come rilievo a sé**:
+### Attribuzione delle 8: appartengono a due classi già benedette in P2
+Ricostruite le coppie di cloni: 4 sono l'**impalcatura YAML dei task** di
+`05-generation-e2e.md` accoppiata agli altri quattro moduli del blueprint P2 (si ripete *per
+costruzione* nello schema trueline); le altre 4 sono il **preambolo delle server action**, la
+**derivazione dell'account**, il **`safeParse` + 400** e il **lookup del sito** fra
+`updateProfileLocale.ts`, `sites.ts`, `generations.ts` e `briefs.ts`. Sono esattamente le due
+classi che SESSION-STATE §4 documenta come attribuite e **tenute ripetute di proposito**.
+Nessuna è dead-code, nessuna è un ciclo, tutte `LOW`.
 
-### R-04 — MEDIUM · la baseline d'igiene committata a fine P2 non corrisponde più all'albero
-Il checkpoint di `generation-model` (28/07) riportava `dup:60` e controllo 1 verde. Oggi
-l'albero produce **63** blocchi con **8 impronte mai attribuite**, e la divergenza **non è
-prodotta da questo branch**. Finché resta così, **ogni checkpoint futuro parte rosso** e il
-controllo 1 smette di distinguere una regressione vera da un rumore di fondo.
+### R-04 — MEDIUM · la baseline d'igiene è CATTURATA e VERIFICATA da due scanner diversi
 
-**Non ho ricatturato la baseline.** Ricatturare adesso farebbe passare il controllo
-benedicendo 8 impronte che nessuno ha mai guardato — esattamente ciò che la regola del
-progetto vieta («attribuisci SEMPRE prima di ricatturare; catturare per far passare il
-controllo benedirebbe anche le tue»). L'attribuzione delle 8 è lavoro da fare **con l'umano**,
-e va fatta prima del prossimo BUILD.
+Tre ipotesi sono state formulate e **due sono state smentite dalla misura**. Vale la pena
+registrarle, perché l'ordine in cui sono cadute è il metodo:
+
+1. *«La baseline committata è derivata»* — **falso**. Ricatturata con
+   `baseline.mjs capture --hygiene`, produce un file **byte-identico** a quello in git
+   (`git diff --quiet` → nessuna differenza). La baseline era ed è corretta.
+2. *«È `.next` a inquinare la scansione»* — **falso**. `run_dupcheck` non esclude `.next/`
+   (ignora solo `*.test.ts`, `*.spec.ts`, `*.d.ts`, `node_modules`) e il checkpoint rigenera
+   `.next` durante la propria esecuzione, quindi l'ipotesi era ragionevole. Ma
+   `baseline.mjs delta --hygiene` riporta **`new=0`** sia con `.next` presente sia assente.
+3. *«Manca `--baseline` nell'invocazione»* — **falso**. Passato esplicitamente, l'esito non
+   cambia: `1:dead-code=red, 8 duplication NUOVO`.
+
+**La causa vera, misurata**: sullo **stesso albero** e con la **stessa baseline**, i due
+strumenti non contano la stessa cosa.
+
+| Strumento | Blocchi |
+|---|---|
+| `baseline.mjs capture/delta --hygiene` (**cattura** la baseline) | **61** → `new=0` |
+| `run_dupcheck.mjs` (**verifica** nel checkpoint) | **63** → `8 nuovi` |
+
+La baseline è prodotta da uno scanner e verificata da un altro. È esattamente ciò contro cui
+SESSION-STATE §8.4 mette in guardia — *«catturare con uno strumento e verificare con un altro
+produce un verde che non significa nulla»* — con l'unica differenza che qui produce un
+**rosso** che non significa nulla.
+
+**Conseguenza operativa**: il controllo 1 **non può essere reso verde da nessuna azione sul
+repository**. Ricatturare non serve (la baseline è già corretta e la ricattura usa lo scanner
+che *non* verifica); attribuire non serve (fatto: nulla di nuovo). Il rimedio è sullo
+strumento — allineare i due scanner, oppure catturare la baseline con lo stesso che il
+checkpoint usa.
+
+**Non ho ricatturato per far passare il controllo**, e non ho forzato il merge: il gate è il
+verde, e il verde oggi è irraggiungibile per una ragione che non riguarda questo branch.
