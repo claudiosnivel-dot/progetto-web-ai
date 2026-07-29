@@ -119,6 +119,26 @@ const SORGENTI_VIETATE = [
     source:
       "import { lazy } from 'react';\n\nexport const Tema = lazy(() => import('../theme/tokens'));\n",
   },
+  {
+    // TEMPLATE LITERAL senza buchi: il nodo e' 'TemplateLiteral', non 'Literal', quindi il
+    // primo selector non lo vedeva. Qui pesava piu' che sui due confini privilegiati, perche'
+    // questo e' il confine SENZA seconda linea: tokens.ts e' un normale modulo client-safe e
+    // nessun 'server-only' lo ferma a runtime, quindi la regola di lint E' il meccanismo.
+    forma: 'dinamica con TEMPLATE LITERAL senza buchi, import(`@/ui/theme/tokens`)',
+    regola: 'no-restricted-syntax',
+    source: 'export const caricaTema = () => import(`@/ui/theme/tokens`);\n',
+  },
+  {
+    // SEGMENTO DOPPIO, forma dinamica: '@/ui/theme//tokens' risolve allo stesso modulo e il
+    // selector ancorato a UN solo carattere fra 'theme' e 'tokens' non lo vedeva. E' lo
+    // stesso difetto misurato sul confine LLM, e su questo confine era rimasto aperto perche'
+    // il giro che lo trovo' lo dichiaro' fuori scope. La META' STATICA resta aperta e
+    // dichiarata, per la stessa ragione tecnica del confine LLM: i `patterns` di ESLint non
+    // fanno combaciare il segmento vuoto.
+    forma: "dinamica con SEGMENTO DOPPIO, import('@/ui/theme//tokens')",
+    regola: 'no-restricted-syntax',
+    source: "export const caricaTema = () => import('@/ui/theme//tokens');\n",
+  },
 ];
 
 // I percorsi SOTTO src/ui/site/: uno alla radice, uno ANNIDATO (senza '**' nel glob la
@@ -201,7 +221,7 @@ describe('T-211 confine imposto — src/ui/site/** non puo importare i token del
     // esercita 40 casi e non zero. Le due lunghezze sono scritte SEPARATE apposta: il
     // solo prodotto sopravviverebbe a un elenco svuotato e all'altro gonfiato.
     expect(PERCORSI_DEL_SITO).toHaveLength(5); // covers: AC-211-4
-    expect(SORGENTI_VIETATE).toHaveLength(8); // covers: AC-211-4
+    expect(SORGENTI_VIETATE).toHaveLength(10); // covers: AC-211-4
 
     for (const percorso of PERCORSI_DEL_SITO) {
       for (const { forma, regola, source } of SORGENTI_VIETATE) {
