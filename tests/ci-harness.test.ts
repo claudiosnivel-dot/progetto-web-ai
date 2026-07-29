@@ -147,10 +147,15 @@ describe('AUDIT §6 — la CI provisiona Supabase e i test DB-backed GIRANO', ()
     ).toEqual([]);
   });
 
-  // MUTAZIONE: sostituire lo step di export con valori letterali nel workflow, es.
-  //   NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-  //   DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54622/postgres
-  // → rosso. Un valore hardcodato funziona finché la CLI non cambia porta, chiave o
+  // MUTAZIONE: sostituire lo step di export con valori letterali nel workflow —
+  // la anon key scritta per esteso (un JWT, quindi con il prefisso che la regex
+  // qui sotto intercetta) e la stringa di connessione col nome utente e la
+  // password in chiaro — → rosso.
+  // I due esempi NON sono riprodotti alla lettera in questo commento di
+  // proposito: un literal di quella forma nel sorgente fa scattare gitleaks come
+  // segreto CRITICAL (misurato: 1 finding, checkpoint NON-VERDE), e un falso
+  // positivo che blocca il gate costa quanto un vero.
+  // Un valore hardcodato funziona finché la CLI non cambia porta, chiave o
   // formato, e quando smette di funzionare il sintomo non è un errore ma il ritorno
   // dello skip silenzioso: i 139 test tornerebbero a non girare, in verde.
   it('le credenziali dello stack non sono hardcodate nel workflow', () => {
