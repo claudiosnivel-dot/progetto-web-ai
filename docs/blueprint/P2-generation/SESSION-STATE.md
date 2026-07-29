@@ -252,8 +252,21 @@ per nome (p.4); `P1-D11` sul contratto di altitudine, **ancora rinviato**.
    `unique nulls not distinct`, rimedio misurato e a semantica invariata), quindi il `rls:0`
    del checkpoint del 28/07 **non ha auditato quella tabella**; e la CI non provisiona
    Supabase, quindi 139 test su 593 non girano mai in CI.
-   **Fase di fix**: decisa dall'utente **per schema (A → B → C → D)**, non superficie per
-   superficie. Non ancora iniziata.
+   **Fase di fix: COMPLETATA il 2026-07-29**, per schema (A → B → C → D) come deciso
+   dall'utente. **Tutti e quattro chiusi e mergeati su `main`**, ciascuno col proprio
+   checkpoint **VERDE 4/4**. Suite **593 → 632 test**; ~2000 righe di test aggiunte con
+   `dup:63` invariato; **`src/` mai modificato** — nessuna proprieta ha richiesto un cambio al
+   codice di produzione.
+   **Bilancio: 24 mutazioni su 24 passate da VERDE a ROSSO.**
+   Restano aperti, dichiarati: il lato (a) di S2-05 (rigidita dei tre `toContain`
+   sull'idempotenza); il costo dello schema A (l'uguaglianza esatta rende l'oracolo rigido
+   alle riscritture equivalenti del testo delle policy); **R-01/R-03** (la cecita di `RLS004`
+   su `generation_pools` e i `parse_warnings` non fatali) e **R-04** (baseline e checkpoint
+   normalizzano diversamente lo stesso output di jscpd); e la **CI che non provisiona
+   Supabase**, per cui 139 test su 632 non girano mai li.
+   **Da decidere**: estendere gli schemi A e C alle tabelle di P2 — uno scout ha misurato che
+   `site_generations.DELETE`, `generation_pools.UPDATE` e `generation_pools.DELETE` hanno
+   policy e GRANT asseriti a catalogo ma **non sono mai esercitati a runtime**.
 1. **Prossimo BUILD**: `generation-engine` (consigliato) oppure `generation-llm`.
 2. **Riconfermare il deploy-coupling** all'apertura, come si e fatto qui: non e una
    formalita, e la ragione per cui il merge di questo macrotask e stato autonomo.

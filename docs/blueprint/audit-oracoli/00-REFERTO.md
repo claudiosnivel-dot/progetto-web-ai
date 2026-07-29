@@ -7,10 +7,15 @@
 > | **A** — il comando che nessuno esercita | **CHIUSO** su `main` | catalogo **6/6** e runtime **4/4** da VERDE a ROSSO, piu il raggio d'azione di `deleteSite`. Chiude **T-02, S2-01, S45-01, S45-02** |
 > | **B** — presenza invece di valore | **CHIUSO** su `main` | **7/7** da VERDE a ROSSO. Chiude **T-01, S2-03, A3-07** e il lato (b) di **S2-05** |
 > | **C** — solo il negativo, mai il positivo | **CHIUSO** su `main` | la mutazione «nessuno puo scrivere» da VERDE 16/16 a ROSSO. Chiude **T-03** |
-> | D — caso nominale invece della proprieta | da fare | gli 8 rilievi di auth |
+> | **D** — caso nominale invece della proprieta | **CHIUSO** su `main` | **7/7** da VERDE a ROSSO. Chiude **A3-01…A3-06, A3-08** |
 >
-> Suite: **593 → 622 test**. Checkpoint **VERDE 4/4**, `degraded: []`, `dup:63` invariato a
-> ogni passo: ~1500 righe di test aggiunte, **zero duplicazioni introdotte**.
+> **Tutti e quattro gli schemi sono chiusi.** Suite: **593 → 632 test**. Checkpoint
+> **VERDE 4/4**, `degraded: []`, `dup:63` invariato a ogni passo: **~2000 righe di test
+> aggiunte, zero duplicazioni introdotte**. `src/` non e stato modificato in nessuno dei
+> quattro: nessuna proprieta ha richiesto un cambio al codice di produzione — il codice era
+> corretto, mancava chi se ne accorgesse se smettesse di esserlo.
+>
+> **Bilancio delle mutazioni rieseguite dopo le fix**: **24 su 24** passate da VERDE a ROSSO.
 >
 > **Due buchi NUOVI trovati durante le fix**, non presenti in questo referto:
 > una **GUC estranea** attaccata a una funzione SECURITY DEFINER (`set role`,
@@ -29,6 +34,14 @@
 >   **direttamente su `main`** senza passare da un branch. Il gate sostanziale ha tenuto — il
 >   checkpoint era verde prima del push — ma lo strato branch previsto dall'invariante e stato
 >   saltato. Non e stata riscritta la storia: il rimedio sarebbe peggiore del difetto.
+>
+> - **CORREZIONE a un rilievo di questo referto (A3-04)**: la mutazione con cui l'avevo
+>   registrato era **inefficace**. `|_vercel|dashboard|` nel lookahead del matcher esclude
+>   `/dashboard`, **non** `/{locale}/dashboard`, che comincia col locale: il regex cambiava
+>   senza escludere le rotte protette. Rifatta nella forma corretta (`.*/dashboard`) e
+>   misurata contro gli oracoli **pre-fix**: **VERDE 30/30**, quindi **il rilievo regge** —
+>   il matcher non aveva davvero alcun oracolo. Ma la prova che avevo prodotto non lo
+>   dimostrava. Conclusione giusta, misura sbagliata: le due cose vanno tenute distinte.
 >
 > **Emerso dallo scout su P2** (sola lettura, da decidere se estendere): su
 > `site_generations.DELETE`, `generation_pools.UPDATE` e `generation_pools.DELETE` la policy e
