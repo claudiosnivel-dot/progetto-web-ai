@@ -238,30 +238,46 @@ per nome (p.4); `P1-D11` sul contratto di altitudine, **ancora rinviato**.
 
 ## 8. Prossimi passi & decisioni
 
-0. **PRIMA del prossimo BUILD — audit degli oracoli di P0 e P1**, deciso dall'utente il
-   2026-07-28: piano in **`docs/blueprint/AUDIT-ORACOLI-P0-P1.md`**. Ampiezza scelta:
-   sweep di mutazione sulle sole **superfici di sicurezza** (tenancy, profili e
-   auto-provisioning, auth/sessione, siti, brief, SSRF dell'import), non la riverifica
-   completa dei 41 task. **Motivo, misurato**: il cambio di versione della skill
-   (0.1.0 → 0.2.0) e stato **escluso** confrontando i due alberi — identici salvo
-   un'allowlist di gitleaks presente solo nell'albero di sviluppo, quindi il checkpoint
-   del 28/07 ha girato sulla configurazione **piu severa**. Il motivo vero e un altro: in
-   questo macrotask, in **4 task su 5**, il difetto era nell'**oracolo** e non nel codice,
-   e P0/P1 sono stati costruiti prima che quelle lezioni esistessero.
+0. ~~PRIMA del prossimo BUILD — audit degli oracoli di P0 e P1~~ → **ESEGUITO E CHIUSO il
+   2026-07-29**. Referto: **`docs/blueprint/audit-oracoli/00-REFERTO.md`** (+ un ledger per
+   superficie). Mergeato su `main` col **checkpoint VERDE 4/4**, `degraded: []`.
+   **Esito**: 72 mutazioni applicate su 6 superfici, 72 ripristini verificati per hash,
+   **ZERO difetti attivi**; **26 rilievi, tutti oracoli deboli**. Classifica misurata:
+   import/SSRF **0 buchi** (esemplare) · siti+brief 2 · profili 4 · tenancy 4 ·
+   **auth 8** (la peggiore, ed e l'unica superficie senza RLS come seconda linea).
+   I 26 rilievi si condensano in **quattro schemi ricorrenti** (comando DELETE mai
+   esercitato · presenza invece di valore · solo il negativo mai il positivo · caso nominale
+   invece della proprieta) e per ognuno **il rimedio esiste gia in questo repo**.
+   **Due cecita che valgono per P2**: `RLS004` non audita `generation_pools` (parse failure su
+   `unique nulls not distinct`, rimedio misurato e a semantica invariata), quindi il `rls:0`
+   del checkpoint del 28/07 **non ha auditato quella tabella**; e la CI non provisiona
+   Supabase, quindi 139 test su 593 non girano mai in CI.
+   **Fase di fix**: decisa dall'utente **per schema (A → B → C → D)**, non superficie per
+   superficie. Non ancora iniziata.
 1. **Prossimo BUILD**: `generation-engine` (consigliato) oppure `generation-llm`.
 2. **Riconfermare il deploy-coupling** all'apertura, come si e fatto qui: non e una
    formalita, e la ragione per cui il merge di questo macrotask e stato autonomo.
 3. **Decisioni ancora dell'utente**: taratura crediti/prezzi dopo T-225; attivazione del
    contratto `architecture:` (`P1-D11`).
-4. **Nota sullo strumento, verificata**: durante questa sessione il plugin trueline e stato
-   aggiornato **da 0.1.0 a 0.2.0** e la directory di versione e cambiata sotto la sessione
-   (un percorso che aveva appena funzionato ha smesso di risolvere). Il percorso valido oggi
-   e `~/.claude/plugins/cache/trueline-local/trueline/**0.2.0**/skills/trueline/`, con una
-   copia in `C:/Users/claud/Desktop/Trueline Skill/trueline/`. La baseline e stata catturata
-   e riverificata **con la stessa versione**: catturare con uno strumento e verificare con
-   un altro produce un verde che non significa nulla.
+4. **Nota sullo strumento — AGGIORNATA al 2026-07-29**: il plugin e passato 0.1.0 → 0.2.0
+   (28/07) e poi a **0.3.0** (29/07, durante l'audit). Percorso valido oggi:
+   `~/.claude/plugins/cache/trueline-local/trueline/**0.3.0**/skills/trueline/`; 0.2.0 resta
+   accanto. **Fra 0.2.0 e 0.3.0 cambiano solo** `checkpoint.mjs`, `baseline.mjs`, i due
+   `loop*.mjs`, `gitleaks.toml`, e compare `scan_scope.mjs`: `run_dupcheck.mjs` e
+   `rls_check.mjs` sono **byte-identici**. Misurato: 0.3.0 **non** cambia l'esito del
+   controllo 1, e la ricattura della baseline con 0.3.0 produce un file **invariato**.
+   **Difetto dello strumento da conoscere (R-04 del referto)**: `baseline.mjs` e
+   `checkpoint.mjs` **normalizzano diversamente lo stesso output di jscpd** (61 finding /
+   59 impronte contro 63), quindi il checkpoint segnala come "nuove" impronte che la baseline
+   non puo contenere. **Rimedio applicato**: completare la baseline con le impronte **nella
+   forma che la verifica** (+8, 0 sparite, tutte attribuite e `LOW`) → checkpoint VERDE.
+   Baseline ora a **67 impronte**. La regola resta valida e va letta cosi: catturare con uno
+   strumento e verificare con un altro non significa nulla, **nemmeno quando produce un rosso**.
 5. **Invocazione del checkpoint** (funzionante, per non ricercarla):
    `node <trueline>/scripts/checkpoint/run_checkpoint.mjs <repo> --in-place --mode build`,
    **senza** `--blueprint`, con `.env.local` fuori dal repo e le variabili esportate dalla
    shell, dopo `db reset` + `docker restart supabase_kong_progetto-web-ai` e attesa che
    `/auth/v1/health` risponda 200 — un rosso da kong non spento sarebbe **falso**.
+   **AGGIUNTA dall'audit**: `rm -rf .next` **prima** di ogni checkpoint. `run_dupcheck` e
+   gitleaks **non escludono `.next/`**: con la cache di build presente il controllo 2 produce
+   **28 finding CRITICAL falsi**, tutti dentro `.next`. Misurato il 29/07.
