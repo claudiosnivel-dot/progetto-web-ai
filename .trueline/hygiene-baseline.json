@@ -8,7 +8,7 @@
   ],
   "run_id": "baseline",
   "captured_at": "1970-01-01T00:00:00.000Z",
-  "count": 59,
+  "count": 67,
   "fingerprints": [
     "06e2679de4fa6b25443df0ede79d6bf6",
     "0943479bfd19b7ca6d06a72887b66672",
@@ -28,6 +28,8 @@
     "3e4d73fc6d28daf014d7f2661cc2bdfd",
     "44cfb49c10ed9e0aeff60027b57ea551",
     "46eab6b32d2334800bdb6d3aeaff22f2",
+    "4724e37de08b3a8f50d0ee15e646ff7a",
+    "4a2a13e314d6a8a0eea5abd58b9139cb",
     "50ce130f9b3294e4bf2fe35b6656abc7",
     "52f325037b252ab3b9c9cd7735a92369",
     "5691446810eb0c186306a32c902ed710",
@@ -37,8 +39,10 @@
     "65b0759dfa0acc2de6a1b74904447215",
     "712299fcc499c31123952edfd1ac29f5",
     "71289bb7906ea7cfcfe80d51b79ef775",
+    "713737a7ad7781ffaa46e08b97ccee75",
     "72fe1ca10c57426e5eaa7e8e2774c5d4",
     "74696f8faa78fb99ba732ea167329cce",
+    "767ebfceab77a11a968c376a0a5470cc",
     "78e229807e76a5096adcf4d9e49986c2",
     "8063649b711a92d7b0ed54c57ac73019",
     "859ceb6f9affeedcc2e94fb1c30c4e58",
@@ -56,6 +60,7 @@
     "bc73c5e22605fd4238c28ef4c10e9195",
     "bcf5b25e6c62ddb6064284fb0886551f",
     "cd5920d2eba86e074a09aad81e27c24b",
+    "cdd6e4a4f985abcfbd0f2609e87552d9",
     "ce2bdac92f30fcabad66c1d6ed5202d3",
     "d050c415b966d9a8b7481c367aba0afa",
     "d417e0b48af3bc671f6d389e300b21ca",
@@ -66,8 +71,11 @@
     "f0ebb6d3e99b9572e0ba0b94ebc5f6c2",
     "f0ed2abe20df456f6d5c7ee35d2f95df",
     "f124b5869afff1e05ccdbb82a78589c4",
+    "f188aefc536964d5344f4594db270e71",
     "f2b57b7af03f15f45495e51500d51be1",
+    "f453adc4ebbdabbb14e07d57b40d585c",
     "f4c2ba272e67d1bcc8fe3ee2f9ab9179",
+    "f6238b350b541579731566e01ca7e9e7",
     "fe811ce3a4dc81b7a456c4fd19553c42"
   ],
   "findings": {
@@ -1309,6 +1317,94 @@
       "run_id": "baseline",
       "created_at": "1970-01-01T00:00:00.000Z",
       "remediation_hint": "Estrarre il blocco duplicato in un modulo condiviso (previo gate umano)."
+    },
+    "4724e37de08b3a8f50d0ee15e646ff7a": {
+      "fingerprint": "4724e37de08b3a8f50d0ee15e646ff7a",
+      "category": "duplication",
+      "severity": "LOW",
+      "location": {
+        "file": "eval/reference-app/docs/blueprint/P2-generation/05-generation-e2e.md",
+        "start_line": 142
+      },
+      "evidence": "Attribuita nell'audit degli oracoli del 2026-07-29 (docs/blueprint/audit-oracoli/00-REFERTO.md, R-04). Impronta prodotta dalla normalizzazione di checkpoint.mjs, che differisce da quella di baseline.mjs sullo stesso output di jscpd: non e una duplicazione nuova. Classe gia benedetta in SESSION-STATE §4 (impalcatura YAML dei task del blueprint, oppure preambolo/derivazione account/safeParse/lookup del sito delle server action, tenuti ripetuti di proposito).",
+      "rule_id": "duplicate-block"
+    },
+    "f188aefc536964d5344f4594db270e71": {
+      "fingerprint": "f188aefc536964d5344f4594db270e71",
+      "category": "duplication",
+      "severity": "LOW",
+      "location": {
+        "file": "eval/reference-app/docs/blueprint/P2-generation/05-generation-e2e.md",
+        "start_line": 142
+      },
+      "evidence": "Attribuita nell'audit degli oracoli del 2026-07-29 (docs/blueprint/audit-oracoli/00-REFERTO.md, R-04). Impronta prodotta dalla normalizzazione di checkpoint.mjs, che differisce da quella di baseline.mjs sullo stesso output di jscpd: non e una duplicazione nuova. Classe gia benedetta in SESSION-STATE §4 (impalcatura YAML dei task del blueprint, oppure preambolo/derivazione account/safeParse/lookup del sito delle server action, tenuti ripetuti di proposito).",
+      "rule_id": "duplicate-block"
+    },
+    "4a2a13e314d6a8a0eea5abd58b9139cb": {
+      "fingerprint": "4a2a13e314d6a8a0eea5abd58b9139cb",
+      "category": "duplication",
+      "severity": "LOW",
+      "location": {
+        "file": "eval/reference-app/docs/blueprint/P2-generation/05-generation-e2e.md",
+        "start_line": 142
+      },
+      "evidence": "Attribuita nell'audit degli oracoli del 2026-07-29 (docs/blueprint/audit-oracoli/00-REFERTO.md, R-04). Impronta prodotta dalla normalizzazione di checkpoint.mjs, che differisce da quella di baseline.mjs sullo stesso output di jscpd: non e una duplicazione nuova. Classe gia benedetta in SESSION-STATE §4 (impalcatura YAML dei task del blueprint, oppure preambolo/derivazione account/safeParse/lookup del sito delle server action, tenuti ripetuti di proposito).",
+      "rule_id": "duplicate-block"
+    },
+    "767ebfceab77a11a968c376a0a5470cc": {
+      "fingerprint": "767ebfceab77a11a968c376a0a5470cc",
+      "category": "duplication",
+      "severity": "LOW",
+      "location": {
+        "file": "eval/reference-app/docs/blueprint/P2-generation/05-generation-e2e.md",
+        "start_line": 142
+      },
+      "evidence": "Attribuita nell'audit degli oracoli del 2026-07-29 (docs/blueprint/audit-oracoli/00-REFERTO.md, R-04). Impronta prodotta dalla normalizzazione di checkpoint.mjs, che differisce da quella di baseline.mjs sullo stesso output di jscpd: non e una duplicazione nuova. Classe gia benedetta in SESSION-STATE §4 (impalcatura YAML dei task del blueprint, oppure preambolo/derivazione account/safeParse/lookup del sito delle server action, tenuti ripetuti di proposito).",
+      "rule_id": "duplicate-block"
+    },
+    "f6238b350b541579731566e01ca7e9e7": {
+      "fingerprint": "f6238b350b541579731566e01ca7e9e7",
+      "category": "duplication",
+      "severity": "LOW",
+      "location": {
+        "file": "eval/reference-app/src/data/updateProfileLocale.ts",
+        "start_line": 30
+      },
+      "evidence": "Attribuita nell'audit degli oracoli del 2026-07-29 (docs/blueprint/audit-oracoli/00-REFERTO.md, R-04). Impronta prodotta dalla normalizzazione di checkpoint.mjs, che differisce da quella di baseline.mjs sullo stesso output di jscpd: non e una duplicazione nuova. Classe gia benedetta in SESSION-STATE §4 (impalcatura YAML dei task del blueprint, oppure preambolo/derivazione account/safeParse/lookup del sito delle server action, tenuti ripetuti di proposito).",
+      "rule_id": "duplicate-block"
+    },
+    "cdd6e4a4f985abcfbd0f2609e87552d9": {
+      "fingerprint": "cdd6e4a4f985abcfbd0f2609e87552d9",
+      "category": "duplication",
+      "severity": "LOW",
+      "location": {
+        "file": "eval/reference-app/src/data/sites.ts",
+        "start_line": 70
+      },
+      "evidence": "Attribuita nell'audit degli oracoli del 2026-07-29 (docs/blueprint/audit-oracoli/00-REFERTO.md, R-04). Impronta prodotta dalla normalizzazione di checkpoint.mjs, che differisce da quella di baseline.mjs sullo stesso output di jscpd: non e una duplicazione nuova. Classe gia benedetta in SESSION-STATE §4 (impalcatura YAML dei task del blueprint, oppure preambolo/derivazione account/safeParse/lookup del sito delle server action, tenuti ripetuti di proposito).",
+      "rule_id": "duplicate-block"
+    },
+    "713737a7ad7781ffaa46e08b97ccee75": {
+      "fingerprint": "713737a7ad7781ffaa46e08b97ccee75",
+      "category": "duplication",
+      "severity": "LOW",
+      "location": {
+        "file": "eval/reference-app/src/data/generations.ts",
+        "start_line": 296
+      },
+      "evidence": "Attribuita nell'audit degli oracoli del 2026-07-29 (docs/blueprint/audit-oracoli/00-REFERTO.md, R-04). Impronta prodotta dalla normalizzazione di checkpoint.mjs, che differisce da quella di baseline.mjs sullo stesso output di jscpd: non e una duplicazione nuova. Classe gia benedetta in SESSION-STATE §4 (impalcatura YAML dei task del blueprint, oppure preambolo/derivazione account/safeParse/lookup del sito delle server action, tenuti ripetuti di proposito).",
+      "rule_id": "duplicate-block"
+    },
+    "f453adc4ebbdabbb14e07d57b40d585c": {
+      "fingerprint": "f453adc4ebbdabbb14e07d57b40d585c",
+      "category": "duplication",
+      "severity": "LOW",
+      "location": {
+        "file": "eval/reference-app/src/data/generations.ts",
+        "start_line": 315
+      },
+      "evidence": "Attribuita nell'audit degli oracoli del 2026-07-29 (docs/blueprint/audit-oracoli/00-REFERTO.md, R-04). Impronta prodotta dalla normalizzazione di checkpoint.mjs, che differisce da quella di baseline.mjs sullo stesso output di jscpd: non e una duplicazione nuova. Classe gia benedetta in SESSION-STATE §4 (impalcatura YAML dei task del blueprint, oppure preambolo/derivazione account/safeParse/lookup del sito delle server action, tenuti ripetuti di proposito).",
+      "rule_id": "duplicate-block"
     }
   }
 }
