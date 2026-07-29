@@ -85,6 +85,11 @@ vi.mock('@supabase/ssr', async (importActual) => {
 // next/headers ai mock.
 import { GET } from '@/app/[locale]/auth/callback/route';
 
+// Import ADDITIVO, usato SOLO dal blocco di proprietà in fondo al file (audit degli
+// oracoli, schema D): l'allowlist dei locale va letta dall'unica sorgente di verità,
+// mai riscritta a mano nel test.
+import { routing } from '@/i18n/routing';
+
 const run = (path: string, locale = 'it') =>
   GET(new NextRequest(new URL(path, 'http://localhost')), {
     params: Promise.resolve({ locale }),
@@ -187,6 +192,80 @@ describe('T-044 route handler /{locale}/auth/callback', () => {
       '/%0D//evil.example.com',
     ]) {
       await expectSafeFallback(rawNext);
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Audit degli oracoli — schema D. Il parametro `next` è validato E asserito (sopra).
+// Il segmento `[locale]` è ALTRETTANTO input del client — arriva dal path — e finisce
+// interpolato in OGNI destinazione costruita da questo handler, ma ogni test qui
+// sopra gli passa sempre e solo 'it' o 'es': l'allowlist non riceve mai un valore
+// ostile e nessuno se ne accorgerebbe se sparisse.
+describe('T-044 il segmento [locale] è input del client (audit oracoli, schema D)', () => {
+  beforeEach(() => {
+    cookieState.store.clear();
+    exchange.codes.length = 0;
+  });
+
+  // A3-08 — MUTAZIONE CHE LO RENDE ROSSO: togliere l'allowlist dal handler, cioè
+  //   const locale = rawLocale;   // invece di hasLocale(routing.locales, rawLocale) ? …
+  // I 29 test nominali restano verdi. Con la mutazione, un locale `\evil.example.com`
+  // produce `new URL('/\\evil.example.com/login', origin)`: il parser WHATWG
+  // normalizza `/\` in `//`, che apre l'AUTHORITY, e la Location diventa
+  // http://evil.example.com/login — open redirect pieno, servito dal proprio dominio
+  // a un utente in pieno flusso di login. Un locale `..` scivola invece fuori da ogni
+  // locale (/../login → /login), rompendo l'invariante di path.
+  // AGGRAVANTE: `config.matcher` del middleware esclude i pathname che contengono un
+  // punto, quindi per un locale come `\evil.example.com` il middleware non viene
+  // nemmeno invocato: questo route handler è L'UNICA sede di validazione. E su questa
+  // superficie non c'è RLS dietro a parare il colpo.
+  it('un locale ostile nel path non finisce MAI nella destinazione: ogni redirect resta same-origin e su un locale di routing.locales', async () => {
+    // Asserzione condivisa dai due rami del handler: qualunque sia il locale grezzo
+    // ricevuto, si ispeziona l'header Location REALE e si pretende (1) same-origin,
+    // (2) primo segmento del path dentro l'allowlist, (3) mai il valore fornito.
+    const expectSafeDestination = async (path: string, rawLocale: string) => {
+      cookieState.store.clear();
+      exchange.codes.length = 0;
+
+      const res = await run(path, rawLocale);
+
+      const location = res.headers.get('location');
+      expect(location, rawLocale).not.toBeNull();
+      const dest = new URL(location as string);
+
+      // (1) la destinazione non lascia l'host dell'applicazione
+      expect(dest.origin, `${rawLocale} → ${location}`).toBe('http://localhost'); // covers: AC-044-3 (stessa proprietà, altro input)
+      expect(location as string, rawLocale).not.toContain('evil.example.com'); // covers: AC-044-3
+      // (2) il primo segmento del path è un locale DELL'ALLOWLIST…
+      const segment = dest.pathname.split('/')[1];
+      expect(routing.locales, `${rawLocale} → ${dest.pathname}`).toContain(segment); // covers: AC-044-3
+      // (3) …e non è il valore arrivato dal client
+      expect(segment, rawLocale).not.toBe(rawLocale); // covers: AC-044-3
+      return dest;
+    };
+
+    const localiOstili = [
+      '..', // risalita: /../login collassa in /login, fuori da ogni locale
+      '../..',
+      '\\evil.example.com', // `/\` → `//`: apre l'authority, open redirect vero
+      '%5Cevil.example.com', // stesso vettore in forma percent-encoded
+      '%2e%2e', // risalita percent-encoded
+      'de', // ben formato, semplicemente NON in allowlist
+      '', // segmento vuoto
+    ];
+
+    for (const rawLocale of localiOstili) {
+      // Ramo "nessun code": destinazione /{locale}/login con errore generico.
+      const login = await expectSafeDestination('/x/auth/callback', rawLocale);
+      expect(login.pathname, rawLocale).toBe(`/${routing.defaultLocale}/login`); // covers: AC-044-2
+      expect(login.searchParams.get('error'), rawLocale).not.toBeNull(); // covers: AC-044-2
+
+      // Ramo "code valido": la destinazione di default è /{locale}/dashboard, e il
+      // locale ci finisce dentro esattamente come nel ramo di errore.
+      const dashboard = await expectSafeDestination('/x/auth/callback?code=valid-code', rawLocale);
+      expect(dashboard.pathname, rawLocale).toBe(`/${routing.defaultLocale}/dashboard`); // covers: AC-044-1
+      expect(exchange.codes, rawLocale).toEqual(['valid-code']); // covers: AC-044-1
     }
   });
 });

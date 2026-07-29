@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve, join, relative } from 'node:path';
 import { ESLint } from 'eslint';
+import { createServerSupabaseClient, getUserFromRequest } from '@/data/supabase-ssr';
 
 const root = process.cwd();
 const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
@@ -147,5 +148,118 @@ describe('T-002 confine service_role: la regola ESLint viene eseguita, non solo 
     expect(restricted.length).toBeGreaterThan(0);
     expect(restricted.every((m) => m.severity === 2)).toBe(true);
     expect(restricted.some((m) => m.message.includes('supabase-admin'))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Il confine service_role, nel verso finora mancante.
+//
+// Tutto quello che precede guarda un lato solo: che supabase-browser non NOMINI
+// la service_role, che supabase-admin abbia 'server-only', che l'import di
+// supabase-admin sia vietato lato client. Nessuno guarda il TERZO client, quello
+// SSR — che e il piu esposto dei tre. Se ssrEnv() restituisse la service_role al
+// posto della anon key, ogni Server Component, ogni Server Action e il middleware
+// girerebbero con la RLS BYPASSATA, e nessuna delle difese qui sopra se ne
+// accorgerebbe: l'import vietato non c'e, il file 'server-only' non c'entra, il
+// sorgente del client browser e immacolato. E il caso in cui non esiste seconda
+// linea, perche a essere disattivata e proprio la RLS.
+//
+// La verifica e a COMPORTAMENTO, non sul testo del sorgente: alle due chiavi si
+// danno valori distinguibili e si guarda con QUALE delle due il client viene
+// davvero costruito. Un test che leggesse il sorgente si aggirerebbe con un
+// alias, una variabile intermedia o un `process.env[nome]`.
+const { ssrCalls } = vi.hoisted(() => ({ ssrCalls: [] as unknown[][] }));
+
+vi.mock('@supabase/ssr', () => ({
+  createServerClient: (...args: unknown[]) => {
+    ssrCalls.push(args);
+    return {
+      auth: {
+        getUser: async () => ({ data: { user: null }, error: null }),
+        getSession: async () => ({ data: { session: null }, error: null }),
+      },
+    };
+  },
+}));
+
+// next/headers non esiste fuori dal runtime di Next: qui e solo il TRASPORTO dei
+// cookie e non e l'oggetto di questi test.
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    getAll: () => [] as { name: string; value: string }[],
+    get: () => undefined,
+    set: () => {},
+    delete: () => {},
+  }),
+}));
+
+const URL_SENTINELLA = 'https://sentinella.supabase.test';
+const ANON_SENTINELLA = 'CHIAVE-ANON-SENTINELLA-aaa111';
+const SERVICE_ROLE_SENTINELLA = 'CHIAVE-SERVICE-ROLE-SENTINELLA-zzz999';
+
+// La sentinella si cerca in TUTTI gli argomenti, in profondita: non basta
+// guardare il secondo posizionale, perche la service_role potrebbe raggiungere il
+// client anche per altra via (es. global.headers.Authorization).
+function contieneSentinella(value: unknown, ago: string): boolean {
+  if (typeof value === 'string') return value.includes(ago);
+  if (Array.isArray(value)) return value.some((v) => contieneSentinella(v, ago));
+  if (value !== null && typeof value === 'object') {
+    return Object.values(value as Record<string, unknown>).some((v) => contieneSentinella(v, ago));
+  }
+  return false;
+}
+
+describe('T-002/T-041 il client SSR e costruito con la anon key, mai con la service_role', () => {
+  beforeEach(() => {
+    ssrCalls.length = 0;
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', URL_SENTINELLA);
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY', ANON_SENTINELLA);
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', SERVICE_ROLE_SENTINELLA);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  // MUTAZIONE CHE LO RENDE ROSSO: in src/data/supabase-ssr.ts, dentro ssrEnv(),
+  // `process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY` -> `process.env.SUPABASE_SERVICE_ROLE_KEY`.
+  // Oggi quella sostituzione lascia 25 test su 25 verdi mentre bypassa la RLS in
+  // ogni Server Component e in ogni Server Action.
+  // Oltre AC-002-2 (che parla del solo client browser): pinna la DoD di T-041
+  // ("client SSR ... usa NEXT_PUBLIC_SUPABASE_ANON_KEY, mai service_role") e la
+  // security_note R7 comune a T-002 e T-041.
+  it('nel contesto Server Component/Server Action il client SSR riceve la ANON key e la service_role non compare fra i suoi argomenti', async () => {
+    // Anti-vacuita: la service_role e davvero nell'ambiente ed e distinguibile
+    // dalla anon. Senza questa guardia, "non compare" sarebbe vero per
+    // costruzione — la forma di verde finto piu banale.
+    expect(process.env.SUPABASE_SERVICE_ROLE_KEY).toBe(SERVICE_ROLE_SENTINELLA);
+    expect(ANON_SENTINELLA).not.toBe(SERVICE_ROLE_SENTINELLA);
+
+    await createServerSupabaseClient();
+
+    // Anti-vacuita: il client e stato costruito una volta sola e davvero.
+    expect(ssrCalls.length).toBe(1);
+    const [url, key] = ssrCalls[0];
+    expect(url).toBe(URL_SENTINELLA);
+    expect(key).toBe(ANON_SENTINELLA);
+    expect(contieneSentinella(ssrCalls[0], SERVICE_ROLE_SENTINELLA)).toBe(false);
+  });
+
+  // MUTAZIONE CHE LO RENDE ROSSO: la stessa sostituzione in ssrEnv() — che
+  // serve ENTRAMBI i punti d'ingresso — oppure una service_role passata solo qui.
+  // Questo e il client che gira nel middleware, cioe su ogni richiesta alle rotte
+  // protette: e il posto in cui un bypass di RLS sarebbe piu ampio e piu muto.
+  // Oltre AC-002-2: stessa proprieta, altro punto d'ingresso del modulo.
+  it('anche il client SSR del middleware (getUserFromRequest) riceve la ANON key e mai la service_role', async () => {
+    expect(process.env.SUPABASE_SERVICE_ROLE_KEY).toBe(SERVICE_ROLE_SENTINELLA);
+
+    const request = { cookies: { getAll: () => [{ name: 'sb-access-token', value: 'AAA' }] } };
+    await getUserFromRequest(request as unknown as Parameters<typeof getUserFromRequest>[0]);
+
+    expect(ssrCalls.length).toBe(1);
+    const [url, key] = ssrCalls[0];
+    expect(url).toBe(URL_SENTINELLA);
+    expect(key).toBe(ANON_SENTINELLA);
+    expect(contieneSentinella(ssrCalls[0], SERVICE_ROLE_SENTINELLA)).toBe(false);
   });
 });
