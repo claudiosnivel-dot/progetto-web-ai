@@ -30,6 +30,17 @@ const bindsIdentity = (expr: string | null): boolean =>
   /\bid\b/.test(expr) &&
   !/is\s+not\s+null/i.test(expr);
 
+// pg_policies rende l'espressione secondo il search_path: `public.` puo comparire o
+// no, e gli spazi non sono significativi. E l'UNICA normalizzazione ammessa dal test
+// di uguaglianza ESATTA piu sotto: comprime gli spazi e toglie il prefisso di schema,
+// e NON allenta nulla del predicato.
+const norm = (e: string | null): string | null =>
+  e == null ? null : e.replace(/\s+/g, ' ').replace(/\bpublic\./g, '').trim();
+
+// Il predicato di identita di TUTTE le policy di profiles, come reso dal catalogo
+// dopo norm().
+const OWN_ROW_EXPR = '(( SELECT auth.uid() AS uid) = id)';
+
 describe.skipIf(!DB)('T-061 profiles schema + RLS (catalogo, richiede DB locale)', () => {
   it('colonne, PRIMARY KEY su id e FOREIGN KEY id -> auth.users ON DELETE CASCADE', async () => {
     // covers: AC-061-1
@@ -129,5 +140,57 @@ describe.skipIf(!DB)('T-061 profiles schema + RLS (catalogo, richiede DB locale)
 
     // ...e la UPDATE e accompagnata da una policy SELECT companion (R6).
     expect(byCmd.has('SELECT')).toBe(true);
+  });
+
+  // covers: AC-061-4 (R3, R4, R5, R6)
+  //
+  // PERCHE l'uguaglianza ESATTA e necessaria. Il test qui sopra verifica il
+  // predicato per CONTENIMENTO (`bindsIdentity`: cita auth.uid(), cita id, non e la
+  // costante 'true', non e un `is not null`). Un predicato completamente permissivo
+  // lo attraversa indenne: il contro-esempio generale dell'audit e `id is not null`
+  // — CONTIENE 'id' e NON e la costante letterale 'true' — e la variante che passa
+  // anche `bindsIdentity` e `((select auth.uid()) = id) or true`, che cita entrambi,
+  // non e la stringa 'true' e non contiene 'is not null', pur non isolando piu
+  // nulla. Misurato nell'audit degli oracoli: neutralizzando cosi il predicato di
+  // una policy, TUTTI i test restano verdi su quattro tabelle diverse. Solo il
+  // confronto per INTERO dell'espressione distingue la policy giusta da una
+  // plausibilmente sbagliata.
+  //
+  // OLTRE l'AC-061-4 (che parla dei soli SELECT/INSERT/UPDATE presenti): l'insieme
+  // ESATTO dei comandi, cioe l'ASSENZA di una policy DELETE. La migrazione concede
+  // `grant ... delete ... to authenticated` su profiles, quindi la proprieta
+  // "nessuno cancella righe profilo dalla Data API" regge SOLO perche la policy non
+  // esiste (default-deny). Misurato nell'audit: aggiungendo una policy DELETE
+  // permissiva la suite resta 21 test su 21 verdi. L'insieme esatto
+  // ['INSERT','SELECT','UPDATE'] e la difesa. (Implica anche il companion R6.)
+  it("profiles ha ESATTAMENTE le policy INSERT/SELECT/UPDATE (nessuna DELETE: default-deny) e ogni espressione e ESATTAMENTE (select auth.uid()) = id nella clausola giusta", async () => {
+    const policies = await pgQuery<PolicyRow>(
+      `select policyname, cmd, roles::text[] as roles, qual, with_check
+         from pg_policies
+        where schemaname = 'public' and tablename = 'profiles'`,
+    );
+
+    // Insieme ESATTO dei comandi coperti, non "contiene": e questo che rende ROSSA
+    // l'AGGIUNTA di una policy DELETE (o di una seconda SELECT permissiva, che in OR
+    // con quella buona aprirebbe la lettura a tutti).
+    expect(policies.map((p) => p.cmd).sort()).toEqual(['INSERT', 'SELECT', 'UPDATE']); // covers: AC-061-4
+    for (const p of policies) {
+      expect(p.roles).toEqual(['authenticated']); // covers: AC-061-4 (R5)
+    }
+    const byCmd = Object.fromEntries(policies.map((p) => [p.cmd, p]));
+
+    // USING sulle righe leggibili/modificabili, WITH CHECK su quelle scrivibili. La
+    // clausola NON pertinente e asserita null: un WITH CHECK su una policy SELECT, o
+    // una USING su una policy INSERT, e comunque una deviazione dal contratto.
+    expect(norm(byCmd['SELECT'].qual)).toBe(OWN_ROW_EXPR); // covers: AC-061-4 (R3, R4)
+    expect(byCmd['SELECT'].with_check).toBeNull(); // covers: AC-061-4
+
+    expect(byCmd['INSERT'].qual).toBeNull(); // covers: AC-061-4
+    expect(norm(byCmd['INSERT'].with_check)).toBe(OWN_ROW_EXPR); // covers: AC-061-4 (R3, R4)
+
+    // UPDATE ha ENTRAMBE: la USING filtra le righe modificabili, la WITH CHECK
+    // impedisce di riscrivere id per "regalare" la propria riga a un altro utente.
+    expect(norm(byCmd['UPDATE'].qual)).toBe(OWN_ROW_EXPR); // covers: AC-061-4 (R3, R4)
+    expect(norm(byCmd['UPDATE'].with_check)).toBe(OWN_ROW_EXPR); // covers: AC-061-4 (R3, R4)
   });
 });

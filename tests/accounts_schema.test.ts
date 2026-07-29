@@ -12,6 +12,27 @@ type ColRow = {
   column_default: string | null;
 };
 
+type PolicyRow = {
+  policyname: string;
+  cmd: string;
+  roles: string[];
+  qual: string | null;
+  with_check: string | null;
+};
+
+// pg_policies rende l'espressione secondo il search_path: `public.` puo comparire o
+// no, e gli spazi non sono significativi. E l'UNICA normalizzazione ammessa dai due
+// test di uguaglianza ESATTA piu sotto: comprime gli spazi e toglie il prefisso di
+// schema, e NON allenta nulla del predicato.
+const norm = (e: string | null): string | null =>
+  e == null ? null : e.replace(/\s+/g, ' ').replace(/\bpublic\./g, '').trim();
+
+// Predicato di OWNERSHIP delle tre policy di SCRITTURA di account_members, come reso
+// dal catalogo dopo norm(). E diverso dal predicato di APPARTENENZA della SELECT: e
+// questa differenza a impedire l'auto-promozione di un editor (AC-060-7).
+const OWNER_EXPR =
+  '(EXISTS ( SELECT 1 FROM accounts a WHERE ((a.id = account_members.account_id) AND (a.owner_id = ( SELECT auth.uid() AS uid)))))';
+
 describe.skipIf(!DB)('T-060 schema accounts + account_members (cataloghi)', () => {
   // covers: AC-060-1
   it('accounts espone esattamente id/owner_id/name/created_at con tipi e nullability attesi', async () => {
@@ -156,6 +177,98 @@ describe.skipIf(!DB)('T-060 schema accounts + account_members (cataloghi)', () =
       expect(forbidden(p.qual)).toBe(false); // covers: AC-060-4
       expect(forbidden(p.with_check)).toBe(false); // covers: AC-060-4
     }
+  });
+
+  // covers: AC-060-4 (R3, R4, R5)
+  //
+  // PERCHE l'uguaglianza ESATTA e necessaria. Il test qui sopra e per CONTENIMENTO e
+  // per lista nera: respinge la sola costante 'true' e la sola `auth.uid() is not
+  // null`. Un predicato completamente permissivo che non sia nessuna delle due lo
+  // attraversa indenne — il contro-esempio concreto e `account_id is not null`, che
+  // CONTIENE 'account_id', NON e la costante 'true' e non ha la forma su auth.uid()
+  // intercettata da `forbidden`. Misurato nell'audit degli oracoli: sostituendo cosi
+  // il predicato di una policy, TUTTI i test restano verdi su quattro tabelle
+  // diverse. Solo il confronto per INTERO dell'espressione distingue la policy giusta
+  // da una plausibilmente sbagliata.
+  //
+  // OLTRE l'AC-060-4 (che chiede solo "ogni tabella ha almeno una policy"): l'insieme
+  // ESATTO dei comandi. accounts ha UNA SOLA policy, per SELECT — INSERT/UPDATE/DELETE
+  // sono in DEFAULT-DENY, e la loro ASSENZA e la difesa: il GRANT DML a authenticated
+  // c'e (migrazione 20260723000100), quindi e solo la mancanza di policy a impedire
+  // che un utente crei, rinomini o cancelli account passando dalla Data API. E una
+  // PROPRIETA, non un dettaglio di forma: un `toContain('SELECT')` resterebbe verde
+  // dopo l'aggiunta di una `for all ... using (true)`, l'uguaglianza dell'insieme no.
+  it("accounts ha ESATTAMENTE la sola policy SELECT (nessuna policy di scrittura: default-deny) e la sua USING e ESATTAMENTE ((select auth.uid()) = owner_id) or is_account_member(id)", async () => {
+    const pols = await pgQuery<PolicyRow>(
+      `select policyname, cmd, roles::text[] as roles, qual, with_check
+         from pg_policies
+        where schemaname = 'public' and tablename = 'accounts'`,
+    );
+
+    // Insieme ESATTO dei comandi coperti, non "contiene": e questo che rende ROSSA
+    // l'AGGIUNTA di una policy di scrittura permissiva.
+    expect(pols.map((p) => p.cmd).sort()).toEqual(['SELECT']); // covers: AC-060-4
+    for (const p of pols) {
+      expect(p.roles).toEqual(['authenticated']); // covers: AC-060-4 (R5)
+    }
+    const byCmd = Object.fromEntries(pols.map((p) => [p.cmd, p]));
+
+    // Il predicato di tenancy per INTERO: la disgiunzione owner_id/appartenenza e
+    // parte del contratto, e togliere o aggiungere un ramo cambia chi legge.
+    expect(norm(byCmd['SELECT'].qual)).toBe(
+      '((( SELECT auth.uid() AS uid) = owner_id) OR is_account_member(id))',
+    ); // covers: AC-060-4 (R3, R4)
+    // La clausola NON pertinente e asserita null: un WITH CHECK su una policy SELECT
+    // e comunque una deviazione dal contratto.
+    expect(byCmd['SELECT'].with_check).toBeNull(); // covers: AC-060-4
+  });
+
+  // covers: AC-060-4 (R3, R4, R5), AC-060-6
+  //
+  // PERCHE l'uguaglianza ESATTA e necessaria: stesso contro-esempio del test su
+  // accounts qui sopra — `account_id is not null` passa un controllo per
+  // contenimento e non e la costante 'true', quindi neutralizza la policy senza far
+  // fallire nulla.
+  //
+  // OLTRE l'AC: qui l'uguaglianza esatta porta una proprieta in piu, la DISTINZIONE
+  // fra i due predicati. La SELECT usa l'APPARTENENZA (is_account_member), le tre
+  // scritture usano l'OWNERSHIP (EXISTS su accounts.owner_id): sono predicati
+  // DIVERSI, ed e proprio questa differenza a bloccare l'auto-promozione di un editor
+  // a owner (AC-060-7). Un oracolo che chiedesse solo "l'espressione cita account_id"
+  // accetterebbe il predicato di appartenenza al posto di quello di ownership sulle
+  // scritture, cioe accetterebbe l'escalation di ruolo intra-tenant.
+  // L'insieme ESATTO dei quattro comandi implica anche il companion R6 (AC-060-6).
+  it("account_members ha ESATTAMENTE le policy DELETE/INSERT/SELECT/UPDATE, e le espressioni sono ESATTAMENTE l'appartenenza in lettura e l'ownership nelle tre scritture", async () => {
+    const pols = await pgQuery<PolicyRow>(
+      `select policyname, cmd, roles::text[] as roles, qual, with_check
+         from pg_policies
+        where schemaname = 'public' and tablename = 'account_members'`,
+    );
+
+    // Insieme ESATTO: rompe sia se una policy attesa sparisce sia se ne compare una
+    // non prevista (es. una seconda policy SELECT permissiva, che in OR con quella
+    // buona aprirebbe la lettura a tutti senza che nessun'altra asserzione protesti).
+    expect(pols.map((p) => p.cmd).sort()).toEqual(['DELETE', 'INSERT', 'SELECT', 'UPDATE']); // covers: AC-060-4, AC-060-6
+    for (const p of pols) {
+      expect(p.roles).toEqual(['authenticated']); // covers: AC-060-4 (R5)
+    }
+    const byCmd = Object.fromEntries(pols.map((p) => [p.cmd, p]));
+
+    // LETTURA: appartenenza. Chi e membro vede i co-membri.
+    expect(norm(byCmd['SELECT'].qual)).toBe('is_account_member(account_id)'); // covers: AC-060-4 (R3, R4)
+    expect(byCmd['SELECT'].with_check).toBeNull(); // covers: AC-060-4
+
+    // SCRITTURE: ownership. Un editor e membro ma NON owner, quindi qui non passa.
+    expect(byCmd['INSERT'].qual).toBeNull(); // covers: AC-060-4
+    expect(norm(byCmd['INSERT'].with_check)).toBe(OWNER_EXPR); // covers: AC-060-4 (R3, R4)
+
+    // UPDATE ha ENTRAMBE: la USING filtra le righe modificabili, la WITH CHECK
+    // impedisce di "spostare" la riga in un account altrui riscrivendo account_id.
+    expect(norm(byCmd['UPDATE'].qual)).toBe(OWNER_EXPR); // covers: AC-060-4 (R3, R4)
+    expect(norm(byCmd['UPDATE'].with_check)).toBe(OWNER_EXPR); // covers: AC-060-4 (R3, R4)
+
+    expect(norm(byCmd['DELETE'].qual)).toBe(OWNER_EXPR); // covers: AC-060-4 (R3, R4)
+    expect(byCmd['DELETE'].with_check).toBeNull(); // covers: AC-060-4
   });
 
   // covers: AC-060-6
