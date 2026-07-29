@@ -413,4 +413,122 @@ describe.skipIf(!SB)('T-063 isolamento tenant (runtime, client auth reale su Sup
     // Guardrail service_role: resta ESATTAMENTE la membership owner di A.
     expect(await membersOf([accountAId])).toEqual([`${accountAId}|${userAId}|owner`]); // covers: AC-063-7
   });
+
+  // ── Percorso POSITIVO di INSERT e UPDATE su account_members ─────────────────
+  // Fino a qui account_members era esercitato solo nel verso NEGATIVO ("l'editor
+  // NON puo", "A NON puo su accountB"): asserzioni che passerebbero identiche
+  // anche se le policy fossero "nega tutto" (with check (false) / using (false)).
+  // Cioe: una regressione di DISPONIBILITA (nessuno puo piu aggiungere o
+  // modificare una membership) restava invisibile, e le stesse asserzioni
+  // negative valevano meno di quanto sembrassero. I due test seguenti chiudono
+  // il verso positivo per l'OWNER, come gia fatto sopra per il DELETE.
+  //
+  // ORDINE (dipendenza dichiarata): girano per ULTIMI e assumono lo stato
+  // lasciato dal test positivo del DELETE — accountA con la SOLA membership
+  // owner di A, accountB con la sola membership owner di B. Modificano a loro
+  // volta la fixture (B, e poi di nuovo E, diventano membri di accountA):
+  // vanno mantenuti in coda al file. Verificare eseguendo il file INTERO.
+  // Nessun sign-in nuovo: si riusa clientA del beforeAll (rate limit auth).
+
+  // covers: AC-063-7 — l'AC nomina le SCRITTURE su account_members (owner-only);
+  // qui il verso POSITIVO, copertura AGGIUNTIVA oltre l'AC, che i test negativi
+  // non possono dare: l'INSERT dell'OWNER sul PROPRIO account deve RIUSCIRE e la
+  // riga deve risultare scritta DAVVERO (riletta via service_role, non solo dalla
+  // risposta di PostgREST).
+  it("controllo positivo: l'owner A aggiunge B come editor del PROPRIO account, la riga risulta scritta", async () => {
+    // Stato PRIMA (oracolo service_role): la membership (accountA, B) NON esiste,
+    // quindi il verde non puo derivare da una riga gia presente.
+    const before = await membersOf([accountAId, accountBId]);
+    expect(before).toEqual(
+      [`${accountAId}|${userAId}|owner`, `${accountBId}|${userBId}|owner`].sort(),
+    ); // covers: AC-063-7 — dipendenza d'ordine: stato lasciato dal DELETE positivo
+
+    const { data: inserted, error } = await clientA
+      .from('account_members')
+      .insert({ account_id: accountAId, user_id: userBId, role: 'editor' })
+      .select();
+    // A E owner di accountA -> la WITH CHECK owner-only qualifica: l'insert PASSA.
+    expect(error).toBeNull(); // covers: AC-063-7
+    expect(inserted ?? []).toHaveLength(1); // covers: AC-063-7 — l'INSERT funziona davvero, per l'owner
+    expect(inserted?.[0].user_id).toBe(userBId); // covers: AC-063-7
+    expect(inserted?.[0].role).toBe('editor'); // covers: AC-063-7
+
+    // Oracolo service_role: la riga e PERSISTITA, con il ruolo atteso (la risposta
+    // di PostgREST da sola non prova la scrittura).
+    const { data: row, error: rowErr } = await adminClient()
+      .from('account_members')
+      .select('role')
+      .eq('account_id', accountAId)
+      .eq('user_id', userBId)
+      .single();
+    expect(rowErr).toBeNull(); // covers: AC-063-7
+    expect(row?.role).toBe('editor'); // covers: AC-063-7
+
+    // Raggio d'azione: e stata aggiunta ESATTAMENTE quella riga, nient'altro
+    // (nessuna membership collaterale, nemmeno su accountB).
+    expect(await membersOf([accountAId, accountBId])).toEqual(
+      [...before, `${accountAId}|${userBId}|editor`].sort(),
+    ); // covers: AC-063-7
+  });
+
+  // covers: AC-063-7 — verso POSITIVO dell'UPDATE, copertura AGGIUNTIVA oltre
+  // l'AC: l'owner cambia il ruolo di UNA membership del proprio account, l'update
+  // colpisce ESATTAMENTE 1 riga e il nuovo valore risulta scritto.
+  // RAGGIO D'AZIONE: i ruoli ammessi sono due ('owner'|'editor'), quindi con le
+  // sole due righe lasciate dai test precedenti (A owner, B editor) "promuovi
+  // quella giusta" e "promuovi TUTTE le righe di accountA" darebbero lo stesso
+  // stato finale. Si reinserisce percio via service_role (setup, come nel
+  // beforeAll) la membership editor di E: dopo l'update accountA ha valori
+  // DISCORDANTI (B owner, E editor) e le due mutazioni tornano distinguibili
+  // anche dallo STATO, non solo dal conteggio delle righe colpite.
+  it("controllo positivo: l'owner A cambia il ruolo di UNA membership del proprio account, e solo quella", async () => {
+    const admin = adminClient();
+    const { error: seedErr } = await admin
+      .from('account_members')
+      .insert({ account_id: accountAId, user_id: userEId, role: 'editor' });
+    expect(seedErr).toBeNull(); // setup service_role: terza riga, per distinguere il raggio d'azione
+
+    const before = await membersOf([accountAId, accountBId]);
+    expect(before).toEqual(
+      [
+        `${accountAId}|${userAId}|owner`,
+        `${accountAId}|${userBId}|editor`,
+        `${accountAId}|${userEId}|editor`,
+        `${accountBId}|${userBId}|owner`,
+      ].sort(),
+    ); // covers: AC-063-7 — la riga bersaglio esiste ed e 'editor' PRIMA dell'update
+
+    const { data: updated, error } = await clientA
+      .from('account_members')
+      .update({ role: 'owner' })
+      .eq('account_id', accountAId)
+      .eq('user_id', userBId)
+      .select();
+    // A E owner di accountA -> USING e WITH CHECK owner-only qualificano: l'update PASSA.
+    expect(error).toBeNull(); // covers: AC-063-7
+    expect(updated ?? []).toHaveLength(1); // covers: AC-063-7 — ESATTAMENTE una riga colpita
+    expect(updated?.[0].user_id).toBe(userBId); // covers: AC-063-7
+    expect(updated?.[0].role).toBe('owner'); // covers: AC-063-7
+
+    // Oracolo service_role: il NUOVO valore e persistito sulla riga bersaglio.
+    const { data: row, error: rowErr } = await admin
+      .from('account_members')
+      .select('role')
+      .eq('account_id', accountAId)
+      .eq('user_id', userBId)
+      .single();
+    expect(rowErr).toBeNull(); // covers: AC-063-7
+    expect(row?.role).toBe('owner'); // covers: AC-063-7
+
+    // ...e le ALTRE membership sono INVARIATE: E resta 'editor' (un update ad ampio
+    // raggio su accountA l'avrebbe promossa), A resta 'owner', B resta owner di accountB.
+    expect(await membersOf([accountAId, accountBId])).toEqual(
+      [
+        `${accountAId}|${userAId}|owner`,
+        `${accountAId}|${userBId}|owner`,
+        `${accountAId}|${userEId}|editor`,
+        `${accountBId}|${userBId}|owner`,
+      ].sort(),
+    ); // covers: AC-063-7
+  });
 });
