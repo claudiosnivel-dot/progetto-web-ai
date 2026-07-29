@@ -1,5 +1,23 @@
 # REFERTO — Audit degli oracoli delle superfici di sicurezza di P0 e P1
 
+> **STATO DELLE FIX** (aggiornato il 2026-07-29)
+>
+> | Schema | Stato | Esito misurato |
+> |---|---|---|
+> | **A** — il comando che nessuno esercita | **CHIUSO**, mergeato su `main` | catalogo **6/6** e runtime **4/4** da VERDE a ROSSO, piu il raggio d'azione di `deleteSite`. Chiude **T-02, S2-01, S45-01, S45-02** |
+> | B — presenza invece di valore | da fare | — |
+> | C — solo il negativo, mai il positivo | da fare | — |
+> | D — caso nominale invece della proprieta | da fare | — |
+>
+> Schema A in numeri: **947 righe aggiunte, 0 cancellate** su 8 file di test; suite da
+> **593 a 612 test**; checkpoint **VERDE 4/4**, `degraded: []`, `dup:63` invariato (zero
+> duplicazioni introdotte).
+> **Costo dichiarato di A**: l'uguaglianza esatta rende l'oracolo **rigido** alle riscritture
+> equivalenti del testo delle policy — misurato, 2 mutazioni su 2 che erano attese-verdi ora
+> diventano rosse. E il compromesso che P2 aveva gia accettato, ed e lo stesso difetto
+> contestato in S2-05: va dichiarato, non nascosto.
+
+
 > Esecuzione completa del piano `docs/blueprint/AUDIT-ORACOLI-P0-P1.md`.
 > Data: **2026-07-29**. Branch `trueline/audit/oracoli-p0-p1`.
 > Ledger per superficie: `01-tenancy.md` · `02-profili-auto-provisioning.md` ·
