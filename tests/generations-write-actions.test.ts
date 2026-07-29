@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { Client } from 'pg';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { adminClient, createTestUser, signInAs, deleteTestUser } from './helpers/supabase-test';
 
@@ -252,6 +253,116 @@ async function clientMisurato(
   return client;
 }
 
+// ── connessione SQL DIRETTA nel ruolo `authenticated` (audit degli oracoli) ──────────
+// Serve ai tre comandi NUDI in fondo al file, ed e l'UNICA forma in cui le policy
+// site_generations_delete_member / generation_pools_update_member /
+// generation_pools_delete_member sono l'ULTIMA linea di difesa. Perche':
+// attraverso PostgREST ogni DELETE/UPDATE porta un WHERE (un `.delete()` senza filtri e
+// respinto con 400 "DELETE requires a WHERE clause"), e un WHERE che nomina colonne della
+// tabella obbliga Postgres ad applicare alla riga esistente ANCHE la policy SELECT — quindi
+// con la policy SELECT integra, neutralizzare la sola policy di scrittura (perfino in
+// `using (true)`) lascia 0 righe toccate e la mutazione resta MASCHERATA.
+// MISURATO, non presunto, con `explain (verbose) ...` su public.account_members — la sola
+// tabella del repo dove SELECT e UPDATE/DELETE hanno espressioni DIVERSE, quindi dove la
+// differenza e visibile invece di collassare su se stessa:
+//   `update ... set role='owner'`                  → Filter: <sola policy UPDATE>
+//   `update ... set role='owner' where role='owner'` → Filter: ... AND is_account_member(account_id)
+//   `delete from ...`                              → Filter: <sola policy DELETE>
+//   `delete from ... where role='owner'`             → Filter: ... AND is_account_member(account_id)
+// Resta percio' il comando NUDO (nessun WHERE, nessun RETURNING), che solo una connessione
+// SQL diretta puo emettere (pooler, job, futura edge function con connessione di sessione):
+// li la policy SELECT non entra e la policy di scrittura e il solo gate.
+// Il ruolo e emulato come fa PostgREST (request.jwt.claims + role authenticated): RLS
+// ATTIVA e auth.uid() reale, MAI superuser (che la bypasserebbe → falso verde). La
+// transazione e SEMPRE annullata: nulla di cio che accade qui dentro sopravvive al test.
+type MisuraNuda = {
+  /** Righe che il comando ha davvero colpito (rowCount), con la RLS applicata. */
+  colpite: number;
+  /** Il ruolo con cui sono stati fatti i CONTEGGI: mai quello che ha scritto. */
+  ruoloContatore: string;
+  /** Righe dei due account che il comando NON ha toccato. */
+  intatteA: number;
+  intatteB: number;
+};
+
+/**
+ * Esegue `comando` — NUDO: nessun WHERE, nessun RETURNING — col ruolo/claim dell'utente
+ * indicato, e conta con `contaIntatte` quante righe di ciascun account il comando NON ha
+ * toccato (per un DELETE: quelle ancora presenti; per un UPDATE: quelle senza il marchio).
+ * Le due SQL sono LETTERALI del chiamante, mai input: il solo valore che viaggia e
+ * l'account, e passa da $1.
+ */
+async function misuraNuda(opts: {
+  userId: string;
+  comando: string;
+  contaIntatte: string;
+  accountA: string;
+  accountB: string;
+}): Promise<MisuraNuda> {
+  const conn = new Client({ connectionString: process.env.DATABASE_URL });
+  await conn.connect();
+  try {
+    await conn.query('begin');
+    await conn.query('select set_config($1, $2, true)', [
+      'request.jwt.claims',
+      JSON.stringify({ sub: opts.userId, role: 'authenticated' }),
+    ]);
+    await conn.query('set local role authenticated');
+    const colpite = (await conn.query(opts.comando)).rowCount ?? -1;
+    // Si CONTA col ruolo di SESSIONE (postgres, proprietario delle tabelle: la RLS non lo
+    // filtra), mai col ruolo che ha appena scritto, e DENTRO la stessa transazione, prima
+    // del rollback. E' l'unico modo di vedere cosa il comando NUDO avrebbe davvero portato
+    // via: un RETURNING rimetterebbe in gioco la policy SELECT, cioe proprio cio che
+    // questa forma esiste per tenere fuori.
+    await conn.query('reset role');
+    const ruoloContatore = ((await conn.query('select current_user as n')).rows[0] as { n: string })
+      .n;
+    const conta = async (accountId: string) =>
+      ((await conn.query(opts.contaIntatte, [accountId])).rows[0] as { n: number }).n;
+    return {
+      colpite,
+      ruoloContatore,
+      intatteA: await conta(opts.accountA),
+      intatteB: await conta(opts.accountB),
+    };
+  } finally {
+    // `catch` perche' il comando puo aver lasciato la transazione ABORTITA (p.es. 42501 da
+    // una WITH CHECK superstite): li il rollback e gia implicito, e la chiusura della
+    // connessione lo renderebbe comunque definitivo.
+    await conn.query('rollback').catch(() => undefined);
+    await conn.end();
+  }
+}
+
+/**
+ * Le asserzioni comuni ai tre comandi NUDI, nelle DUE direzioni.
+ * `altrui` e il ramo che una policy PERMISSIVA rompe (`intatteA` cadrebbe a 0); `membro` e
+ * il ramo che una policy RESTRITTIVA rompe (`colpite` resterebbe 0) e senza il quale il
+ * primo varrebbe meno di quanto sembra — passerebbe anche se il meccanismo fosse
+ * «nega tutto».
+ */
+function asserisciComandoNudo(
+  misure: { altrui: MisuraNuda; membro: MisuraNuda },
+  nA: number,
+  nB: number,
+): void {
+  // Chi CONTA non e chi ha scritto: se il conteggio girasse ancora come `authenticated`
+  // sarebbe filtrato dalla RLS e ogni numero qui sotto sarebbe cieco.
+  expect(misure.altrui.ruoloContatore).not.toBe('authenticated');
+  // NEGATIVA: nessuna riga dell'account ALTRUI e stata toccata.
+  expect(misure.altrui.intatteA).toBe(nA);
+  // CONTROPROVA che il comando MORDE e che l'emulazione del ruolo funziona: le righe
+  // PROPRIE dell'utente altrui sono state toccate tutte. Se auth.uid() non arrivasse
+  // sarebbero 0 colpite; se il ruolo fosse rimasto superuser sarebbe caduto anche A.
+  expect(misure.altrui.colpite).toBe(nB);
+  expect(misure.altrui.intatteB).toBe(0);
+  // POSITIVA, unica variabile cambiata il tenant: il membro tocca le PROPRIE righe…
+  expect(misure.membro.colpite).toBe(nA);
+  expect(misure.membro.intatteA).toBe(0);
+  // …e SOLO quelle: raggio d'azione.
+  expect(misure.membro.intatteB).toBe(nB);
+}
+
 // ── il caso peggiore al TETTO di byte (AC-204-7) ─────────────────────────────
 // AC-204-7 non chiede "un documento grande": chiede un documento VALIDO di taglia PARI a
 // DOCUMENT_LIMITS.max_bytes, scritto DAVVERO attraverso il client con sessione. Il tetto
@@ -495,6 +606,22 @@ describe.skipIf(!SB)('T-204 writePool/chooseVariant/appendPages (runtime, Supaba
   let gSenzaPool = ''; // 'ready' senza alcun pool — AC-204-10
   let gOstile = ''; // 'chosen'    — le pagine ostili della fase 2 (AC-204-11)
   let gVita = ''; // 'generating'  — la prova di vita e i tre rifiuti (AC-204-12)
+  // Le fixture dell'AUDIT DEGLI ORACOLI: i tre comandi di P2 (site_generations.DELETE,
+  // generation_pools.UPDATE, generation_pools.DELETE) hanno policy e GRANT asseriti a
+  // catalogo dalla suite di schema, ma fino a qui NESSUN test li esercitava a runtime.
+  // Sono DEDICATE, e nessun altro test le tocca: cosi cio che si misura in fondo al file
+  // e la policy, non lo stato lasciato da un test precedente.
+  let gCanc = ''; // 'complete' di A — il BERSAGLIO del DELETE su site_generations
+  let gCancTestimone = ''; // 'failed' di A — il TESTIMONE, con valori DISCORDANTI
+  let gPool = ''; // 'ready' di A — porta le QUATTRO righe di pool di UPDATE e DELETE
+  let gPoolB = ''; // 'ready' di B — le righe di pool di B, mai bersaglio: testimone cross-tenant
+  // Le quattro righe di pool di gPool. I contenuti sono DISCORDANTI uno per uno: con
+  // righe identiche "colpisci quella giusta" e "colpisci tutto" sono indistinguibili.
+  let pUpdate = ''; // ('home', null)  — bersaglio dell'UPDATE
+  let pUpdateTestimone = ''; // ('home', 0) — testimone dell'UPDATE
+  let pCanc = ''; // ('inner', 1)      — bersaglio del DELETE
+  let pCancTestimone = ''; // ('inner', 2) — testimone del DELETE
+  let pB = ''; // la riga di pool di B
 
   async function creaSito(accountId: string, slug: string): Promise<string> {
     const { data, error } = await adminClient()
@@ -563,6 +690,97 @@ describe.skipIf(!SB)('T-204 writePool/chooseVariant/appendPages (runtime, Supaba
       .order('scope', { ascending: true });
     if (error) throw error;
     return data ?? [];
+  }
+
+  /** UNA riga di pool, sempre con la service_role. `maybeSingle` e deliberato: dopo un
+   *  DELETE la riga non c'e piu, e "non c'e" e un esito da leggere, non un errore. */
+  async function rigaPool(poolId: string) {
+    const { data, error } = await adminClient()
+      .from('generation_pools')
+      .select('id, account_id, generation_id, scope, variant_index, content')
+      .eq('id', poolId)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  }
+
+  /** Setup di fixture (service_role), non un'azione sotto test: serve a costruire righe
+   *  di pool con scope/variante/contenuto ARBITRARI, cioe cio che writePool — che vincola
+   *  stato e unicita — non permetterebbe di disporre. */
+  async function creaPool(opts: {
+    accountId: string;
+    generationId: string;
+    scope: 'home' | 'inner';
+    variantIndex: number | null;
+    content: Record<string, unknown>;
+  }): Promise<string> {
+    const { data, error } = await adminClient()
+      .from('generation_pools')
+      .insert({
+        account_id: opts.accountId,
+        generation_id: opts.generationId,
+        scope: opts.scope,
+        variant_index: opts.variantIndex,
+        content: opts.content,
+      })
+      .select('id')
+      .single();
+    if (error) throw error;
+    return data.id as string;
+  }
+
+  /** Gli id delle generazioni di un account, con la service_role: e l'insieme su cui si
+   *  misura il RAGGIO D'AZIONE di una cancellazione. */
+  async function idGenerazioniDi(accountId: string): Promise<string[]> {
+    const { data, error } = await adminClient()
+      .from('site_generations')
+      .select('id')
+      .eq('account_id', accountId);
+    if (error) throw error;
+    return (data ?? []).map((r) => r.id as string).sort();
+  }
+
+  /** Quante righe di pool ha un account (service_role). */
+  async function quantiPoolDi(accountId: string): Promise<number> {
+    const { data, error } = await adminClient()
+      .from('generation_pools')
+      .select('id')
+      .eq('account_id', accountId);
+    if (error) throw error;
+    return (data ?? []).length;
+  }
+
+  /** Il GIVEN dei due comandi NUDI sul pool: ci sono righe da perdere in ENTRAMBI gli
+   *  account. Senza, "0 righe toccate" sarebbe compatibile con una tabella vuota. */
+  async function quantiPoolInGioco(): Promise<{ nA: number; nB: number }> {
+    const nA = await quantiPoolDi(accountAId);
+    const nB = await quantiPoolDi(accountBId);
+    expect(nA).toBeGreaterThanOrEqual(2);
+    expect(nB).toBeGreaterThanOrEqual(1);
+    return { nA, nB };
+  }
+
+  /** Un comando NUDO nelle DUE direzioni: prima come utente di un ALTRO account (B), poi
+   *  come membro legittimo (A). Riusa gli attori del beforeAll: nessun nuovo sign-in. */
+  async function nelleDueDirezioni(comando: string, contaIntatte: string) {
+    const dove = { comando, contaIntatte, accountA: accountAId, accountB: accountBId };
+    return {
+      altrui: await misuraNuda({ userId: userBId, ...dove }),
+      membro: await misuraNuda({ userId: userAId, ...dove }),
+    };
+  }
+
+  /** Lo stato di partenza dei due test di raggio d'azione sul pool: le QUATTRO righe di
+   *  gPool, con contenuti tutti DIVERSI fra loro — con righe identiche "colpisci quella
+   *  giusta" e "colpisci tutto" sarebbero indistinguibili — piu la riga di pool di B, che
+   *  nessuno dei due test bersaglia e che quindi non deve muoversi mai. */
+  async function partenzaPool() {
+    const prima = await poolDi(gPool);
+    expect(prima).toHaveLength(4);
+    expect(new Set(prima.map((r) => JSON.stringify(r.content))).size).toBe(4);
+    const poolBPrima = await rigaPool(pB);
+    expect(poolBPrima).not.toBeNull();
+    return { prima, poolBPrima };
   }
 
   beforeAll(async () => {
@@ -731,6 +949,76 @@ describe.skipIf(!SB)('T-204 writePool/chooseVariant/appendPages (runtime, Supaba
       slugSito: 'wr-a-2',
       status: 'ready',
       maxPages: 4,
+    });
+
+    // ── fixture dell'AUDIT DEGLI ORACOLI ─────────────────────────────────────
+    // Gli stati sono TERMINALI di proposito ('complete'/'failed'/'ready'): nessuna delle
+    // tre azioni sotto test le tocca, quindi cio che si misura in fondo al file e la
+    // policy DELETE/UPDATE e non un effetto collaterale del resto della suite.
+    gCanc = await creaGenerazione({
+      accountId: A,
+      slugSito: 'wr-a-rls',
+      status: 'complete',
+      maxPages: 7,
+      chosenVariant: 1,
+      document: documentoSoloHome('rls-bersaglio'),
+    });
+    gCancTestimone = await creaGenerazione({
+      accountId: A,
+      slugSito: 'wr-a-rls-2',
+      status: 'failed',
+      maxPages: 3,
+      chosenVariant: 4,
+      document: documentoSoloHome('rls-testimone'),
+    });
+    gPool = await creaGenerazione({
+      accountId: A,
+      slugSito: 'wr-a-rls-pool',
+      status: 'ready',
+      maxPages: 6,
+    });
+    // Omonimo di quello di A (l'unicita di sites e per-account): un filtro che
+    // confondesse lo slug con l'ancoraggio all'account morirebbe qui.
+    gPoolB = await creaGenerazione({
+      accountId: accountBId,
+      slugSito: 'wr-a-rls-pool',
+      status: 'ready',
+      maxPages: 2,
+    });
+    pUpdate = await creaPool({
+      accountId: A,
+      generationId: gPool,
+      scope: 'home',
+      variantIndex: null,
+      content: poolValido('rls-condiviso'),
+    });
+    pUpdateTestimone = await creaPool({
+      accountId: A,
+      generationId: gPool,
+      scope: 'home',
+      variantIndex: 0,
+      content: poolValido('rls-home-v0'),
+    });
+    pCanc = await creaPool({
+      accountId: A,
+      generationId: gPool,
+      scope: 'inner',
+      variantIndex: 1,
+      content: poolValido('rls-inner-v1'),
+    });
+    pCancTestimone = await creaPool({
+      accountId: A,
+      generationId: gPool,
+      scope: 'inner',
+      variantIndex: 2,
+      content: poolValido('rls-inner-v2'),
+    });
+    pB = await creaPool({
+      accountId: accountBId,
+      generationId: gPoolB,
+      scope: 'home',
+      variantIndex: null,
+      content: poolValido('rls-di-b'),
     });
 
     clientA = await signInAs(emailA, password);
@@ -1576,4 +1864,253 @@ describe.skipIf(!SB)('T-204 writePool/chooseVariant/appendPages (runtime, Supaba
     expect(righe).toHaveLength(1); // covers: AC-204-12
     expect(righe[0].content).toEqual(poolValido('vita')); // covers: AC-204-12
   });
+
+  // ══ AUDIT DEGLI ORACOLI — i tre comandi di P2 che nessun test esercitava ═════════════
+  // docs/blueprint/audit-oracoli/00-REFERTO.md. Su site_generations.DELETE,
+  // generation_pools.UPDATE e generation_pools.DELETE la policy e il GRANT sono asseriti a
+  // CATALOGO dalla suite di schema (che ne verifica l'espressione ESATTA), ma fino a qui
+  // NESSUN test li esercitava a RUNTIME, ne in positivo ne in negativo: e lo Schema A del
+  // referto («il comando che nessuno esercita») unito allo Schema C («solo il negativo, mai
+  // il positivo»), sulle tabelle di P2 costruite dopo l'audit di P0/P1.
+  // MISURA dell'orchestratore, che e la ragione di questa sezione: neutralizzando UNA
+  // policy per volta a `account_id is not null` e rieseguendo generations-read-actions +
+  // generations-write-actions, tutte e tre lasciavano VERDE 36/36.
+  //
+  // Ogni comando ha DUE test, perche' misurano due cose diverse:
+  //  - quello via PostgREST prova che il comando FUNZIONA per il legittimo e che il suo
+  //    effetto e circoscritto (raggio d'azione), e muore se la policy diventa restrittiva;
+  //  - quello NUDO (nessun WHERE, nessun RETURNING, connessione SQL diretta) e l'unico che
+  //    muore se la policy diventa PERMISSIVA — vedi il commento di `comeAuthenticated`.
+  // Nessuno dei due basta da solo, ed e dichiarato invece che nascosto.
+
+  // ── site_generations.DELETE, via PostgREST ─────────────────────────────────
+  // MUTAZIONE CHE LO RENDE ROSSO: `site_generations_delete_member` portata a
+  // `using (false)` — cioe la policy che non lascia cancellare a nessuno: il ramo POSITIVO
+  // cade e la generazione di A sopravvive alla propria cancellazione. Rosso anche
+  // revocando il `grant delete on public.site_generations to authenticated`.
+  // CIO CHE NON VEDE: la mutazione PERMISSIVA `using (account_id is not null)`, mascherata
+  // qui da site_generations_select_member. Quella la misura il test NUDO qui sotto.
+  it('DELETE su site_generations: B non cancella la generazione di A, che resta identica; A cancella la PROPRIA e SOLO quella', async () => {
+    const primaBersaglio = await istantanea(gCanc);
+    const primaTestimone = await istantanea(gCancTestimone);
+    const primaTestimoneB = await istantanea(gPoolB);
+    const generazioniPrimaA = await idGenerazioniDi(accountAId);
+    const generazioniPrimaB = await idGenerazioniDi(accountBId);
+    // Il GIVEN del raggio d'azione: piu di una riga, con valori DISCORDANTI. Con una riga
+    // sola "colpisci quella giusta" e "colpisci tutto" sarebbero indistinguibili.
+    expect(generazioniPrimaA.length).toBeGreaterThan(1);
+    expect(primaBersaglio.max_pages).not.toBe(primaTestimone.max_pages);
+    expect(primaBersaglio.status).not.toBe(primaTestimone.status);
+
+    // NEGATIVA: B, che non e membro dell'account di A, punta la riga di A per id.
+    const negativo = await clientB.from('site_generations').delete().eq('id', gCanc).select('id');
+    expect(negativo.error).toBeNull();
+    expect(negativo.data ?? []).toHaveLength(0);
+    // GUARDRAIL service_role: "0 righe" da solo non prova nulla (una tabella vuota darebbe
+    // lo stesso numero). La riga esisteva PRIMA — `istantanea` fallisce se non c'e — ed
+    // esiste ANCORA dopo, con lo STESSO contenuto.
+    expect(await istantanea(gCanc)).toEqual(primaBersaglio);
+    expect(await idGenerazioniDi(accountAId)).toEqual(generazioniPrimaA);
+
+    // POSITIVA: il proprietario legittimo cancella DAVVERO. Senza questo ramo, mettere la
+    // policy a `false` resterebbe verde e l'asserzione negativa qui sopra varrebbe meno di
+    // quanto sembra — passerebbe anche se il meccanismo fosse «nega tutto».
+    const positivo = await clientA.from('site_generations').delete().eq('id', gCanc).select('id');
+    expect(positivo.error).toBeNull();
+    expect((positivo.data ?? []).map((r) => r.id)).toEqual([gCanc]);
+    // L'effetto e RILETTO con la service_role, che bypassa la RLS: la riga non c'e piu.
+    const bersaglioDopo = await adminClient().from('site_generations').select('id').eq('id', gCanc);
+    expect(bersaglioDopo.error).toBeNull();
+    expect(bersaglioDopo.data ?? []).toHaveLength(0);
+
+    // RAGGIO D'AZIONE: e sparita ESATTAMENTE una riga, ed e il bersaglio. Il testimone di
+    // A e intatto nel contenuto, e l'account B non e stato sfiorato.
+    expect(await idGenerazioniDi(accountAId)).toEqual(
+      generazioniPrimaA.filter((id) => id !== gCanc),
+    );
+    expect(await istantanea(gCancTestimone)).toEqual(primaTestimone);
+    expect(await idGenerazioniDi(accountBId)).toEqual(generazioniPrimaB);
+    expect(await istantanea(gPoolB)).toEqual(primaTestimoneB);
+  });
+
+  // ── site_generations.DELETE, NUDO ──────────────────────────────────────────
+  // MUTAZIONE CHE LO RENDE ROSSO: `site_generations_delete_member` portata a
+  // `using (account_id is not null)` — la mutazione MISURATA dall'orchestratore, che prima
+  // di questo test lasciava le due suite di generations VERDI 36/36. Con quella policy il
+  // DELETE NUDO di B raggiunge anche le righe di A: `intatteA` cade da nA a 0.
+  // Rossa anche `using (false)`: il ramo membro non cancellerebbe piu nulla (`colpite`).
+  it.skipIf(!process.env.DATABASE_URL)(
+    'DELETE NUDO su site_generations: come utente di un ALTRO account non tocca nessuna riga di A; come membro cancella tutte e SOLE le proprie',
+    async () => {
+      const nA = (await idGenerazioniDi(accountAId)).length;
+      const nB = (await idGenerazioniDi(accountBId)).length;
+      // Il guardrail PRIMA: ci sono righe da perdere in ENTRAMBI gli account. Senza,
+      // "0 righe cancellate" sarebbe compatibile con una tabella vuota.
+      expect(nA).toBeGreaterThanOrEqual(2);
+      expect(nB).toBeGreaterThanOrEqual(2);
+
+      // Per un DELETE, "intatta" = ancora presente.
+      const misure = await nelleDueDirezioni(
+        'delete from public.site_generations',
+        'select count(*)::int as n from public.site_generations where account_id = $1',
+      );
+      asserisciComandoNudo(misure, nA, nB);
+
+      // Guardrail service_role DOPO: le transazioni sono state annullate, il DB e quello
+      // di prima. Questo test non consuma le fixture di nessun altro.
+      expect((await idGenerazioniDi(accountAId)).length).toBe(nA);
+      expect((await idGenerazioniDi(accountBId)).length).toBe(nB);
+    },
+  );
+
+  // ── generation_pools.UPDATE, via PostgREST ─────────────────────────────────
+  // MUTAZIONE CHE LO RENDE ROSSO: `generation_pools_update_member` portata a
+  // `using (false)` (o con la sola `with check (false)`) — il ramo POSITIVO cade e il pool
+  // di A resta col contenuto vecchio. Rosso anche revocando il `grant update` ad
+  // `authenticated`.
+  // CIO CHE NON VEDE: la mutazione PERMISSIVA, mascherata da generation_pools_select_member.
+  it('UPDATE su generation_pools: B non riscrive il pool di A, che resta identico; A riscrive il PROPRIO e SOLO quello', async () => {
+    const { prima, poolBPrima } = await partenzaPool();
+    const bersaglioPrima = prima.find((r) => r.id === pUpdate);
+    expect(bersaglioPrima).toBeDefined();
+
+    const riscritto = poolValido('rls-riscritto');
+
+    // NEGATIVA: B punta per id la riga di pool di A.
+    const negativo = await clientB
+      .from('generation_pools')
+      .update({ content: riscritto })
+      .eq('id', pUpdate)
+      .select('id');
+    expect(negativo.error).toBeNull();
+    expect(negativo.data ?? []).toHaveLength(0);
+    // GUARDRAIL service_role: la riga c'era e c'e ancora, con lo STESSO contenuto — non
+    // solo "0 righe aggiornate".
+    expect(await rigaPool(pUpdate)).toEqual(bersaglioPrima);
+
+    // POSITIVA: il proprietario riscrive DAVVERO, e l'effetto e RILETTO via service_role.
+    const positivo = await clientA
+      .from('generation_pools')
+      .update({ content: riscritto })
+      .eq('id', pUpdate)
+      .select('id');
+    expect(positivo.error).toBeNull();
+    expect((positivo.data ?? []).map((r) => r.id)).toEqual([pUpdate]);
+    const bersaglioDopo = await rigaPool(pUpdate);
+    expect(bersaglioDopo?.content).toEqual(riscritto);
+    // …e la RIGA e la stessa: l'update non ha spostato il pool di account o di generazione.
+    expect(bersaglioDopo?.account_id).toBe(accountAId);
+    expect(bersaglioDopo?.generation_id).toBe(gPool);
+    expect(bersaglioDopo?.scope).toBe('home');
+    expect(bersaglioDopo?.variant_index).toBeNull();
+
+    // RAGGIO D'AZIONE: e cambiato ESATTAMENTE un contenuto, ed e il bersaglio.
+    const dopo = await poolDi(gPool);
+    const cambiate = prima
+      .filter(
+        (r) =>
+          JSON.stringify(dopo.find((d) => d.id === r.id)?.content) !== JSON.stringify(r.content),
+      )
+      .map((r) => r.id);
+    expect(cambiate).toEqual([pUpdate]);
+    expect(dopo.find((r) => r.id === pUpdateTestimone)?.content).toEqual(poolValido('rls-home-v0'));
+    // E il pool di B non e stato sfiorato.
+    expect(await rigaPool(pB)).toEqual(poolBPrima);
+  });
+
+  // ── generation_pools.UPDATE, NUDO ──────────────────────────────────────────
+  // MUTAZIONE CHE LO RENDE ROSSO: `generation_pools_update_member` portata a
+  // `account_id is not null` — la mutazione MISURATA dall'orchestratore (VERDE 36/36 prima
+  // di questo test). Con quella policy l'UPDATE NUDO di B marchia anche le righe di A:
+  // `intatteA` cade da nA a 0. Se la permissivita fosse nella sola USING, la WITH CHECK
+  // superstite farebbe fallire il comando con 42501 e il test sarebbe rosso comunque, per
+  // eccezione — un rosso vale l'altro.
+  // Rossa anche `using (false)`: il ramo membro non aggiornerebbe piu nulla.
+  it.skipIf(!process.env.DATABASE_URL)(
+    'UPDATE NUDO su generation_pools: come utente di un ALTRO account non riscrive nessuna riga di A; come membro riscrive tutte e SOLE le proprie',
+    async () => {
+      const { nA, nB } = await quantiPoolInGioco();
+
+      // Il MARCHIO e il modo di distinguere "riscritta" da "sopravvissuta": un UPDATE non
+      // toglie righe, quindi contarle non direbbe nulla. Il valore scritto e COSTANTE,
+      // cioe non legge alcuna colonna: e cio che tiene il comando NUDO davvero nudo.
+      // Per un UPDATE, "intatta" = senza il marchio.
+      const misure = await nelleDueDirezioni(
+        `update public.generation_pools set content = '{"marchio":"update-nudo"}'::jsonb`,
+        `select count(*)::int as n from public.generation_pools
+           where account_id = $1 and content->>'marchio' is distinct from 'update-nudo'`,
+      );
+      asserisciComandoNudo(misure, nA, nB);
+
+      // Guardrail service_role DOPO: rollback, nessun contenuto e stato davvero riscritto.
+      expect(await quantiPoolDi(accountAId)).toBe(nA);
+      expect((await rigaPool(pUpdateTestimone))?.content).toEqual(poolValido('rls-home-v0'));
+      expect((await rigaPool(pB))?.content).toEqual(poolValido('rls-di-b'));
+    },
+  );
+
+  // ── generation_pools.DELETE, via PostgREST ─────────────────────────────────
+  // MUTAZIONE CHE LO RENDE ROSSO: `generation_pools_delete_member` portata a
+  // `using (false)` — il ramo POSITIVO cade e la riga di pool di A sopravvive alla propria
+  // cancellazione. Rosso anche revocando il `grant delete` ad `authenticated`.
+  // CIO CHE NON VEDE: la mutazione PERMISSIVA, mascherata da generation_pools_select_member.
+  it('DELETE su generation_pools: B non cancella il pool di A, che resta identico; A cancella il PROPRIO e SOLO quello', async () => {
+    const { prima, poolBPrima } = await partenzaPool();
+    const bersaglioPrima = prima.find((r) => r.id === pCanc);
+    const testimonePrima = prima.find((r) => r.id === pCancTestimone);
+    expect(bersaglioPrima).toBeDefined();
+    expect(testimonePrima).toBeDefined();
+
+    // NEGATIVA: B punta per id la riga di pool di A.
+    const negativo = await clientB.from('generation_pools').delete().eq('id', pCanc).select('id');
+    expect(negativo.error).toBeNull();
+    expect(negativo.data ?? []).toHaveLength(0);
+    // GUARDRAIL service_role: la riga esisteva prima ed esiste ancora, identica.
+    expect(await rigaPool(pCanc)).toEqual(bersaglioPrima);
+    expect(await poolDi(gPool)).toHaveLength(4);
+
+    // POSITIVA: il proprietario cancella DAVVERO, e l'assenza e RILETTA via service_role.
+    const positivo = await clientA.from('generation_pools').delete().eq('id', pCanc).select('id');
+    expect(positivo.error).toBeNull();
+    expect((positivo.data ?? []).map((r) => r.id)).toEqual([pCanc]);
+    expect(await rigaPool(pCanc)).toBeNull();
+
+    // RAGGIO D'AZIONE: e sparita ESATTAMENTE una riga fra quattro, ed e il bersaglio. Le
+    // altre tre hanno ancora id E contenuto di prima, e il pool di B non e stato sfiorato.
+    const dopo = await poolDi(gPool);
+    expect(dopo.map((r) => r.id).sort()).toEqual(
+      prima
+        .map((r) => r.id)
+        .filter((id) => id !== pCanc)
+        .sort(),
+    );
+    expect(dopo.find((r) => r.id === pCancTestimone)).toEqual(testimonePrima);
+    expect(await rigaPool(pB)).toEqual(poolBPrima);
+    // La generazione che possiede il pool non e stata trascinata via dalla cancellazione
+    // della figlia (la cascata corre nell'altro verso).
+    expect((await istantanea(gPool)).status).toBe('ready');
+  });
+
+  // ── generation_pools.DELETE, NUDO ──────────────────────────────────────────
+  // MUTAZIONE CHE LO RENDE ROSSO: `generation_pools_delete_member` portata a
+  // `using (account_id is not null)` — la mutazione MISURATA dall'orchestratore (VERDE
+  // 36/36 prima di questo test). Con quella policy il DELETE NUDO di B porta via anche le
+  // righe di A: `intatteA` cade da nA a 0.
+  // Rossa anche `using (false)`: il ramo membro non cancellerebbe piu nulla.
+  it.skipIf(!process.env.DATABASE_URL)(
+    'DELETE NUDO su generation_pools: come utente di un ALTRO account non tocca nessuna riga di A; come membro cancella tutte e SOLE le proprie',
+    async () => {
+      const { nA, nB } = await quantiPoolInGioco();
+
+      const misure = await nelleDueDirezioni(
+        'delete from public.generation_pools',
+        'select count(*)::int as n from public.generation_pools where account_id = $1',
+      );
+      asserisciComandoNudo(misure, nA, nB);
+
+      // Guardrail service_role DOPO: rollback, nulla e sparito davvero.
+      expect(await quantiPoolDi(accountAId)).toBe(nA);
+      expect(await quantiPoolDi(accountBId)).toBe(nB);
+    },
+  );
 });
