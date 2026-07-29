@@ -9,13 +9,23 @@
 > | **C** — solo il negativo, mai il positivo | **CHIUSO** su `main` | la mutazione «nessuno puo scrivere» da VERDE 16/16 a ROSSO. Chiude **T-03** |
 > | **D** — caso nominale invece della proprieta | **CHIUSO** su `main` | **7/7** da VERDE a ROSSO. Chiude **A3-01…A3-06, A3-08** |
 >
-> **Tutti e quattro gli schemi sono chiusi.** Suite: **593 → 632 test**. Checkpoint
-> **VERDE 4/4**, `degraded: []`, `dup:63` invariato a ogni passo: **~2000 righe di test
-> aggiunte, zero duplicazioni introdotte**. `src/` non e stato modificato in nessuno dei
-> quattro: nessuna proprieta ha richiesto un cambio al codice di produzione — il codice era
-> corretto, mancava chi se ne accorgesse se smettesse di esserlo.
+> | **Estensione a P2** | **CHIUSO** su `main` | **4/4** da VERDE a ROSSO su `site_generations.DELETE`, `generation_pools.UPDATE/DELETE` |
+> | **CI con Supabase** | **CHIUSO** su `main` | **8/8** sul workflow. I 139 test DB-backed smettono di skipparsi |
 >
-> **Bilancio delle mutazioni rieseguite dopo le fix**: **24 su 24** passate da VERDE a ROSSO.
+> **Tutto chiuso.** Suite: **593 → 643 test**. Checkpoint **VERDE 4/4**, `degraded: []`,
+> `dup:63` invariato a ogni passo: **~2700 righe di test aggiunte, zero duplicazioni
+> introdotte**. **`src/` non e stato modificato una sola volta**: nessuna proprieta ha
+> richiesto un cambio al codice di produzione — il codice era corretto, mancava chi se ne
+> accorgesse se smettesse di esserlo.
+>
+> **Bilancio delle mutazioni rieseguite dopo le fix**: **36 su 36** passate da VERDE a ROSSO
+> (24 sui quattro schemi, 4 su P2, 8 sul workflow di CI).
+>
+> **L'unica cosa NON misurata di tutta la sessione**: la correttezza del workflow di CI. Non
+> posso eseguire GitHub Actions da qui (`gh` non e installato), quindi e argomentata sulla
+> documentazione dell'action e sul comportamento della CLI provato in locale, **non provata da
+> una run reale**. La prima run vera puo far emergere fallimenti mai visti prima, perche quei
+> 139 test in CI girerebbero per la prima volta — il che e desiderabile, non un rischio.
 >
 > **Due buchi NUOVI trovati durante le fix**, non presenti in questo referto:
 > una **GUC estranea** attaccata a una funzione SECURITY DEFINER (`set role`,

@@ -264,9 +264,24 @@ per nome (p.4); `P1-D11` sul contratto di altitudine, **ancora rinviato**.
    su `generation_pools` e i `parse_warnings` non fatali) e **R-04** (baseline e checkpoint
    normalizzano diversamente lo stesso output di jscpd); e la **CI che non provisiona
    Supabase**, per cui 139 test su 632 non girano mai li.
-   **Da decidere**: estendere gli schemi A e C alle tabelle di P2 — uno scout ha misurato che
-   `site_generations.DELETE`, `generation_pools.UPDATE` e `generation_pools.DELETE` hanno
-   policy e GRANT asseriti a catalogo ma **non sono mai esercitati a runtime**.
+   **Estensione a P2: FATTA** (decisa dall'utente). `site_generations.DELETE`,
+   `generation_pools.UPDATE` e `generation_pools.DELETE` avevano policy e GRANT asseriti a
+   catalogo ma **nessun test li esercitava a runtime**: misurato, neutralizzando una policy
+   per volta la suite restava **36/36 verde**. Ora hanno entrambe le direzioni (negativa con
+   guardrail service_role, positiva con effetto riletto) e **4 mutazioni su 4** sono rosse.
+   **CI: SISTEMATA** (decisa dall'utente). Lo stack Supabase viene provisionato
+   (`supabase/setup-cli` + `supabase start`), le quattro variabili sono **ricavate da
+   `supabase status -o env`** con `--override-name` e mai hardcodate, `npm run lint` diventa
+   un gate (prima non lo eseguiva nessuno), e una **guardia a runtime** pretende quelle
+   variabili quando `CI` e attiva: una CI senza database diventa **rossa e leggibile** invece
+   di verde con 139 test spariti in silenzio. Batteria sul workflow: **8 mutazioni su 8**
+   rosse, `ci.yml` ripristinato e verificato per sha256 a ogni giro.
+   **NON verificato, dichiarato**: la correttezza del workflow non e provata da una run reale
+   (`gh` non e installato, GitHub Actions non e eseguibile da qui). E argomentata sulla
+   documentazione dell'action e sul comportamento della CLI misurato in locale. **La prima run
+   vera puo far emergere fallimenti mai visti**, perche quei 139 test in CI girerebbero per la
+   prima volta: e l'esito desiderato, non un rischio.
+   **Suite finale: 643 test** (da 593), `src/` **mai modificato** in tutta la sessione.
 1. **Prossimo BUILD**: `generation-engine` (consigliato) oppure `generation-llm`.
 2. **Riconfermare il deploy-coupling** all'apertura, come si e fatto qui: non e una
    formalita, e la ragione per cui il merge di questo macrotask e stato autonomo.
