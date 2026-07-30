@@ -89,8 +89,10 @@ import { SLOTS, type PageRole } from '@/domain/generation/slots';
 //   finisce in un URL.
 // - `blocks_per_page`, `images_per_block` e `block_id` sono dimensionati sui blocchi
 //   nominati dalla spec di design §7 (hero, offerte, chi-siamo, orari, contatti/mappa,
-//   recensioni, FAQ, CTA WhatsApp, galleria) con margine: un documento non e' una
-//   pagina infinita.
+//   recensioni, FAQ, CTA WhatsApp) con margine: un documento non e' una pagina
+//   infinita. La GALLERIA, che una versione precedente di questo commento elencava,
+//   e' fuori dal catalogo v1 (P2-D24, 2026-07-29): i tetti restano questi e il
+//   margine e' semmai piu' largo, quindi nessun numero cambia.
 // - `image_token` e' un identificatore di imagery del tema, non un testo.
 // - `versioned_id` e' il tetto di `recipe_id` e `theme_id`: sono identificatori
 //   dichiarati a mano da noi (T-211/T-212), non testo, e la loro FORMA li tiene corti.

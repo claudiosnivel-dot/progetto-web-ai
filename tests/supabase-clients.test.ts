@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve, join, relative } from 'node:path';
 import { ESLint } from 'eslint';
 import { createServerSupabaseClient, getUserFromRequest } from '@/data/supabase-ssr';
@@ -148,6 +148,265 @@ describe('T-002 confine service_role: la regola ESLint viene eseguita, non solo 
     expect(restricted.length).toBeGreaterThan(0);
     expect(restricted.every((m) => m.severity === 2)).toBe(true);
     expect(restricted.some((m) => m.message.includes('supabase-admin'))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LE TRE FORME CHE IL CONFINE NON VEDEVA.
+//
+// Tutto quello che precede prova UNA forma sola: l'import STATICO con l'alias.
+// Le altre tre famiglie sono state misurate sulla configurazione VERA e davano
+// TUTTE 0 messaggi da ogni percorso del repo, mentre quella statica ne dava 2 —
+// cioe' il divieto si aggirava scegliendo come scrivere l'import.
+//   - DINAMICA. 'no-restricted-imports' aggancia soltanto ImportDeclaration,
+//     ExportNamedDeclaration ed ExportAllDeclaration: nessun handler per
+//     ImportExpression (verificato nel sorgente della regola). Serve la seconda
+//     regola, 'no-restricted-syntax'.
+//   - CON ESTENSIONE '.js'. moduleResolution 'bundler' la risolve allo STESSO file e
+//     'npm run typecheck' la accetta senza fiatare, ma sfuggiva sia a `paths` (che
+//     confronta la stringa esatta) sia ai pattern (che non terminano con l'estensione).
+//   - FILE NON-TS. Col glob '{ts,tsx}' un .jsx o un .mjs sotto src/** non incontrava
+//     NESSUNA restrizione, e tsconfig ha `allowJs`: e' codice che finisce nel bundle
+//     come un .tsx.
+//
+// QUANTO PESA, detto senza gonfiarlo: supabase-admin.ts ha import 'server-only' come
+// prima riga (pinnato dal test in cima a questo file), quindi se finisse in un bundle
+// client il BUILD fallirebbe comunque. Questo strato non e' l'ultima difesa — e' il
+// solo che da' un errore LEGGIBILE, che nomina il confine, e che arriva PRIMA del
+// build; ed e' un gate della CI. Difesa in profondita'.
+//
+// I fixture sono VIRTUALI (lintText su un filePath che puo' non esistere): 'npm run
+// lint' e' un gate della CI, quindi un file in violazione lasciato nel repo renderebbe
+// la CI rossa per costruzione. E' il precedente di T-131 e di T-211.
+
+// Le due regole che COMPONGONO il confine. Guardarne una sola lascerebbe fuori meta'
+// del meccanismo senza che nessuna asserzione se ne accorga.
+const REGOLE_DEL_CONFINE = ['no-restricted-imports', 'no-restricted-syntax'];
+
+const eslintDelConfine = new ESLint({ cwd: root });
+
+/**
+ * Gli errori delle regole del confine prodotti da un sorgente linta a un certo percorso.
+ *
+ * La GUARDIA ANTI-PLACEBO sta qui dentro: un errore di PARSING avrebbe `ruleId` null e
+ * svuoterebbe il filtro, quindi ogni ramo negativo passerebbe per un fixture che non
+ * compila invece che per una regola mirata.
+ */
+async function erroriDelConfine(source: string, percorso: string) {
+  const [risultato] = await eslintDelConfine.lintText(source, {
+    filePath: resolve(root, percorso),
+  });
+  expect(
+    risultato.messages.filter((messaggio) => messaggio.fatal === true),
+    `errore di parsing sul fixture di ${percorso}`,
+  ).toEqual([]);
+  return risultato.messages.filter(
+    (messaggio) => messaggio.ruleId !== null && REGOLE_DEL_CONFINE.includes(messaggio.ruleId),
+  );
+}
+
+// LE SETTE FORME con cui un modulo puo' raggiungere il client service_role. Ognuna
+// risolve allo stesso file. La `regola` attesa e' DICHIARATA forma per forma, cosi'
+// l'elenco dice anche CON QUALE meccanismo ciascuna e' presa: senza, togliere la meta'
+// dinamica del confine lascerebbe tutto verde sulle sole forme statiche.
+const FORME_VIETATE_ADMIN = [
+  {
+    forma: "statica, alias '@/data/supabase-admin'",
+    regola: 'no-restricted-imports',
+    source:
+      "import { createAdminClient } from '@/data/supabase-admin';\n\nexport const seam = createAdminClient;\n",
+  },
+  {
+    forma: "statica, relativa '../data/supabase-admin'",
+    regola: 'no-restricted-imports',
+    source:
+      "import { createAdminClient } from '../data/supabase-admin';\n\nexport const seam = createAdminClient;\n",
+  },
+  {
+    forma: "con estensione, alias '@/data/supabase-admin.js'",
+    regola: 'no-restricted-imports',
+    source:
+      "import { createAdminClient } from '@/data/supabase-admin.js';\n\nexport const seam = createAdminClient;\n",
+  },
+  {
+    forma: "con estensione, relativa '../data/supabase-admin.js'",
+    regola: 'no-restricted-imports',
+    source:
+      "import { createAdminClient } from '../data/supabase-admin.js';\n\nexport const seam = createAdminClient;\n",
+  },
+  {
+    forma: "dinamica, alias import('@/data/supabase-admin')",
+    regola: 'no-restricted-syntax',
+    source: "export const carica = () => import('@/data/supabase-admin');\n",
+  },
+  {
+    forma: "dinamica, relativa dentro await import('../data/supabase-admin')",
+    regola: 'no-restricted-syntax',
+    source:
+      "export async function seam() {\n  const mod = await import('../data/supabase-admin');\n  return mod;\n}\n",
+  },
+  {
+    forma: "dinamica con estensione, import('@/data/supabase-admin.js')",
+    regola: 'no-restricted-syntax',
+    source: "export const carica = () => import('@/data/supabase-admin.js');\n",
+  },
+  {
+    // L'OTTAVA FORMA, ed e' costata un giro di verifica: un TEMPLATE LITERAL senza buchi.
+    // Il suo nodo ha source.type === 'TemplateLiteral', non 'Literal', quindi il primo
+    // selector non lo vedeva: misurato 0 messaggi da tutti e otto i layer, contro 1 della
+    // forma con gli apici. Costa un carattere a chi la scrive e TypeScript la risolve allo
+    // stesso modulo. La prende il secondo selector, quello su TemplateElement.
+    forma: 'dinamica con TEMPLATE LITERAL senza buchi, import(`@/data/supabase-admin`)',
+    regola: 'no-restricted-syntax',
+    source: 'export const carica = () => import(`@/data/supabase-admin`);\n',
+  },
+];
+
+// I LAYER SOGGETTI AL DIVIETO, uno per ciascuno dei quattro che il config distingue e
+// nelle due estensioni. Non e' ridondanza: il divieto e' scritto in blocchi diversi
+// (base, dominio, sito) e in flat config le opzioni della stessa regola si
+// SOSTITUISCONO invece di sommarsi, quindi un layer puo' perdere il confine mentre gli
+// altri lo tengono. I tre percorsi NON-TS coprono il terzo buco (`allowJs`).
+const PERCORSI_SOGGETTI_ADMIN = [
+  'src/ui/onboarding/ChatPanel.tsx', // UI del builder (blocco base), file VERO
+  'src/app/[locale]/page.tsx', // App Router: qui vivono le page 'use client', file VERO
+  'src/domain/onboarding/interview.ts', // dominio: server, ma non e un modulo dati, file VERO
+  'src/ui/site/Hero.tsx', // layer del sito generato (T-231), non ancora su disco
+  'src/ui/onboarding/Legacy.jsx', // NON-TS fuori da src/ui/site/
+  'src/app/[locale]/legacy.mjs', // NON-TS sotto src/app/
+  'src/domain/generation/legacy.jsx', // NON-TS nel dominio
+  // Le tre estensioni che il glob elenca e che nessun caso esercitava: misurato,
+  // togliendo '.cjs', '.mts' e '.cts' dal glob del blocco base la suite restava verde.
+  // Un glob piu' largo del provato e' il verso sicuro in cui sbagliare, ma resta una
+  // copertura che il prossimo refactor puo' togliere senza accorgersene.
+  'src/ui/onboarding/legacy.cts', // NON-TS, estensione fuori dal caso comune
+];
+
+// I DUE LAYER ESENTATI, e sono FILE VERI: i moduli server designati e gli helper di
+// test. Un percorso inventato resterebbe pulito comunque e il ciclo continuerebbe a
+// passare senza piu' dire nulla. L'unico virtuale e' il .mjs, che serve a provare che
+// anche l'ESENZIONE e' stata estesa ai file non-TS: se il blocco base coprisse i .mjs
+// e il blocco che spegne la regola no, src/data/legacy.mjs diventerebbe un errore su
+// codice corretto.
+const PERCORSI_ESENTATI_ADMIN = [
+  { percorso: 'src/data/sites.ts', vero: true },
+  { percorso: 'src/data/generations.ts', vero: true },
+  { percorso: 'tests/supabase-clients.test.ts', vero: true },
+  { percorso: 'src/data/legacy.mjs', vero: false },
+  // L'altra meta' della copertura sulle estensioni rare: l'ESENZIONE deve valere sulle
+  // stesse otto del blocco base. Se il blocco base coprisse i .cjs e il blocco che spegne
+  // la regola no, un modulo server CommonJS diventerebbe un errore su codice corretto.
+  { percorso: 'src/data/legacy.cjs', vero: false },
+];
+
+// Cio' che deve restare LECITO OVUNQUE. Le tre forme dinamiche sono il ramo che
+// impedisce alla regola nuova di essere troppo larga: il selector guarda il VALORE del
+// literal, quindi vieta un import() del client admin e NON import() in quanto tale — un
+// selector sciatto (il solo `ImportExpression`) romperebbe il code splitting
+// dell'intera app e nessun'altra asserzione di questo file lo vedrebbe.
+const IMPORT_LECITI_OVUNQUE = [
+  {
+    forma: 'il client BROWSER, che e client-safe per costruzione',
+    source:
+      "import { createBrowserSupabaseClient } from '@/data/supabase-browser';\n\nexport const seam = createBrowserSupabaseClient;\n",
+  },
+  {
+    forma: 'una libreria esterna caricata in modo dinamico',
+    source: "export const f = () => import('react');\n",
+  },
+  {
+    forma: 'un modulo di dominio caricato in modo dinamico',
+    source: "export const f = () => import('@/domain/generation/themes');\n",
+  },
+  {
+    forma: 'l SDK Supabase caricato in modo dinamico',
+    source: "export const f = () => import('@supabase/ssr');\n",
+  },
+  {
+    // Il ramo che tiene onesto il selector NUOVO sul template: un template CON un buco e'
+    // una forma legittima e diffusa, e nel repo esiste per davvero
+    // (src/i18n/request.ts carica i cataloghi cosi'). Il selector guarda il testo GREZZO
+    // del pezzo di template, quindi non lo tocca. Senza questa riga, un selector scritto
+    // sul solo nodo TemplateLiteral romperebbe quel caso e nulla lo direbbe.
+    forma: 'un template literal CON un buco, la forma che carica i cataloghi i18n',
+    source: 'export const f = (n: string) => import(`../../messages/${n}.json`);\n',
+  },
+];
+
+describe('T-002 confine service_role: le forme equivalenti dell import, non solo quella statica con alias', () => {
+  // MUTAZIONE CHE LO FA DIVENTARE ROSSO, una per forma: togliere
+  // '**/supabase-admin.*' da supabaseAdminPatterns (cadono le due forme con
+  // estensione); togliere 'no-restricted-syntax' dal blocco base (cadono le tre
+  // dinamiche su ui/app); toglierla dal blocco del dominio o da quello del sito
+  // (cadono le dinamiche su quei due layer soltanto); riportare i `files` dei blocchi
+  // a '{ts,tsx}' (cadono i tre percorsi non-TS in ogni forma).
+  // covers: AC-002-6
+  it('OGNI forma equivalente dell import del client service_role e un errore di lint, da OGNI layer soggetto', async () => {
+    // Guardia anti-vacuita': i due elenchi hanno la taglia DICHIARATA, quindi il ciclo
+    // esercita 49 casi e non zero. Le lunghezze sono scritte SEPARATE apposta: il solo
+    // prodotto sopravviverebbe a un elenco svuotato e all'altro gonfiato.
+    expect(FORME_VIETATE_ADMIN).toHaveLength(8); // covers: AC-002-6
+    expect(PERCORSI_SOGGETTI_ADMIN).toHaveLength(8); // covers: AC-002-6
+
+    for (const percorso of PERCORSI_SOGGETTI_ADMIN) {
+      for (const { forma, regola, source } of FORME_VIETATE_ADMIN) {
+        const errori = await erroriDelConfine(source, percorso);
+        const dove = `${percorso} / ${forma}`;
+
+        expect(errori.length, `nessun errore su ${dove}`).toBeGreaterThan(0); // covers: AC-002-6
+        expect(
+          errori.every((errore) => errore.severity === 2),
+          `warning invece di error su ${dove}`,
+        ).toBe(true); // covers: AC-002-6 — un warning non blocca nulla
+        expect(
+          errori.some((errore) => errore.message.includes('supabase-admin')),
+          `a bloccare ${dove} non e il confine service_role`,
+        ).toBe(true); // covers: AC-002-6
+        // E ad averlo bloccato e' il meccanismo che tocca a quella forma: le statiche
+        // 'no-restricted-imports', le dinamiche 'no-restricted-syntax'.
+        expect(
+          errori.some((errore) => errore.ruleId === regola),
+          `${dove}: preso da [${errori.map((errore) => errore.ruleId).join(',')}] invece che da ${regola}`,
+        ).toBe(true); // covers: AC-002-6
+      }
+    }
+  });
+
+  // Il verso permissivo, esteso alle stesse sette forme: senza, una regola che vieta
+  // l'import A CHIUNQUE supererebbe il ciclo qui sopra pur rompendo i moduli server.
+  // MUTAZIONE CHE LO FA DIVENTARE ROSSO: togliere 'no-restricted-syntax': 'off' dal
+  // blocco che esenta src/data/** e tests/** (cadono le tre forme dinamiche), o
+  // riportare i suoi `files` a '{ts,tsx}' (cade il percorso .mjs).
+  // covers: AC-002-6 (verso permissivo)
+  it('i moduli server designati e gli helper di test restano liberi in TUTTE le forme', async () => {
+    expect(PERCORSI_ESENTATI_ADMIN).toHaveLength(5); // covers: AC-002-6
+
+    for (const { percorso, vero } of PERCORSI_ESENTATI_ADMIN) {
+      if (vero) {
+        expect(existsSync(resolve(root, percorso)), `non e un file vero: ${percorso}`).toBe(true); // covers: AC-002-6
+      }
+      for (const { forma, source } of FORME_VIETATE_ADMIN) {
+        const errori = await erroriDelConfine(source, percorso);
+        expect(errori, `${percorso} / ${forma}`).toEqual([]); // covers: AC-002-6
+      }
+    }
+  });
+
+  // La regola nuova nomina un MODULO, non la sintassi import(). Se il selector vietasse
+  // ImportExpression in quanto tale, il code splitting dell'intera app sarebbe rotto e
+  // i due cicli qui sopra resterebbero verdi.
+  // MUTAZIONE CHE LO FA DIVENTARE ROSSO: nel selector, sostituire
+  // "ImportExpression[source.type='Literal'][source.value=/supabase-admin/]" con il
+  // solo "ImportExpression".
+  it('import() di qualunque altro modulo resta lecito da ogni layer: il selector guarda il VALORE, non la sintassi', async () => {
+    expect(IMPORT_LECITI_OVUNQUE).toHaveLength(5);
+
+    for (const percorso of PERCORSI_SOGGETTI_ADMIN) {
+      for (const { forma, source } of IMPORT_LECITI_OVUNQUE) {
+        const errori = await erroriDelConfine(source, percorso);
+        expect(errori, `${percorso} / ${forma}`).toEqual([]);
+      }
+    }
   });
 });
 

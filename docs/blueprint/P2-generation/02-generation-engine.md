@@ -31,7 +31,11 @@ Qui non si chiama nessun modello e non si tocca nessun DB. E' per questo che la 
   depends_on: [T-201]
   objective: >
     Definire in src/domain/generation/blocks.ts il catalogo dei blocchi del sito (hero,
-    offerte, chi-siamo, orari, contatti/mappa, recensioni, FAQ, CTA WhatsApp, galleria).
+    offerte, chi-siamo, orari, contatti/mappa, recensioni, FAQ, CTA WhatsApp) — gli otto
+    della spec di design §7. La GALLERIA e FUORI dal catalogo v1 (P2-D24): in v1 le
+    immagini sono imagery del tema (P2-D12), quindi un blocco galleria non avrebbe ne
+    dati del brief ne prosa del modello, cioe sarebbe il blocco-segnaposto che P2-D7
+    vieta. Rientra quando esistera l'upload (source 'uploaded', gia tipizzato in T-202).
     Ogni blocco dichiara: id stabile, i ruoli di pagina in cui puo comparire, gli slot di
     contenuto che consuma (dal catalogo di T-201), i campi del brief che rende
     DIRETTAMENTE (senza passare dal modello), e una PRECONDIZIONE sui dati del brief che
@@ -316,7 +320,7 @@ Qui non si chiama nessun modello e non si tocca nessun DB. E' per questo che la 
   definition_of_done:
     - "Modulo src/domain/generation/generatable.ts con generatable(brief, { maxPages }) -> { ok, surviving_blocks, pages, missing } esportata"
     - "GENERATABLE_MIN_BLOCKS in costante nominata: la soglia DERIVA dal numero di blocchi superstiti, non da un conteggio di campi"
-    - "Per ogni voce di `missing`: il nome del campo del brief e l'id del blocco o della pagina che sbloccherebbe; l'id citato esiste nei cataloghi di T-210/T-213"
+    - "Per ogni voce di `missing`: il nome del campo del brief e l'id del blocco o della pagina che il campo SBLOCCHEREBBE, oppure di cui cambierebbe la FORMA; quale dei due e' dichiarato dalla voce stessa (P2-D25). L'id citato esiste nei cataloghi di T-210/T-213"
     - "vertical='altro' e riportato come NON scelto (stessa lettura di P1-D24)"
     - "Il modulo non importa isBriefComplete"
   acceptance_criteria:

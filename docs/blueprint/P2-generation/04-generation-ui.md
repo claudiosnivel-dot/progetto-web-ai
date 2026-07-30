@@ -26,7 +26,7 @@ I blocchi sono divisi in due task lungo la linea del **rischio**, non del conteg
 **T-231** i blocchi *narrativi* (contenuto dal pool) piu le fondamenta condivise — chiavi
 i18n di tutte le etichette, divieto di colore letterale, divieto di
 `dangerouslySetInnerHTML`; **T-237** i blocchi di *dati* (offerte, orari, contatti,
-recensioni, galleria), dove si concentra la superficie di testo non fidato e dove nascono
+recensioni), dove si concentra la superficie di testo non fidato e dove nascono
 tutti i link costruiti da campi liberi del brief.
 
 ## Task atomici
@@ -163,7 +163,7 @@ tutti i link costruiti da campi liberi del brief.
     - "LIMITE DICHIARATO: queste asserzioni girano in jsdom, che NON carica risorse. Provano 'nessun elemento nasce dal testo del brief', non 'nessuno script ha girato'. La prova sull'EFFETTO e in T-241, e per questo l'end-to-end esiste."
     - "LIMITE DICHIARATO (eredita P1 §6-bis p.7): AC-231-3 asserisce che le etichette es sono presenti e diverse dalle it. Una traduzione SBAGLIATA ma diversa passerebbe."
   out_of_scope:
-    - "Blocchi di dati: offerte, orari, contatti, recensioni, galleria (T-237)"
+    - "Blocchi di dati: offerte, orari, contatti, recensioni (T-237)"
     - "Anteprima a piena pagina (T-235)"
     - "Sanificazione lato pubblicazione: P4"
 
@@ -174,13 +174,14 @@ tutti i link costruiti da campi liberi del brief.
   objective: >
     Implementare i componenti dei blocchi che rendono i DATI del brief direttamente, senza
     passare dal modello: offerte (con le varianti per verticale di T-210), orari, contatti e
-    mappa, recensioni, galleria. E' dove si concentra la superficie di rischio di P2: i nomi
+    mappa, recensioni. La galleria NON esiste nel catalogo v1 (P2-D24), quindi non ha
+    componente. E' dove si concentra la superficie di rischio di P2: i nomi
     e le descrizioni delle offerte sono testo non fidato, e whatsapp/phone/email sono campi
     di TESTO LIBERO nel brief (T-121) da cui questi blocchi costruiscono i LINK. Nessun href
     o src nasce dal testo libero: i link si costruiscono dai campi strutturati passati
     attraverso un validatore di schema, e un valore non valido non produce un link.
   definition_of_done:
-    - "Componenti in src/ui/site/blocks/ per i blocchi di dati del catalogo T-210 (offerte con varianti per verticale, orari, contatti/mappa, recensioni, galleria)"
+    - "Componenti in src/ui/site/blocks/ per i blocchi di dati del catalogo T-210 (offerte con varianti per verticale, orari, contatti/mappa, recensioni)"
     - "I link (whatsapp, telefono, email, social) sono costruiti dai campi strutturati e validati sullo SCHEMA prima dell'uso; un valore non valido non produce alcun link"
     - "Nessun href/src e costruito dal testo libero del brief; lo slot immagine e reso secondo la sua sorgente tipizzata (T-202)"
     - "Le etichette provengono dalle chiavi i18n aggiunte da T-231, per il locale del sito"

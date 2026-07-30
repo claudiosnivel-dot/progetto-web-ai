@@ -12,8 +12,35 @@
 // accanto allo schema che governa, perche' sono parte del contratto di quel modulo (e
 // il test di T-201 asserisce l'insieme esatto delle chiavi di POOL_LIMITS). Qui passano
 // come parametro: la funzione e' condivisa, i numeri no.
+//
+// AGGIUNTA IL 2026-07-30, al checkpoint di `generation-engine`: `testoPresente`. Non era
+// una primitiva dei gate quando questo file e' nato, ma e' diventata la stessa cosa —
+// una DECISIONE SEMANTICA condivisa — ed era scritta TRE VOLTE identica, in blocks.ts
+// (T-210), pages.ts (T-213) e resolve.ts (T-214). L'oracolo d'igiene l'ha vista come due
+// duplicazioni nuove, e la regola scritta in testa a questo file vale parola per parola
+// anche per lei: una difesa scritta tre volte e' una difesa che a un certo punto vale in
+// un posto solo.
 
 import { z } from 'zod';
+
+/**
+ * Un testo del brief e' "PRESENTE" solo se non e' vuoto DOPO il trim.
+ *
+ * NON E' UN'UTILITA': e' la soglia che decide se un blocco ESISTE (T-210), quindi se il
+ * modello riceve o no gli slot di quella sezione (T-220) — cioe' se ha la POSSIBILITA' di
+ * inventarla (P2-D7). Lo stesso predicato decide poi se una PAGINA esiste (T-213) e se un
+ * campo entra nel documento congelato (T-214). Se le tre letture divergessero, un blocco
+ * esisterebbe per un modulo e non per l'altro, e il difetto si vedrebbe solo nel sito
+ * pubblicato.
+ *
+ * PERCHE' IL TRIM E' PORTANTE: lo schema del brief trima il solo `business_name` (T-121),
+ * quindi un `address` di soli spazi e' un valore VALIDO che renderebbe una riga vuota.
+ * Presente-e-vuoto e' assente — ed e' la stessa regola con cui `orariUtili` scarta una
+ * mappa di orari fatta di sole chiavi.
+ */
+export function testoPresente(valore: string | undefined): boolean {
+  return typeof valore === 'string' && valore.trim().length > 0;
+}
 
 /** I due tetti del ramo di errore. Non esportato: chi chiama passa le proprie costanti. */
 type ErrorLimits = {
