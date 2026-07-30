@@ -49,6 +49,7 @@
 
 import type { Brief, BriefUpdateSchema } from '@/domain/onboarding/brief';
 import type { PageRole, SlotId } from '@/domain/generation/slots';
+import { testoPresente } from '@/domain/generation/gate';
 
 /**
  * I nomi dei campi del brief nominabili in `brief_fields_rendered`: le chiavi della
@@ -92,14 +93,6 @@ type BlockDefinition = {
 
 // ── predicati sui dati del brief ─────────────────────────────────────────────
 
-/**
- * Un testo del brief e' "presente" solo se non e' vuoto DOPO il trim: lo schema del
- * brief trima il solo `business_name` (T-121), quindi un `address` di soli spazi e' un
- * valore valido che renderebbe una riga vuota. Presente-e-vuoto e' assente.
- */
-function testoPresente(valore: string | undefined): boolean {
-  return typeof valore === 'string' && valore.trim().length > 0;
-}
 
 /**
  * Le voci dell'offerta. `content` e le sue liste hanno un default nello schema (T-121),

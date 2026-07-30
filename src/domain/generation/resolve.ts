@@ -142,7 +142,7 @@ import {
   type SiteDocument,
   type SitePage,
 } from '@/domain/generation/document';
-import { isPlainObject } from '@/domain/generation/gate';
+import { isPlainObject, testoPresente } from '@/domain/generation/gate';
 import { applyRecipe, type SiteRecipe } from '@/domain/generation/recipes';
 import type { Pool } from '@/domain/generation/pool';
 import type { SiteTheme } from '@/domain/generation/themes';
@@ -229,16 +229,6 @@ type ResolveResult = {
 
 // ── presenza dei dati ────────────────────────────────────────────────────────
 
-/**
- * Un testo e' "presente" solo se non e' vuoto DOPO il trim. E' la stessa lettura di T-210 e
- * T-213, e la ripetizione e' dichiarata la' come qui: quei moduli sono committati e non
- * esportano il predicato. Presente-e-vuoto e' ASSENTE — un indirizzo di soli spazi e' un
- * valore valido per il brief (T-121 trima il solo `business_name`) e nel sito sarebbe una
- * riga vuota, cioe' la sezione a metà che P2-D7 esclude.
- */
-function testoPresente(valore: string | undefined): boolean {
-  return typeof valore === 'string' && valore.trim().length > 0;
-}
 
 /**
  * Lo slot PORTA DAVVERO un contenuto. Il pool ammette la stringa vuota e la lista vuota

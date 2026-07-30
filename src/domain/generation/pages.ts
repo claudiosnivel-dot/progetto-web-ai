@@ -86,6 +86,7 @@
 import { blocksFor } from '@/domain/generation/blocks';
 import type { Brief } from '@/domain/onboarding/brief';
 import type { PageRole } from '@/domain/generation/slots';
+import { testoPresente } from '@/domain/generation/gate';
 
 /**
  * Il ruolo della home. E' `satisfies PageRole` e non `: PageRole` per la stessa ragione di
@@ -295,21 +296,6 @@ const PAGE_MIN_RECAPITI = 2;
 
 // ── predicati sui dati del brief ─────────────────────────────────────────────
 
-/**
- * Un testo del brief e' "presente" solo se non e' vuoto DOPO il trim: lo schema del brief
- * trima il solo `business_name` (T-121), quindi un `address` di soli spazi e' un valore valido
- * che conterebbe come recapito senza esserlo.
- *
- * E' LA STESSA LETTURA CHE T-210 APPLICA, e la ripetizione e' dichiarata: quel modulo e'
- * committato e verificato e non espone il predicato. Contare i recapiti con una nozione di
- * "presente" diversa dalla sua farebbe divergere le due soglie proprio sul confine — un
- * indirizzo di soli spazi renderebbe esistente la pagina e vuota la riga. Il costo e' questa
- * funzione di due righe; l'alternativa sarebbe aprire un artefatto gia' passato dal
- * checkpoint del proprio macrotask.
- */
-function testoPresente(valore: string | undefined): boolean {
-  return typeof valore === 'string' && valore.trim().length > 0;
-}
 
 /**
  * Le voci dell'offerta. `content` e le sue liste hanno un default nello schema (T-121), quindi
