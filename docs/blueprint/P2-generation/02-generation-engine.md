@@ -320,7 +320,7 @@ Qui non si chiama nessun modello e non si tocca nessun DB. E' per questo che la 
   definition_of_done:
     - "Modulo src/domain/generation/generatable.ts con generatable(brief, { maxPages }) -> { ok, surviving_blocks, pages, missing } esportata"
     - "GENERATABLE_MIN_BLOCKS in costante nominata: la soglia DERIVA dal numero di blocchi superstiti, non da un conteggio di campi"
-    - "Per ogni voce di `missing`: il nome del campo del brief e l'id del blocco o della pagina che sbloccherebbe; l'id citato esiste nei cataloghi di T-210/T-213"
+    - "Per ogni voce di `missing`: il nome del campo del brief e l'id del blocco o della pagina che il campo SBLOCCHEREBBE, oppure di cui cambierebbe la FORMA; quale dei due e' dichiarato dalla voce stessa (P2-D25). L'id citato esiste nei cataloghi di T-210/T-213"
     - "vertical='altro' e riportato come NON scelto (stessa lettura di P1-D24)"
     - "Il modulo non importa isBriefComplete"
   acceptance_criteria:
