@@ -547,9 +547,17 @@ describe.skipIf(!SB)('T-203 createGeneration/getGeneration/listGenerationStatuse
   });
 
   // covers: AC-203-5
-  // Seconda meta di P2-D15: la fase 2. Le tre righe differiscono per UNA variabile alla
-  // volta (pagine interne si/no a parita di eta; eta a parita di documento).
-  it("una riga 'chosen' stantia SENZA pagine interne e riportata 'failed'; con pagine interne, o recente, resta 'chosen'", async () => {
+  // covers: AC-234-7
+  // Seconda meta di P2-D15, ESTESA dall'EMENDAMENTO P2-D32 (fase 2 a chunk di T-234): una
+  // riga 'chosen' oltre il timeout della fase 2 e stantia A PRESCINDERE dalle pagine parziali.
+  // La fase 2 e a chunk e ogni chunk lascia la riga in 'chosen' estendendo il documento
+  // (appendPages({final:false})), quindi le pagine interne parziali NON provano che la fase 2
+  // sia viva — una fase 2 CONCLUSA sarebbe 'complete'. Prima di P2-D32 il ramo 'chosen'->'phase2'
+  // aveva il guard !haPagineInterne e questa fixture con pagine interne restava 'chosen': ora e
+  // riconciliata come le altre, cosi la fase 2 morta a meta puo essere ritentata (AC-234-7).
+  // Le tre righe differiscono per UNA variabile: pagine interne si/no a parita di eta (nessuna
+  // delle due salva ora), ed eta a parita di ruolo (la recente resta 'chosen').
+  it("una riga 'chosen' stantia e riportata 'failed' con o senza pagine interne parziali; una recente resta 'chosen'", async () => {
     clientHolder.current = clientA;
 
     const stantiaSenzaInterne = await getGeneration(sitoSceltoStantio);
@@ -557,24 +565,28 @@ describe.skipIf(!SB)('T-203 createGeneration/getGeneration/listGenerationStatuse
     if (!stantiaSenzaInterne.ok) throw new Error('getGeneration (chosen stantio) fallita');
     expect(stantiaSenzaInterne.generation?.status).toBe('failed'); // covers: AC-203-5
 
-    // Variabile cambiata: il documento HA pagine interne (stessa eta).
+    // Variabile cambiata: il documento HA pagine interne parziali (stessa eta). NON basta piu a
+    // impedire la riconciliazione (P2-D32): la fase 2 a chunk lascia proprio questo stato.
     const stantiaConInterne = await getGeneration(sitoSceltoConInterne);
-    expect(stantiaConInterne.ok).toBe(true); // covers: AC-203-5
+    expect(stantiaConInterne.ok).toBe(true); // covers: AC-234-7
     if (!stantiaConInterne.ok) throw new Error('getGeneration (chosen con interne) fallita');
-    expect(stantiaConInterne.generation?.status).toBe('chosen'); // covers: AC-203-5
+    expect(stantiaConInterne.generation?.status).toBe('failed'); // covers: AC-234-7
 
-    // Variabile cambiata: l'eta (stesso documento senza pagine interne).
+    // Variabile cambiata: l'eta (stesso documento senza pagine interne). Una 'chosen' RECENTE non
+    // e stantia: e il controllo negativo che tiene onesta la riconciliazione.
     const recenteSenzaInterne = await getGeneration(sitoSceltoRecente);
     expect(recenteSenzaInterne.ok).toBe(true); // covers: AC-203-5
     if (!recenteSenzaInterne.ok) throw new Error('getGeneration (chosen recente) fallita');
     expect(recenteSenzaInterne.generation?.status).toBe('chosen'); // covers: AC-203-5
 
-    // Oracolo service_role: solo la prima e stata riscritta; le altre due sono intatte.
+    // Oracolo service_role: le due stantie sono riscritte a 'failed', la recente e intatta.
     expect((await righeDi(sitoSceltoStantio))[0].status).toBe('failed'); // covers: AC-203-5
-    expect((await righeDi(sitoSceltoConInterne))[0].status).toBe('chosen'); // covers: AC-203-5
+    expect((await righeDi(sitoSceltoConInterne))[0].status).toBe('failed'); // covers: AC-234-7
     expect((await righeDi(sitoSceltoRecente))[0].status).toBe('chosen'); // covers: AC-203-5
-    // Il documento congelato sopravvive alla riconciliazione: e riportato failed, non svuotato.
+    // Il documento congelato — home piu le pagine parziali — sopravvive alla riconciliazione: e
+    // riportato failed, non svuotato, cosi la fase 2 puo essere ritentata senza perdere il lavoro.
     expect((await righeDi(sitoSceltoStantio))[0].document).not.toBeNull(); // covers: AC-203-5
+    expect((await righeDi(sitoSceltoConInterne))[0].document).not.toBeNull(); // covers: AC-234-7
   });
 
   // covers: AC-203-3
@@ -668,10 +680,14 @@ describe.skipIf(!SB)('T-203 createGeneration/getGeneration/listGenerationStatuse
     const statoDi = (siteId: string) =>
       secondaMisura.statuses.find((s) => s.site_id === siteId)?.status;
 
-    // Lo stato di CIASCUN sito, su fixture discordanti.
+    // Lo stato di CIASCUN sito, su fixture discordanti. Il rappresentante di 'chosen' e' il sito
+    // RECENTE: sitoSceltoConInterne, dall'EMENDAMENTO P2-D32, e' gia' stato riportato 'failed' dal
+    // test di riconciliazione di getGeneration piu' sopra (una 'chosen' stantia con pagine parziali
+    // non e' piu' salva), quindi la lista — che legge lo stato persistito — lo vede 'failed'.
     expect(statoDi(sitoMulti)).toBe('complete'); // covers: AC-203-6 — la piu recente delle due
     expect(statoDi(sitoRecente)).toBe('generating'); // covers: AC-203-6
-    expect(statoDi(sitoSceltoConInterne)).toBe('chosen'); // covers: AC-203-6
+    expect(statoDi(sitoSceltoRecente)).toBe('chosen'); // covers: AC-203-6 — una 'chosen' recente
+    expect(statoDi(sitoSceltoConInterne)).toBe('failed'); // covers: AC-203-6 — riconciliata a monte (P2-D32)
     expect(statoDi(nuovi[0])).toBe('ready'); // covers: AC-203-6
     expect(statoDi(nuovi[1])).toBe('ready'); // covers: AC-203-6
     // Un sito mai generato compare con stato nullo: la lista dice lo stato di TUTTI i

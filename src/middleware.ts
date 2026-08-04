@@ -10,14 +10,21 @@ import { getUserFromRequest } from './data/supabase-ssr';
 // autenticato → /es/login, non /it/login).
 const handleI18n = createMiddleware(routing);
 
-// Route protette: /{locale}/dashboard e /{locale}/onboarding (T-150), con ogni
-// sotto-route. Il locale è vincolato ai locali supportati (unica sorgente di
-// verità: routing.locales), mai a input libero.
-// L'endpoint di turno della chat (T-150) vive sotto /api, che il matcher esclude
-// del tutto: la sua guardia è nel route handler stesso (401 JSON, non un 307 verso
-// il login, che un fetch non potrebbe leggere).
-const PROTECTED_SEGMENTS = ['dashboard', 'onboarding'] as const;
-const protectedRoute = new RegExp(
+// Route protette: /{locale}/dashboard, /{locale}/onboarding (T-150), /{locale}/generate
+// (T-230) e /{locale}/preview (T-235), con ogni sotto-route. Il locale è vincolato ai locali
+// supportati (unica sorgente di verità: routing.locales), mai a input libero.
+// Gli endpoint /api (turno chat di T-150, POST /api/generate di T-230) vivono sotto /api,
+// che il matcher esclude del tutto: la loro guardia è nel route handler stesso (401/403 JSON,
+// non un 307 verso il login, che un fetch non potrebbe leggere).
+// PROMEMORIA (T-230/T-235, come per onboarding): il matcher esclude ogni pathname con un punto,
+// quindi per un siteId come 'a.b' questa guardia non parte affatto — la difesa resta la
+// guardia server-side nella pagina (getUser in ./guard). Non si affida nulla al middleware.
+const PROTECTED_SEGMENTS = ['dashboard', 'onboarding', 'generate', 'preview'] as const;
+// ESPORTATA per l'audit degli oracoli (tests/auth-middleware.test.ts): e' la regex REALE che
+// decide se una rotta e' GUARDATA — derivata da PROTECTED_SEGMENTS. `config.matcher` dice solo
+// SE il middleware gira (catch-all), non se protegge, quindi la membership di /generate e
+// /preview va asserita contro QUESTA, cosi' togliere un segmento fa cadere anche l'audit.
+export const protectedRoute = new RegExp(
   `^/(${routing.locales.join('|')})/(?:${PROTECTED_SEGMENTS.join('|')})(?:/.*)?$`,
 );
 

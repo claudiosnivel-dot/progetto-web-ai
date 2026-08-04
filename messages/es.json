@@ -36,8 +36,13 @@
     },
     "onboarding": {
       "cta": "Iniciar o continuar el onboarding",
-      "readyToGenerate": "Listo para generar",
       "statusUnavailable": "Estado del brief no disponible"
+    },
+    "generation": {
+      "generate": "Genera el sitio",
+      "resume": "Retomar la generación",
+      "preview": "Ver la vista previa",
+      "retry": "Reintentar la generación"
     }
   },
   "onboarding": {
@@ -121,5 +126,78 @@
       "geoLat": "Latitud",
       "geoLng": "Longitud"
     }
+  },
+  "site": {
+    "blocks": {
+      "hero": "Encabezado",
+      "offerte": "Oferta",
+      "chiSiamo": "Quiénes somos",
+      "orari": "Horario",
+      "contatti": "Contacto",
+      "recensioni": "Reseñas",
+      "faq": "Preguntas frecuentes",
+      "ctaWhatsapp": "Contacto por WhatsApp"
+    },
+    "offerings": {
+      "menu": "Menú",
+      "courses": "Cursos",
+      "services": "Servicios",
+      "catalog": "Catálogo",
+      "generic": "Nuestra oferta"
+    },
+    "nav": {
+      "home": "Inicio",
+      "offerings": "Oferta",
+      "hours": "Horario",
+      "contact": "Contacto",
+      "reviews": "Reseñas",
+      "faq": "Preguntas frecuentes"
+    },
+    "actions": {
+      "whatsapp": "Escríbenos por WhatsApp"
+    }
+  },
+  "generate": {
+    "title": "Genera tu sitio",
+    "readError": "No se ha podido leer el brief de este sitio: vuelve a cargar la página. No es un problema del contenido del brief.",
+    "cta": "Genera cinco propuestas",
+    "launcher": {
+      "generating": "Generando las cinco propuestas…",
+      "done": "Las cinco propuestas están listas.",
+      "error": "La generación no se ha completado: inténtalo de nuevo."
+    },
+    "missing": {
+      "title": "Antes de generar, completa el brief",
+      "onboardingCta": "Vuelve al onboarding para completar el brief",
+      "effect": {
+        "unlocks": "desbloquea una sección del sitio",
+        "specializes": "especializa la sección de la oferta"
+      },
+      "fields": {
+        "businessName": "Nombre del negocio",
+        "offerings": "Oferta",
+        "vertical": "Sector",
+        "description": "Descripción",
+        "highlights": "Puntos fuertes",
+        "hours": "Horario",
+        "address": "Dirección",
+        "phone": "Teléfono",
+        "whatsapp": "WhatsApp",
+        "email": "Correo electrónico",
+        "other": "Otro campo del brief"
+      }
+    },
+    "chooser": {
+      "regenerate": "Regenera esta propuesta",
+      "unavailable": "Las propuestas no están disponibles ahora mismo: vuelve a cargar la página.",
+      "choose": "Elige esta propuesta",
+      "confirmPrompt": "Cambiar de propuesta ahora regenera las páginas internas del sitio: es una nueva generación de pago. ¿Quieres continuar?",
+      "confirm": "Sí, regenera con esta propuesta",
+      "cancel": "Cancelar"
+    },
+    "buildInner": "Genera las páginas internas del sitio"
+  },
+  "preview": {
+    "unavailable": "La vista previa aún no está disponible para este sitio."
   }
 }
