@@ -189,6 +189,74 @@ const anthropicBoundaryDynamicImport = [
   },
 ];
 
+// LE TRE POLICY DI CONFINE, DICHIARATE UNA VOLTA SOLA E CONDIVISE FRA I LORO LAYER.
+//
+// PERCHE' ESISTONO (estratte al checkpoint di `generation-llm`, su decisione dell'utente).
+// In flat config le opzioni della stessa regola si SOSTITUISCONO invece di sommarsi: ogni
+// blocco deve percio' ridichiarare l'INTERA policy, e prima di questa estrazione i corpi
+// `rules:` erano ricopiati per intero da un blocco all'altro. L'oracolo d'igiene l'ha
+// misurato — 3 duplicazioni NUOVE appena `scripts/**` e' entrato nel perimetro (P2-D27) —
+// ma il costo vero non e' la ripetizione: e' che due blocchi che DEVONO dire la stessa cosa
+// possono DIVERGERE in silenzio, e un confine che vieta di piu' in un layer e di meno in un
+// altro si aggira scegliendo dove mettere il file. Con la costante condivisa "scripts/** e'
+// trattato esattamente come il layer base" e' un FATTO, non una coincidenza da mantenere a
+// mano.
+//
+// La modifica e' falsificabile e non e' stata data per buona: il comportamento di questi tre
+// oggetti e' coperto da 42+ caselle in tests/anthropic-boundary.test.ts, dal ramo del sito in
+// tests/generation-theme-isolation.test.ts e da tests/supabase-clients.test.ts.
+
+/** Entrambi i confini privilegiati, nelle due meta' (statica e dinamica). Layer base e script. */
+const CONFINI_PRIVILEGIATI = {
+  'no-restricted-imports': [
+    'error',
+    {
+      paths: [...supabaseAdminPaths, ...anthropicBoundaryPaths],
+      patterns: [...supabaseAdminPatterns, ...anthropicBoundaryPatterns],
+    },
+  ],
+  // La META' DINAMICA degli stessi confini. E' allineata voce per voce con
+  // 'no-restricted-imports' qui sopra — le due regole descrivono lo STESSO layering con due
+  // meccanismi — e ora l'allineamento e' tenuto dalla condivisione dell'oggetto, non dalla
+  // buona volonta' di chi edita.
+  'no-restricted-syntax': ['error', ...supabaseAdminDynamicImport, ...anthropicBoundaryDynamicImport],
+};
+
+/**
+ * Il SOLO client service_role. E' la policy dei layer server a cui il confine LLM e' APERTO:
+ * il dominio (l'orchestrazione dell'intervista, T-132) e l'harness di misura di T-225.
+ * Aggiungere il confine LLM alla sola 'no-restricted-syntax' spegnerebbe T-132 per via
+ * dinamica lasciando verde ogni test che guarda la forma statica.
+ */
+const SOLO_SERVICE_ROLE = {
+  'no-restricted-imports': ['error', { paths: supabaseAdminPaths, patterns: supabaseAdminPatterns }],
+  'no-restricted-syntax': ['error', ...supabaseAdminDynamicImport],
+};
+
+/**
+ * I due confini privilegiati PIU' il design system del builder (T-211): la policy del layer
+ * del SITO GENERATO. I primi due sono qui perche' le opzioni si sostituiscono, e ometterli
+ * aprirebbe in silenzio — proprio nel layer che finisce nel browser — la strada al client
+ * service_role e alla chiave Anthropic. Le voci stanno in un elenco solo perche' e' l'unica
+ * forma in cui il difetto si vede: se un giorno se ne aggiunge una quarta ai confini
+ * privilegiati e non qui, il ramo del sito dei test di confine diventa rosso.
+ */
+const CONFINI_DEL_SITO_GENERATO = {
+  'no-restricted-imports': [
+    'error',
+    {
+      paths: [...supabaseAdminPaths, ...anthropicBoundaryPaths, ...siteThemeBoundaryPaths],
+      patterns: [...supabaseAdminPatterns, ...anthropicBoundaryPatterns, ...siteThemeBoundaryPatterns],
+    },
+  ],
+  'no-restricted-syntax': [
+    'error',
+    ...supabaseAdminDynamicImport,
+    ...anthropicBoundaryDynamicImport,
+    ...siteThemeDynamicImport,
+  ],
+};
+
 export default tseslint.config(
   {
     ignores: [
@@ -220,24 +288,7 @@ export default tseslint.config(
     // sembra proteggere e non protegge e' peggio della sua assenza: chi legge ci costruisce
     // sopra.
     files: ['src/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          paths: [...supabaseAdminPaths, ...anthropicBoundaryPaths],
-          patterns: [...supabaseAdminPatterns, ...anthropicBoundaryPatterns],
-        },
-      ],
-      // La META' DINAMICA dello stesso confine. Va tenuta allineata voce per voce con
-      // 'no-restricted-imports' qui sopra: le due regole descrivono lo STESSO layering con
-      // due meccanismi, e una che vieta di piu' o di meno dell'altra e' un confine che si
-      // aggira scegliendo la forma dell'import.
-      'no-restricted-syntax': [
-        'error',
-        ...supabaseAdminDynamicImport,
-        ...anthropicBoundaryDynamicImport,
-      ],
-    },
+    rules: CONFINI_PRIVILEGIATI,
   },
   {
     // Layer di dominio (server): puo' chiamare il confine LLM — l'orchestrazione
@@ -246,13 +297,7 @@ export default tseslint.config(
     // Aggiungere il confine LLM alla sola 'no-restricted-syntax' spegnerebbe T-132 per via
     // dinamica lasciando verde ogni test che guarda la forma statica.
     files: ['src/domain/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        { paths: supabaseAdminPaths, patterns: supabaseAdminPatterns },
-      ],
-      'no-restricted-syntax': ['error', ...supabaseAdminDynamicImport],
-    },
+    rules: SOLO_SERVICE_ROLE,
   },
   {
     // Layer del SITO GENERATO (T-231): oltre ai due confini privilegiati, qui e' vietato
@@ -278,33 +323,42 @@ export default tseslint.config(
     // precede il codice apposta: e' l'unico ordine in cui il confine non arriva dopo la
     // prima violazione.
     files: ['src/ui/site/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}'],
-    rules: {
-      'no-restricted-imports': [
-        'error',
-        {
-          paths: [...supabaseAdminPaths, ...anthropicBoundaryPaths, ...siteThemeBoundaryPaths],
-          patterns: [
-            ...supabaseAdminPatterns,
-            ...anthropicBoundaryPatterns,
-            ...siteThemeBoundaryPatterns,
-          ],
-        },
-      ],
-      // TUTTI E TRE i confini, nella loro meta' dinamica. I due privilegiati sono
-      // RIDICHIARATI qui per la stessa ragione per cui lo sono i loro paths/patterns:
-      // le opzioni della stessa regola si SOSTITUISCONO, non si sommano. Ometterli
-      // lascerebbe import('@/data/supabase-admin') lecito proprio nel layer che finisce nel
-      // browser; ometterne il terzo riaprirebbe il confine dei temi di T-211. Le tre voci
-      // stanno in un elenco solo perche' e' l'unica forma in cui il difetto si vede: se un
-      // giorno se ne aggiunge una quarta al blocco base e non qui, il ramo del sito in
-      // tests/supabase-clients.test.ts e tests/anthropic-boundary.test.ts diventa rosso.
-      'no-restricted-syntax': [
-        'error',
-        ...supabaseAdminDynamicImport,
-        ...anthropicBoundaryDynamicImport,
-        ...siteThemeDynamicImport,
-      ],
-    },
+    rules: CONFINI_DEL_SITO_GENERATO,
+  },
+  {
+    // P2-D27 — LA DIRECTORY DEGLI SCRIPT ENTRA NEL PERIMETRO. Fino a T-225 `scripts/**` non
+    // compariva ne' fra i blocchi che vietano i due confini privilegiati ne' fra quelli che li
+    // spengono: non era aperta per decisione, non era mai stata considerata. MISURATO sulla
+    // stessa sorgente (import statico E dinamico di '@/data/anthropic' e
+    // '@/data/supabase-admin') lintata a percorsi diversi: src/ui/** 6 messaggi, src/app/** 6,
+    // scripts/** ZERO. E il primo file che ci e' nato costruisce un client SDK con la chiave
+    // grezza, cioe' il secondo detentore della chiave del repo (P1-D7): un perimetro non
+    // sorvegliato sarebbe stato un secondo confine nato per omissione.
+    //
+    // Il glob copre le stesse otto estensioni del blocco base, per la stessa ragione: un
+    // programma di manutenzione scritto in .mjs raggiungerebbe gli stessi due moduli di uno
+    // scritto in .ts, e un confine che dipende dall'estensione del file non e' un confine.
+    files: ['scripts/**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}'],
+    // LA STESSA policy del layer base, e ora e' la STESSA COSTANTE: che scripts/** sia
+    // trattato esattamente come src/** e' un fatto del file, non una copia da mantenere.
+    rules: CONFINI_PRIVILEGIATI,
+  },
+  {
+    // L'UNICA ECCEZIONE, DICHIARATA QUI E NON OTTENUTA COL SILENZIO (P2-D27, AC-225-5).
+    // L'harness di misura di T-225 deve costruire un'istanza del client SDK per leggere
+    // `usage`: e' il costo che il file dichiara in testa a se stesso, ed e' il solo motivo per
+    // cui questa riga esiste. Un file NUOVO sotto scripts/ non eredita nulla di tutto cio' —
+    // il blocco qui sopra continua a valere per lui — e questa e' la differenza fra
+    // un'eccezione e un buco.
+    //
+    // L'ECCEZIONE E' STRETTA QUANTO SERVE, e ricalca il blocco di src/domain/**: cade il solo
+    // confine LLM, mentre il client service_role resta VIETATO anche qui (in entrambe le sue
+    // meta', statica e dinamica). Un harness di misura dei token non ha alcun motivo di
+    // bypassare la RLS, e in flat config le opzioni della stessa regola si SOSTITUISCONO
+    // invece di sommarsi: ridichiarare il service_role e' cio' che impedisce a questa
+    // eccezione di aprire in silenzio anche l'altro confine.
+    files: ['scripts/measure-generation-usage.ts'],
+    rules: SOLO_SERVICE_ROLE,
   },
   {
     // Moduli server designati e helper di test: possono importare entrambi.
