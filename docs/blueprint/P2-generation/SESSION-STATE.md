@@ -80,6 +80,25 @@ modifica reale. Non e' una promessa che sappia diventare rosso: e' un fatto osse
 - **Baseline di sicurezza**: **INVARIATA**, hash identico prima e dopo (`gitleaks:0 semgrep:0 rls:0`).
   Verificato **dopo** la cattura d'igiene, non prima: e' la trappola di §8.5 (senza `--out`,
   `capture --hygiene` scrive proprio su questo file).
+- **La riserva del 29/07 su `rls:0` RESTA VALIDA e questo macrotask non la chiude**: `rls:0`
+  significa «nessun rilievo prodotto», non «tutte le tabelle auditate» — su **2 tabelle su 7**
+  l'oracolo statico non guarda (`generation_pools`, `profiles`). Dettagli in
+  `docs/blueprint/audit-oracoli/00-copertura-oracolo-rls.md`. `generation-llm` **non aggiunge alcuna
+  tabella**: il «`rls` va riconquistato» di `00-INDEX` §3 riguardava `generation-model` (T-200), non
+  questo macrotask. Qui non c'era nulla da provare a runtime, e **nulla e' stato provato**.
+  *(Questa voce era sparita nella prima stesura della SESSION-STATE di oggi, ed e' stata rimessa al
+  session-end: una copertura dichiarata che svanisce riscrivendo il file e' il modo peggiore di
+  chiuderla, perche' non lascia traccia.)*
+- **Batteria di mutazione dell'ORCHESTRATORE**, trasversale: ogni mutazione girata contro **tutti** i
+  file di test del macrotask insieme, che e' l'unica forma capace di vedere i difetti **fra** un task
+  e l'altro — quelli che nessun verifier per-task puo' vedere.
+  **Primo giro, prima delle fix: 11 mutazioni — 2 INVALIDE** (ancorate a una stringa presente anche
+  in un JSDoc: hanno mutato il commento, vedi §5), **6 prese, 3 sopravvissute**. Le tre: il nome del
+  tool (l'handshake T-222<->T-224, che nessuno dei due sorvegliava), l'allowlist degli slug
+  allargata, e il system prompt italiano a un cliente spagnolo.
+  **Secondo giro, dopo le fix: 7 mutazioni, 6 PRESE.** L'unica sopravvissuta e' stata chiusa in
+  orchestrazione (vedi §5) e rigirata: **PRESA**.
+  **Ripristino verificato per sha256 in entrambi i giri**: gli hash coincidono.
 - **`osv` e' passato da 0 a 7** fra la cattura della baseline (30/07) e oggi. **Non viene da questo
   macrotask**: sono avvisi su dipendenze pubblicati nel frattempo. Il controllo 2 li lascia passare
   con la sua regola («nessun finding NUOVO >= HIGH»), ma `npm audit` ne classifica **due come HIGH**:
