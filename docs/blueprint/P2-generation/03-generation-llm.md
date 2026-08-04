@@ -149,7 +149,7 @@ solo posto, dichiarate provvisorie fino alla prima misura reale (`P2-D17`).
     REALMENTE passato al confine e non il sorgente.
   definition_of_done:
     - "Modulo src/domain/generation/tool.ts con buildPoolTool(slotIds, pageSlugs) esportata, che ritorna un oggetto tool con strict: true"
-    - "Ogni oggetto annidato dello schema porta additionalProperties:false E un array required non vuoto"
+    - "Ogni oggetto annidato dello schema porta additionalProperties:false E un array required che COINCIDE, come insieme, con le chiavi di properties (P2-D28)"
     - "La `description` del tool dichiara i tetti degli slot, e i numeri sono derivati da POOL_LIMITS (nessun letterale duplicato)"
     - "Lo schema enumera esattamente gli slot passati, e non altri"
     - "Guardia eseguibile: una funzione/test che cammina RICORSIVAMENTE l'oggetto tool e verifica l'assenza di keyword fuori dal sottoinsieme dello strict tool use"
@@ -157,7 +157,7 @@ solo posto, dichiarate provvisorie fino alla prima misura reale (`P2-D17`).
     - id: AC-222-1
       given: "l'oggetto tool prodotto da buildPoolTool per un set di slot che include uno slot 'qa' (quindi con oggetti annidati a due livelli)"
       when: "cammino ricorsivamente ogni nodo di tipo object dello schema"
-      then: "OGNI nodo object ha additionalProperties === false e un array required non vuoto — nessun nodo ne e privo (chiude il rischio aperto in P1 §6-bis p.2)"
+      then: "OGNI nodo object ha additionalProperties === false E un array required che coincide, come INSIEME, con le chiavi di properties di quel nodo — non soltanto non vuoto (emendamento P2-D28). Lo strict tool use pretende le due cose insieme: una property fuori da required, o un nome in required che non e una property, e un 400 alla prima chiamata reale, invisibile a ogni oracolo senza chiave (chiude il rischio aperto in P1 §6-bis p.2, di cui la sola additionalProperties copriva meta)"
     - id: AC-222-2
       given: "lo stesso oggetto tool"
       when: "cerco ricorsivamente le keyword maxLength, minLength, maxItems, minItems, maximum, minimum, multipleOf, exclusiveMaximum, exclusiveMinimum, uniqueItems e i riferimenti ricorsivi"
@@ -201,6 +201,7 @@ solo posto, dichiarate provvisorie fino alla prima misura reale (`P2-D17`).
     il tetto dichiarato.
   definition_of_done:
     - "Modulo src/domain/generation/prompt.ts con SYSTEM_PROMPTS per locale ('it','es') e buildGenerationPayload(projection, tool, profile) esportate"
+    - "buildGenerationPayload applica normalizeForPrompt (T-221) a OGNI stringa della proiezione prima di serializzarla (P2-D26): e questo il punto in cui la proiezione diventa testo del prompt, e senza di esso il normalizzatore non ha alcun consumatore di produzione"
     - "Modulo con GENERATION_BUDGET: tetti dei due profili di proiezione, max_tokens per fase 1 e per chunk di fase 2, effort, timeout, maxRetries, prezzi unitari input/output"
     - "Il payload assemblato ha la parte stabile (tool + system) PRIMA della parte volatile (proiezione), cosi che il prefisso sia cacheabile"
     - "Il system prompt dichiara al modello che i valori dei campi non mostrati non gli sono disponibili e che non deve inventare contenuti"
@@ -227,12 +228,16 @@ solo posto, dichiarate provvisorie fino alla prima misura reale (`P2-D17`).
       when: "assemblo il payload per ciascuno sullo stesso brief"
       then: "i due payload differiscono nella parte volatile e nella lista di slot richiesti, e condividono lo stesso system prompt per quel locale"
     - id: AC-223-6
-      given: "i valori ESATTI di GENERATION_BUDGET (max_tokens per fase, timeout, maxRetries, tetti dei due profili di proiezione) e i soli file sotto src/domain/generation/** e src/data/generations.ts, escluso il modulo che li dichiara"
+      given: "i valori ESATTI di GENERATION_BUDGET (max_tokens per fase, timeout, maxRetries, tetti dei due profili di proiezione) e i soli file sotto src/domain/generation/**, src/data/generations.ts e src/data/anthropic.ts, escluso il modulo che li dichiara"
       when: "cerco in quei file l'occorrenza letterale di ciascuno di quei valori"
-      then: "nessuna occorrenza letterale e trovata: ogni uso passa da GENERATION_BUDGET. La ricerca e deliberatamente limitata a quei percorsi e ai valori esatti, per non produrre falsi positivi su numeri usati per altro"
+      then: "nessuna occorrenza letterale e trovata: ogni uso passa da GENERATION_BUDGET. La ricerca e deliberatamente limitata a quei percorsi e ai valori esatti, per non produrre falsi positivi su numeri usati per altro. src/data/anthropic.ts e nel perimetro per emendamento P2-D30: e il file che CONSUMA timeout, maxRetries ed effort, e lasciarlo fuori rendeva la provenienza asserita sul solo valore"
+    - id: AC-223-7
+      given: "una proiezione i cui campi di testo portano tag HTML, uno schema javascript:, un data URI, un URL http e la stringa di chiusura della busta, accanto a testi legittimi con una & non seguita da un'entita, un '<3', apostrofi, accenti ed emoji"
+      when: "assemblo il payload e leggo la parte volatile"
+      then: "nessuna di quelle forme ostili compare, e i testi legittimi sono INTATTI: la normalizzazione di T-221 e in vigore sul percorso reale (P2-D26). Cade con essa anche il falso delimitatore, che chiuderebbe la busta in anticipo perche JSON.stringify non scherma ne '<' ne '/' — la busta non e contata come difesa (P2-D4), ma il compito che il modulo LE ATTRIBUISCE non deve venire meno in silenzio"
   target_tests:
     - file: "tests/generation-prompt.test.ts"
-      covers: [AC-223-1, AC-223-2, AC-223-3, AC-223-5]
+      covers: [AC-223-1, AC-223-2, AC-223-3, AC-223-5, AC-223-7]
     - file: "tests/generation-budget.test.ts"
       covers: [AC-223-4, AC-223-6]
   security_notes:
@@ -265,6 +270,7 @@ solo posto, dichiarate provvisorie fino alla prima misura reale (`P2-D17`).
     - "max_tokens, timeout, maxRetries ed effort provengono da GENERATION_BUDGET; thinking e adaptive"
     - "Guardie sul ritorno: stop_reason diverso da tool_use -> errore con codice; nessun blocco tool_use nella risposta -> errore con codice; input della tool-call che non valida con parsePool -> errore con codice"
     - "Nessuna guardia ritorna un pool parziale o vuoto: il fallimento e terminale e nominato"
+    - "La parte STABILE del payload porta il breakpoint cache_control (P2-D29): senza di esso i due campi di cache di usage che T-225 deve misurare sono costantemente nulli, e il prefisso identico byte per byte imposto da AC-223-2 non produce alcun colpo di cache"
   acceptance_criteria:
     - id: AC-224-1
       given: "un doppio del client che ritorna una risposta con stop_reason='max_tokens'"
@@ -294,9 +300,13 @@ solo posto, dichiarate provvisorie fino alla prima misura reale (`P2-D17`).
       given: "un modulo-fixture sotto src/ui/ che importa src/data/anthropic"
       when: "eseguo ESLint su quel file con la configurazione del progetto"
       then: "ESLint riporta l'errore di import vietato (la guardia deny-by-default di T-131 copre anche runGenerationTurn, perche vive nello stesso file)"
+    - id: AC-224-8
+      given: "un doppio del client che cattura i parametri realmente passati"
+      when: "chiamo runGenerationTurn e cerco il breakpoint di cache nel payload catturato"
+      then: "cache_control e presente sulla coda della parte STABILE (tool + system) e su nessun blocco della parte volatile: e li che il prefisso identico byte per byte di AC-223-2 diventa un colpo di cache invece di una proprieta senza effetto (P2-D29)"
   target_tests:
     - file: "tests/generation-turn.test.ts"
-      covers: [AC-224-1, AC-224-2, AC-224-3, AC-224-4, AC-224-6]
+      covers: [AC-224-1, AC-224-2, AC-224-3, AC-224-4, AC-224-6, AC-224-8]
     - file: "tests/generation-boundary-leak.test.ts"
       covers: [AC-224-5]
     - file: "tests/generation-boundary-import-guard.test.ts"
@@ -331,6 +341,8 @@ solo posto, dichiarate provvisorie fino alla prima misura reale (`P2-D17`).
     - "Con chiave: per ciascun brief e per ciascuna fase registra input_tokens, output_tokens, cache_creation_input_tokens e cache_read_input_tokens da usage"
     - "Il report confronta i valori misurati con le costanti di GENERATION_BUDGET e segnala esplicitamente ogni costante superata dalla misura"
     - "Lo script non e raccolto dalla suite di test del progetto (non compare nel pattern di include della configurazione di test)"
+    - "Il campione contiene almeno un brief ai tetti di P1-D17 (P2-D31): la misura d'INGRESSO deve essere il caso peggiore come gia lo e quella d'uscita (che usa tutti gli slot del catalogo). Un campione al 2-4% del tetto di proiezione taccerebbe proprio sulla costante che T-225 esiste per tarare"
+    - "La directory che ospita lo script rientra nel perimetro dei confini di lint e dell'oracolo dead-code (P2-D27): lo script costruisce un client con la chiave grezza, e un perimetro non sorvegliato sarebbe un secondo confine nato per omissione"
   acceptance_criteria:
     - id: AC-225-1
       given: "nessuna chiave API configurata nell'ambiente"
@@ -348,9 +360,13 @@ solo posto, dichiarate provvisorie fino alla prima misura reale (`P2-D17`).
       given: "la configurazione di test del progetto"
       when: "elenco i file raccolti dalla suite"
       then: "lo script di misura non e fra quelli raccolti: non partecipa al verdetto del checkpoint"
+    - id: AC-225-5
+      given: "un modulo-fixture nella directory che ospita lo script, che importa @/data/anthropic e @/data/supabase-admin in forma statica E dinamica"
+      when: "eseguo ESLint su quel percorso con la configurazione del progetto"
+      then: "ESLint riporta gli errori di import vietato, come li riporta sugli stessi import da src/ui/**: la directory degli script non e un'eccezione nata per omissione. Lo script di misura resta l'UNICA eccezione, dichiarata esplicitamente nella configurazione e non ottenuta col silenzio (P2-D27)"
   target_tests:
     - file: "tests/generation-usage-harness.test.ts"
-      covers: [AC-225-1, AC-225-2, AC-225-3, AC-225-4]
+      covers: [AC-225-1, AC-225-2, AC-225-3, AC-225-4, AC-225-5]
   security_notes:
     - "L-COL-006 reso eseguibile: AC-225-1 asserisce che l'assenza di chiave produce un 'non eseguito' e non un verde. E' la forma piu diretta del divieto di falso via libera — un harness che in assenza di chiave uscisse con successo dichiarerebbe misurato cio che non e stato misurato."
     - "Il campione di brief usato per la misura non deve contenere dati reali di clienti; usa i brief di test del progetto."
