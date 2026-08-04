@@ -3,9 +3,10 @@
   "entry": [
     "src/config/**/*.ts",
     "src/data/**/*.ts",
-    "tests/helpers/**/*.ts"
+    "tests/helpers/**/*.ts",
+    "e2e/**/*.spec.ts"
   ],
-  "project": ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}", "scripts/**/*.{ts,tsx}"],
+  "project": ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}", "scripts/**/*.{ts,tsx}", "e2e/**/*.ts"],
   "ignoreBinaries": ["supabase"],
   "ignoreDependencies": ["jscpd", "madge", "prettier"]
 }
