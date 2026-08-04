@@ -375,9 +375,12 @@ misura**. La batteria stampa ora il numero di riga e il suo testo, e rifiuta le 
   navigazione): il verde dell'end-to-end ha significato.
 - **La raggiungibilita' del deliverable** (l'orfano che generation-ui §5 temeva): il percorso
   genera→scegli→anteprima e' percorso in un browser reale (AC-241-5).
-- **Restano aperti, ora oltre P2**: `osv:7` (2 HIGH), la CI mai provata da una run reale (`gh` non
-  installato — ma ora c'e' lo script `test:e2e` da cablare in `ci.yml` dopo `supabase start`), e le
-  voci 45-49 di §6.
+- **Restano aperti, ora oltre P2**: la CI mai provata da una run reale (`gh` non installato — ma ora
+  c'e' lo script `test:e2e` da cablare in `ci.yml` dopo `supabase start`), e le voci 45-49 di §6.
+- **CHIUSO post-P2 (04/08)**: `osv` **7→1** — i 2 HIGH bonificati (`undici` 7.28.0→7.29.0,
+  `brace-expansion`→5.0.9 via override), commit `de7ce5d`, merge `38c4984`. Baseline sicurezza
+  (gitignorata, locale) ri-catturata a osv:1; baseline igiene versionata 83→86 (3 dup LOW pre-esistenti
+  R-04 in `seed.ts`/`supabase-test.ts`). Restano 2 advisory **MODERATE** (`next`, `postcss`), a se'.
 
 ### Chiusi da generation-ui (04/08)
 - **Carry-over P1 §7 p.5** (testo estratto = input non fidato in RENDERING): chiuso per la STRUTTURA
