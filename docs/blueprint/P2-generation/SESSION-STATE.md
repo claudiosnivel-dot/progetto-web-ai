@@ -8,9 +8,9 @@
 |---|---|
 | **Progetto** | Belora |
 | **Ecosistema** | supabase-jsts (JS/TS + Supabase) |
-| **Ultimo aggiornamento** | 2026-08-04 (BUILD del macrotask **`generation-ui`**: T-230..T-237 costruiti, checkpoint **VERDE 4/4** `degraded:[]`, mergeato su `main` con `0dfe7d7`) |
-| **Sessione corrente** | **BUILD di `generation-ui`**, il quarto macrotask di P2 e il piu' esposto (testo non fidato reso in pagina, 2 rotte nuove + 1 endpoint `/api`). Otto task atomici. **Suite a 1108 test in 102 file** (era 976). Emendamento **`P2-D32`** (fase 2 a chunk). Metodo: 2 workflow di build (fondamenta WF1 + composizione WF2) → **una** fermata umana → 3 workflow di risoluzione (R1 spina, R2/R3 rinforzo oracolo) + refactor d'igiene. **49 rilievi chiusi** (WF1 11 · WF2 31 · R1 7). Batteria di mutazione trasversale **5/5 PRESE**. Checkpoint VERDE 4/4, merge autonomo su `main` |
-| **Sessione precedente** | BUILD di `generation-llm` (04/08): T-220..T-225, checkpoint VERDE 4/4, merge `4f36e16` |
+| **Ultimo aggiornamento** | 2026-08-04 (BUILD del macrotask **`generation-e2e`**: T-240..T-241 costruiti, checkpoint **VERDE 4/4** `degraded:[]`, mergeato su `main` con `66d6248`. **P2 COMPLETO: 5/5 macrotask**) |
+| **Sessione corrente** | **BUILD di `generation-e2e`**, l'ULTIMO macrotask di P2 e il **primo end-to-end vero del progetto** (Chromium). Due task (T-240 harness+canary, T-241 documento ostile+raggiungibilita'). **Suite a 1116 test** (era 1108) **+ 5 test e2e** su Chromium. Aggiunta dev-dep `@playwright/test@1.60.0` (chromium-1223 gia' in cache). Metodo: 1 workflow di build (2 builder + 2 verifier BLIND) → **una** fermata umana → fix applicate dall'orchestratore. Checkpoint VERDE 4/4, e2e 5/5 (il **canary** diventa rosso su contatore/console/**navigazione**), batteria di mutazione **3/3 UCCISE**. Merge autonomo su `main` |
+| **Sessione precedente** | BUILD di `generation-ui` (04/08): T-230..T-237, checkpoint VERDE 4/4, merge `0dfe7d7` |
 
 ---
 
@@ -22,9 +22,9 @@
 | generation-engine | **done** | **VERDE 4/4** (2026-07-30) | T-210..T-215 |
 | generation-llm | **done** | **VERDE 4/4** (2026-08-04) | T-220..T-225. 9 commit sul branch + 1 di merge. `degraded: []` |
 | generation-ui | **done** | **VERDE 4/4** (2026-08-04) | T-230..T-237. 1 commit atomico + 1 di merge (`0dfe7d7`). `degraded: []`. Refactor d'igiene (4 helper condivisi), baseline igiene ricatturata 66→70 |
-| generation-e2e | **todo** | — | T-240..T-241 — il primo end-to-end vero. **Prossimo BUILD** |
+| generation-e2e | **done** | **VERDE 4/4** (2026-08-04) | T-240..T-241. 1 commit atomico (`e34b962`, 20 file) + 1 di merge (`66d6248`). `degraded: []`. e2e 5/5 su Chromium; canary rosso su contatore/console/navigazione; batteria mutazione 3/3 UCCISE; baseline igiene ricatturata 71→83 |
 
-**→ 27 task atomici, 5 macrotask. QUATTRO costruiti e chiusi, UNO da costruire (generation-e2e).**
+**→ 27 task atomici, 5 macrotask. TUTTI E CINQUE costruiti e chiusi: P2 e' COMPLETO.**
 
 ### 1-bis. I sei task di `generation-llm`, e cosa ha prodotto il verde
 
@@ -59,27 +59,62 @@ modifica reale. Non e' una promessa che sappia diventare rosso: e' un fatto osse
 
 ## 2. Macrotask corrente
 
-- **Selezionato**: nessuno. Il prossimo BUILD e' **`generation-e2e`** (T-240..T-241), le cui
-  dipendenze (`generation-model/engine/llm/ui`) sono ora tutte verdi.
-- **NUOVO IN P2**: e' il **primo end-to-end vero** (Chromium). Il **CANARY viene PRIMA del verde**:
-  se le asserzioni sull'effetto non sanno prendere il componente deliberatamente insicuro, non
-  provano nulla. L'e-2-e gira al CHECKPOINT di macrotask, non nel giro per-task. E' la sede della
-  prova sull'EFFETTO che generation-ui ha lasciato aperta (il testo non fidato non esegue in un
-  browser reale): oggi provata solo la struttura (jsdom non carica risorse) e la raggiungibilita'.
+- **Selezionato**: nessuno. **P2 e' COMPLETO** (5/5 macrotask verdi su `main`). Il prossimo lavoro
+  e' un altro sotto-progetto (P3 editor inline, o i carry-over dichiarati in §7), non P2.
+- **generation-e2e CHIUSO**: il primo end-to-end vero del progetto. Il **CANARY viene PRIMA del
+  verde** ed e' provato: lo stesso `assertNoInjectionEffect` che i reali fanno passare, il canary lo
+  fa fallire su contatore, console E navigazione (AC-240-2 + il canary di navigazione su AC-241-3).
+  La prova sull'EFFETTO che generation-ui aveva lasciato aperta (il testo non fidato non esegue in un
+  browser reale) e' ora DATA su Chromium: nessuno script del brief ostile esegue, nessun host fuori
+  allowlist (incluso l'host del `photo_ref` strippato), nessuna navigazione. L'e-2-e gira al
+  CHECKPOINT (5 test), non nel giro per-task.
 - **Task atomici in corso**: nessuno.
 
 ## 3. Stato git
 
 | Campo | Valore |
 |---|---|
-| Branch di lavoro | `trueline/build/generation-ui` — 1 commit atomico (`3d149cd`, 80 file, +10787/-459), pushato |
-| Stato merge su `main` | **Mergeato sul verde** (`0dfe7d7`, `--no-ff`). `main == origin/main`. Working tree pulito (piu' i doc di session-end) |
-| Deploy-coupling | **`main_deploy_coupled: false` RICONFERMATO dall'utente all'APERTURA del BUILD** (col «via»), stavolta con risposta esplicita perche' generation-ui e' il primo ad aggiungere superficie deploy-sensibile. Il rilevatore dice `true` (segnale unico: `supabase/config.toml`); l'override e' una decisione umana ripetuta. Merge autonomo sul verde. Nessun deploy, nessuna operazione distruttiva. **`db reset` NON eseguito** (auth non rate-limited: un test DB-backed passava 27/27) |
-| Nota | `generation-ui` aggiunge **2 rotte** (`/{locale}/generate/{siteId}`, `/{locale}/preview/{siteId}`) e **1 endpoint** `POST /api/generate`, ma **nessuna migrazione** (le tabelle sono di T-200). Aggiunte anche 2 server action (`markReady`/`markFailed`), `runPhase2`, `readHomePools`, `readGenerationDocument`, `selectVariant`/`applyRechoose`, e 4 helper d'igiene condivisi |
+| Branch di lavoro | `trueline/build/generation-e2e` — 1 commit atomico (`e34b962`, 20 file, +1854/-50), pushato |
+| Stato merge su `main` | **Mergeato sul verde** (`66d6248`, `--no-ff`). `main == origin/main`. Working tree pulito (piu' i doc di session-end) |
+| Deploy-coupling | **`main_deploy_coupled: false` STANDING**: generation-e2e **non** aggiunge rotte/endpoint/migrazioni — solo file di test (`e2e/**`, `tests/e2e-canary-confinement.test.ts`), config (`playwright.config.ts`, `knip.json`, `.gitignore`) e una dev-dep. Il rilevatore dice `true` (segnale unico `supabase/config.toml`); l'override umano ripetuto regge. Merge autonomo sul verde. Nessun deploy, nessuna operazione distruttiva. **`db reset` NON eseguito** (auth non rate-limited: suite 1116 verde, e2e con auth reale ok) |
+| Nota | `generation-e2e` **non tocca `src/**`** (nessun seam di test in produzione). `@playwright/test@1.60.0` con **lock in sync** (`npm ci` verde): il builder aveva erroneamente ripristinato `package-lock.json`, ri-sincronizzato dall'orchestratore PRIMA del commit. Chromium `chromium-1223` gia' in cache (zero download). Il confine LLM di AC-241-5 e' un pool `ready` **seedato** (doppio deterministico), non un seam in produzione |
 
 ## 4. Baseline & budget
 
-### generation-ui (2026-08-04) — sessione corrente
+### generation-e2e (2026-08-04) — sessione corrente
+
+- **Baseline di SICUREZZA INVARIATA**: hash sha256 di `.trueline/baseline.json` identico prima e dopo
+  il re-capture d'igiene (salvaguardia `--out` VERIFICATA): `0172…0f12`. `gitleaks:0 osv:7 semgrep:0
+  rls:0`. L'aggiunta di `@playwright/test` al lock **non introduce alcun HIGH nuovo** (osv resta 7, i
+  soli carry-over `undici`/`brace-expansion`).
+- **Baseline d'IGIENE ricatturata 71→83, DOPO attribuzione**. Il checkpoint dava `dead-code:5` (i MIEI
+  export inutilizzati) + `dup:83` con 14 duplication `new` **tutte in `src/**` che non ho toccato**
+  (onboarding, `Offerte.tsx`, `turn/route.ts`, `phase2.ts`, `updateProfileLocale.ts`): fingerprint
+  IDENTICI fra i due checkpoint, stabili — **R-04**, ri-fingerprint da espansione del corpus con
+  `e2e/**` (impronte sensibili alla POSIZIONE), non contenuto src nuovo. I 5 dead-code RISOLTI
+  (de-export dei simboli usati solo internamente + cablaggio del marker in `harness.spec`), poi le 14
+  dup attribuite come pre-esistenti e la baseline ricatturata con `dead-code:0` — nulla di mio benedetto.
+- **La riserva su `rls:0` RESTA VALIDA**: generation-e2e **non aggiunge tabelle** → `rls:0` = «nessun
+  rilievo nuovo», non «tabelle auditate a runtime». La RLS delle rotte e' pero' esercitata a runtime
+  dall'e2e (auth reale via cookie di sessione @supabase/ssr, guardia di ownership della `/preview`).
+- **Batteria di mutazione dell'ORCHESTRATORE: 3 mutazioni, 3/3 UCCISE, 0 sopravvissute**, ripristino
+  verificato per **sha256** (tutti identici agli originali): **M1** helper `assertNoInjectionEffect`
+  neutralizzato → i due canary (AC-240-2, AC-241-3) falliscono (la sanita' palesemente fatale); **M2**
+  `Offerte.tsx` reso insicuro con `dangerouslySetInnerHTML` → `hostile-document.spec` rosso (AC-241-1
+  contatore + AC-241-6 anti-placebo): l'e2e prende un XSS **reale** attraverso il renderer vero, non il
+  canary sintetico; **M3** redirect di `selectVariant` deviato → `reachability.spec` rosso (AC-241-5
+  timeout su `waitForURL('**/preview/…')`).
+- **`osv` resta a 7** (2 HIGH: `undici`, `brace-expansion`): carry-over aperto, si tratta dopo.
+- **Suite**: **1116 test** (era 1108), 0 falliti, **+ 5 test e2e** su Chromium (5/5). Un solo intoppo
+  del checkpoint prima della fix: `tests/ci-harness.test.ts` pretende `knip` a 0, quindi i 5 export
+  inutilizzati facevano cadere ANCHE i controlli 3/4 — un'unica causa a valle del dead-code.
+- **Budget/forma**: 1 workflow di build (4 agenti: 2 builder + 2 verifier BLIND, **0 errori d'agente**,
+  ~0,84M token). Fix applicate dall'orchestratore (de-export + canary di navigazione), non da un
+  workflow separato: diagnosi gia' completa (un'unica radice). Preflight: 3 Explore in parallelo
+  (rotte/render · infra-test/auth/seam-LLM · schema/config-confini) + gate di fattibilita' e2e
+  (`@playwright/test@1.60.0` ↔ `chromium-1223` gia' in cache, zero download).
+
+### generation-ui (2026-08-04) — sessione precedente
 
 - **Baseline di SICUREZZA INVARIATA**: hash sha256 di `.trueline/baseline.json` identico prima e
   dopo la ricattura d'igiene (salvaguardia `--out` VERIFICATA). `gitleaks:0 osv:7 semgrep:0 rls:0`.
@@ -156,6 +191,29 @@ modifica reale. Non e' una promessa che sappia diventare rosso: e' un fatto osse
   2,7M token) e uno di **FIX da 6 agenti** (0 errori, 1,1M token). Il metodo di §8.1 ha retto.
 
 ## 5. Esiti del BUILD (framing onesto)
+
+### generation-e2e (2026-08-04)
+
+1. **Il buco di onesta' che i verifier CIECHI hanno trovato: la dimensione NAVIGAZIONE non era provata
+   rossa.** Il canary di T-240 provava la red-ability su contatore e console, ma NESSUN payload ne' il
+   canary esercitava una navigazione, quindi l'assenza-di-navigazione di AC-241-3 reggeva in gran parte
+   per costruzione (payload resi come testo). Aggiunto un **canary di navigazione** che sposta davvero
+   il documento: lo stesso helper diventa rosso anche sulla navigazione. Nota misurata: il browser
+   BLOCCA la navigazione top-level verso `data:`/`blob:` (anti-XSS), quindi il canary punta all'host
+   dell'app (in allowlist) per isolare la SOLA dimensione navigazione.
+2. **Un'unica causa reale dietro TRE controlli rossi.** Il primo checkpoint dava C1(dead-code), C3 e C4
+   rossi. C3/C4 non erano una regressione: `tests/ci-harness.test.ts` pretende `npm run knip` a 0, e i
+   5 export inutilizzati (i miei) lo facevano fallire. Chiuso il dead-code (de-export), i tre controlli
+   sono rientrati insieme. Il resto del rosso era `dup` — 14 impronte src PRE-ESISTENTI
+   ri-fingerprintate dall'aggiunta di `e2e/**` (R-04), attribuite e ri-baselinate.
+3. **`package-lock.json` fuori sync (errore del builder, corretto PRIMA del commit).** Il builder aveva
+   ripristinato il lock a HEAD credendolo un'inconsistenza pre-esistente, lasciando `@playwright/test`
+   in `package.json` ma NON nel lock: `npm ci` (la CI) sarebbe fallito. Ri-sincronizzato
+   (`npm install --package-lock-only`, `npm ci --dry-run` verde) e ri-checkpointato sullo stato finale.
+4. **AC-241-5 senza toccare la produzione.** Il «confine LLM sostituito da un doppio deterministico» e'
+   un pool `ready` SEEDATO nel DB: la pagina monta il chooser, il click su `[data-choose-variant]`
+   esegue `selectVariant` reale → redirect a `/preview`. Nessuna chiamata al modello, nessun seam di
+   test in `src/**` (che sarebbe stato «comportamento inventato», vietato).
 
 ### generation-ui (2026-08-04)
 
@@ -283,7 +341,43 @@ misura**. La batteria stampa ora il numero di riga e il suo testo, e rifiuta le 
     66→70), non estratte: similarita' strutturale accettabile, non «coppie che devono restare
     identiche».
 
+> **generation-e2e (04/08) — nuove voci 45+** (le 39-44 sono di generation-ui).
+
+45. **La prova sull'EFFETTO e' data SOLO su Chromium** (AC-240-5): non su Firefox/WebKit. Un motore con
+    una semantica diversa non e' provato. E l'e2e **non percorre login e onboarding** (rate limit auth,
+    out_of_scope T-241): l'utente e' autenticato per **iniezione dei cookie di sessione**, brief e
+    generazione sono SEEDATI via service_role.
+46. **L'assenza di CSP e' un fatto dichiarato.** L'app non impone alcuna Content-Security-Policy: la
+    difesa provata dall'e2e e' la SANIFICAZIONE (escaping di React, niente `dangerouslySetInnerHTML`,
+    href validati), non una CSP. Se P4 aggiungesse una CSP, un verde potrebbe MASCHERARE un renderer
+    rotto — il canary protegge la MISURA (sa diventare rosso), non questo scenario futuro.
+47. **La raggiungibilita' e2e (AC-241-5) percorre choose→redirect→preview, NON il launcher live.** Il
+    doppio deterministico e' un pool `ready` seedato; il percorso `/api/generate` (GenerateLauncher →
+    POST → confine LLM) resta provato solo dagli unit test, non guidato in un browser reale.
+48. **La dimensione OFF-HOST dell'oracolo non ha un canary sintetico dedicato**, a differenza di
+    contatore/console/navigazione: e' provata falsificabile da una regressione VERA (photo_ref→src→
+    richiesta all'host attaccante), non da un canary che fa una fetch esterna. Il verifier l'ha
+    giudicata «assertito».
+49. **La batteria di mutazione ha provato l'ORACOLO, non l'assenza di bug di produzione.** M2 ha reso
+    insicuro un blocco per verificare che l'e2e lo prenda: nel codice reale quel sink non esiste
+    (asserito da `site-blocks-style.test.ts` su tutta `src/ui/site/**`). La mutazione e' stata
+    ripristinata e verificata per hash; non e' una modifica al prodotto.
+
 ## 7. Carry-over
+
+### Chiusi da generation-e2e (04/08) — P2 COMPLETO
+- **La prova sull'EFFETTO del testo non fidato in un browser reale** (P1 §7 p.5, lasciata aperta da
+  generation-ui §6 voce 39): **DATA** su Chromium — nessuno script del brief ostile esegue (AC-241-1),
+  nessun host fuori allowlist incluso quello del `photo_ref` strippato (AC-241-2), nessuna navigazione
+  (AC-241-3), i sei payload presenti come testo (AC-241-6). La parte oracolabile di P1 §7 p.5 e il
+  limite di P1 §6-bis p.1 («nulla e' mai girato in un browser») sono **superati**.
+- **La red-ability del CANARY** e' provata su contatore, console E navigazione (AC-240-2 + il canary di
+  navigazione): il verde dell'end-to-end ha significato.
+- **La raggiungibilita' del deliverable** (l'orfano che generation-ui §5 temeva): il percorso
+  genera→scegli→anteprima e' percorso in un browser reale (AC-241-5).
+- **Restano aperti, ora oltre P2**: `osv:7` (2 HIGH), la CI mai provata da una run reale (`gh` non
+  installato — ma ora c'e' lo script `test:e2e` da cablare in `ci.yml` dopo `supabase start`), e le
+  voci 45-49 di §6.
 
 ### Chiusi da generation-ui (04/08)
 - **Carry-over P1 §7 p.5** (testo estratto = input non fidato in RENDERING): chiuso per la STRUTTURA
@@ -341,11 +435,12 @@ di altitudine, **ancora rinviato**.
      `buildGenerationPayload`, cioe' il payload che T-224 cattura e che T-225 compone. Ogni fixer di
      valle ha ricevuto l'istruzione esplicita di **non ammorbidire un'asserzione** per riassorbire il
      movimento.
-3. **Prossimo BUILD**: `generation-e2e` (T-240..T-241), l'ULTIMO macrotask di P2 e il **primo
-   end-to-end vero** (Chromium). Il **CANARY viene PRIMA del verde**. E' la sede della prova
-   sull'EFFETTO che generation-ui ha lasciato aperta (§6 voce 39). Non serve la chiave API:
-   l'artefatto sotto test e' il DOCUMENTO (una fixture). Deploy-coupling gia' riconfermato; nessuna
-   tabella nuova prevista.
+3. **P2 E' COMPLETO** (5/5 macrotask verdi su `main`): `generation-e2e` (T-240..T-241) e' chiuso e
+   mergeato (`66d6248`). Non c'e' un «prossimo BUILD» in P2. Il lavoro successivo e' un altro
+   sotto-progetto (**P3** editor inline dei contenuti, la sede definitiva del documento) oppure i
+   carry-over dichiarati (§7): `osv:7`, il **cablaggio dell'e2e in CI** (`test:e2e` dopo
+   `supabase start`, con gli stessi env di `ci.yml`), la prima misura reale di `usage` per la taratura
+   di `P2-D17` quando esistera' una chiave, e il contratto `architecture:` (`P1-D11`) ancora rinviato.
 4. **Decisioni ancora dell'utente**: taratura crediti/prezzi dopo la prima misura reale (`P2-D17`,
    che T-225 puo' ora produrre appena esiste una chiave); attivazione del contratto `architecture:`
    (`P1-D11`); gli avvisi `osv`.
