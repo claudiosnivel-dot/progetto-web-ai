@@ -8,9 +8,9 @@
 |---|---|
 | **Progetto** | Belora |
 | **Ecosistema** | supabase-jsts (JS/TS + Supabase) |
-| **Ultimo aggiornamento** | 2026-07-30/31 (BUILD del macrotask **`generation-engine`**: T-210..T-215 costruiti, checkpoint **VERDE 4/4**, mergeato su `main`) |
-| **Sessione corrente** | **BUILD di `generation-engine`**, il secondo macrotask di P2. Cinque task atomici piu' due lavori nati da rilievi misurati. **Suite da 643 a 858 test.** Tre decisioni dell'utente registrate: `P2-D24`, `P2-D25` e la correzione del contratto di `PageSpec`. Checkpoint di macrotask VERDE 4/4, `degraded: []`, merge autonomo su `main` |
-| **Sessione precedente** | Audit degli ORACOLI di P0/P1 + la sua fase di fix (29/07): 72 mutazioni, 26 rilievi, ZERO difetti attivi, `src/` mai modificato |
+| **Ultimo aggiornamento** | 2026-08-04 (BUILD del macrotask **`generation-llm`**: T-220..T-225 costruiti, checkpoint **VERDE 4/4**, mergeato su `main` con `4f36e16`) |
+| **Sessione corrente** | **BUILD di `generation-llm`**, il terzo macrotask di P2. Sei task atomici. **Suite da 858 a 976 test.** Sette decisioni dell'utente, sei registrate come `P2-D26`..`P2-D31`. Checkpoint di macrotask VERDE 4/4, `degraded: []`, merge autonomo su `main` |
+| **Sessione precedente** | BUILD di `generation-engine` (30/07): T-210..T-215, checkpoint VERDE 4/4 |
 
 ---
 
@@ -19,227 +19,238 @@
 | Macrotask | Stato | Checkpoint | Note |
 |---|---|---|---|
 | generation-model | **done** | **VERDE 4/4** (2026-07-28) | T-200..T-204 |
-| generation-engine | **done** | **VERDE 4/4** (2026-07-30) | T-210..T-215. 8 commit sul branch + 1 di merge. `degraded: []` |
-| generation-llm | **todo** | — | T-220..T-225 — il confine. **Prossimo BUILD** |
-| generation-ui | **todo** | — | T-230..T-237 — il macrotask piu' esposto |
+| generation-engine | **done** | **VERDE 4/4** (2026-07-30) | T-210..T-215 |
+| generation-llm | **done** | **VERDE 4/4** (2026-08-04) | T-220..T-225. 9 commit sul branch + 1 di merge. `degraded: []` |
+| generation-ui | **todo** | — | T-230..T-237 — il macrotask piu' esposto. **Prossimo BUILD** |
 | generation-e2e | **todo** | — | T-240..T-241 — il primo end-to-end vero |
 
-**→ 27 task atomici, 5 macrotask. Due costruiti e chiusi, tre da costruire.**
+**→ 27 task atomici, 5 macrotask. Tre costruiti e chiusi, due da costruire.**
 
-### 1-bis. I sei task di `generation-engine`, e cosa ha prodotto il verde
+### 1-bis. I sei task di `generation-llm`, e cosa ha prodotto il verde
 
-| Task | Output | Mutazioni del verifier | Batteria dell'orchestratore |
+| Task | Output | Mutazioni del verifier | Esito dopo le fix |
 |---|---|---|---|
-| T-210 | `blocks.ts` — catalogo di 8 blocchi, `blocksFor`, `slotsForBlocks`, `resolveOfferings` | **37: 13 prese, 24 SOPRAVVISSUTE** | 14/14 dopo le fix |
-| T-211 | `themes.ts` — 5 temi versionati + la regola ESLint del confine | 33: 32 prese, 1 mutante equivalente | 7/7 |
-| T-212 | `recipes.ts` — 5 direzioni, `recipeFor`, `applyRecipe` | 53: 48 prese, 5 sonde | 7/7 |
-| T-213 | `pages.ts` — `pagesFor`, `navigationFor`, `PAGE_CATALOG`, `PAGES_MIN = 3` | 49: 44 prese, 4 sopravvissute | 18/18 |
-| T-214 | `resolve.ts` — da pool+ricetta+tema al `SiteDocument` | 54: 47 prese, 7 sopravvissute | 9/9 + 3 sonde |
-| T-215 | `generatable.ts` — `GENERATABLE_MIN_BLOCKS = 4` | 54: 50 prese, 4 equivalenti | 5/5 |
+| T-220 | `projection.ts` — `PROJECTION_ALLOWLIST` enumerata, `PROJECTION_LIMITS`, `briefProjection` | 52 | 15 test (erano 11); 14 mutazioni ridiventate PRESE |
+| T-221 | `normalize.ts` — `normalizeForPrompt`, conservativo e idempotente | **42: 29 prese, 13 SOPRAVVISSUTE** | 13 test; le 4 ALTA chiuse |
+| T-222 | `tool.ts` — `buildPoolTool`, guardia ricorsiva del sottoinsieme | 30: 20 prese, 10 sopravvissute | 13 test; `P2-D28` implementata |
+| T-223 | `prompt.ts` + `budget.ts` — `SYSTEM_PROMPTS`, `buildGenerationPayload`, `GENERATION_BUDGET` | 48 | 28 test; `P2-D26` e `P2-D30` implementate |
+| T-224 | `runGenerationTurn` in `src/data/anthropic.ts` + `getAnthropicGenerationModel` | **58** | 28 test; `P2-D29` implementata |
+| T-225 | `scripts/measure-generation-usage.ts` — harness di misura | 57 | 16 test; `P2-D27` e `P2-D31` implementate |
 
-**Il dato che riassume il macrotask**: in T-210 la prima suite era VERDE con **24 mutazioni su 37
-sopravvissute**, e il modulo era CORRETTO. Il difetto stava nell'oracolo, ed e' la forma che si e'
-ripetuta in tutti e sei i task. Nessun giro di fix ha mai dovuto correggere un bug di produzione:
-`src/` e' stato toccato **due volte in tutto**, entrambe su decisione esplicita dell'utente (il
-contratto di `PageSpec`, la totalita' di `resolve`), piu' l'estrazione finale trovata dal checkpoint.
+**Il dato che riassume il macrotask, ed e' lo stesso di `generation-engine`**: sei suite VERDI con
+~287 mutazioni girate contro, e **nessun giro di fix ha corretto un bug di produzione**. I difetti
+stavano tutti nell'ORACOLO. `src/` e' stato modificato **oltre la costruzione** solo per le decisioni
+esplicite dell'utente (`P2-D26`, `P2-D27`, `P2-D29`, `P2-D31`) piu' due commenti.
 
 ### Verdetto del checkpoint, letterale (dal JSON, non dall'exit code)
 
 ```
 checkpoint=VERDE | 1:dead-code=green 2:security=green 3:regressions=green 4:conformance=green
   1 dead-code  green  nessuna regressione d'igiene NUOVA [dead-code:0 dup:66 cycle:0 twin:0]
-  2 security   green  nessun finding di sicurezza NUOVO >= HIGH [gitleaks:0 osv:0 semgrep:0 rls:0]
+  2 security   green  nessun finding di sicurezza NUOVO >= HIGH [gitleaks:0 osv:7 semgrep:0 rls:0]
   3 regressions green  test verdi
   4 conformance green  test verdi
 degraded = []
 ```
 
-**Il controllo 2 vale piu' di quanto sembri**: e' risultato verde mentre `.trueline/baseline.json`
-conteneva ancora, per un difetto dello strumento (§8.5), uno snapshot d'IGIENE al posto della
-baseline di sicurezza — cioe' con **zero impronte soppresse**. Ogni finding sarebbe stato riportato
-come NUOVO. La cattura successiva della baseline vera ha confermato: **0 finding di sicurezza**.
+**Il verde e' credibile per una ragione che viene da questa sessione**: lo stesso oracolo e' stato
+**ROSSO due volte di fila** (4 duplicazioni nuove, poi 1) ed e' diventato verde solo dopo una
+modifica reale. Non e' una promessa che sappia diventare rosso: e' un fatto osservato tre volte.
 
 ## 2. Macrotask corrente
 
-- **Selezionato**: nessuno. Il prossimo BUILD e' **`generation-llm`** (T-220..T-225), l'unico
-  rimasto le cui dipendenze sono verdi. `generation-ui` viene dopo (dipende da llm e da engine).
-- **Nota che vale per T-225**: senza chiave API il task si dichiara *non eseguito*, mai verde.
+- **Selezionato**: nessuno. Il prossimo BUILD e' **`generation-ui`** (T-230..T-237), le cui
+  dipendenze (`generation-model`, `generation-engine`, `generation-llm`) sono ora tutte verdi.
+- **Attenzione**: e' il macrotask **piu' esposto** di P2 — il rendering del testo non fidato del
+  brief nel sito generato (carry-over P1 §7 p.5) — e il primo che aggiunge rotte e un endpoint
+  `/api`. Il deploy-coupling andra' riconsiderato, non solo riconfermato.
 - **Task atomici in corso**: nessuno.
 
 ## 3. Stato git
 
 | Campo | Valore |
 |---|---|
-| Branch di lavoro | `trueline/build/generation-engine` — 9 commit, tutti pushati |
-| Stato merge su `main` | **Mergeato sul verde** (`7596e66`, `--no-ff`). `main == origin/main`. Working tree pulito |
-| Deploy-coupling | **`main_deploy_coupled: false` RICONFERMATO dall'utente all'apertura.** Il rilevatore dice `true` (segnale unico: `supabase/config.toml`), l'override e' una decisione umana ripetuta. Merge autonomi sul verde; **distruttive e deploy restano gated**. Nessun deploy, nessuna operazione distruttiva |
-| Nota | `generation-engine` non ha aggiunto migrazioni, rotte o endpoint `/api`: e' tutto dominio puro piu' una regola ESLint |
+| Branch di lavoro | `trueline/build/generation-llm` — 9 commit, tutti pushati |
+| Stato merge su `main` | **Mergeato sul verde** (`4f36e16`, `--no-ff`). `main == origin/main`. Working tree pulito |
+| Deploy-coupling | **`main_deploy_coupled: false` RICONFERMATO dall'utente al confine del macrotask**, non all'apertura: la richiesta fatta all'apertura non aveva avuto una risposta esplicita e **non e' stata data per concessa**. Il rilevatore dice `true` (segnale unico: `supabase/config.toml`); l'override e' una decisione umana ripetuta. Nessun deploy, nessuna operazione distruttiva |
+| Nota | `generation-llm` non ha aggiunto migrazioni, rotte o endpoint `/api`: dominio puro, piu' un'aggiunta al confine esistente, un accessor di config, e la configurazione di lint/knip |
 
 ## 4. Baseline & budget
 
-- **Baseline di sicurezza**: `gitleaks:0 · osv:0 · semgrep:0 · rls:0`. Ricatturata il 30/07 e
-  contiene **0 finding**. Resta valida la riserva del 29/07: `rls:0` significa «nessun rilievo
-  prodotto», non «tutte le tabelle auditate» — su 2 tabelle su 7 l'oracolo statico non guarda
-  (`generation_pools`, `profiles`). Dettagli in `docs/blueprint/audit-oracoli/00-copertura-oracolo-rls.md`.
-- **Baseline d'igiene**: `.trueline/hygiene-baseline.json`, da 67 a **64 impronte**, tracciata in git.
-  **Attribuita PRIMA di ricatturare**, mai il contrario:
-  - **5 aggiunte**: 2 sono le `inner_page_rules` identiche fra quattro ricette su cinque
-    (ripetizione DICHIARATIVA — le cinque direzioni differiscono nell'ordine della home, non nelle
-    regole interne); 1 e' il blocco di import condiviso fra `recipes.ts` e `pages.ts` (non
-    rimovibile); **2 sono SPURIE**, su `05-generation-e2e.md` che non e' stato toccato — sono
-    impronte SPOSTATE perche' e' stato editato il partner della coppia (**R-04**: le impronte sono
-    sensibili alla POSIZIONE).
-  - **8 sparite, e NON sono copertura persa**: verificato che le stesse posizioni restano nella
-    baseline sotto impronte diverse (17 in `src/data/**`, fra cui `sites.ts:70` che risultava
-    "sparita"). `jscpd` ri-accoppia i blocchi quando il corpus cambia.
-  - **2 duplicazioni sono state RIMOSSE davvero**, non benedette: `testoPresente` (vedi §5).
-- **Suite**: **858 test in 68 file**, 0 falliti, 0 skippati. Erano 643.
-- **Budget/forma**: 2 agenti per workflow, un task per volta. **Dal prossimo macrotask cambia**
-  (§8.1).
+- **Baseline di sicurezza**: **INVARIATA**, hash identico prima e dopo (`gitleaks:0 semgrep:0 rls:0`).
+  Verificato **dopo** la cattura d'igiene, non prima: e' la trappola di §8.5 (senza `--out`,
+  `capture --hygiene` scrive proprio su questo file).
+- **`osv` e' passato da 0 a 7** fra la cattura della baseline (30/07) e oggi. **Non viene da questo
+  macrotask**: sono avvisi su dipendenze pubblicati nel frattempo. Il controllo 2 li lascia passare
+  con la sua regola («nessun finding NUOVO >= HIGH»), ma `npm audit` ne classifica **due come HIGH**:
+  `undici` (diretta, response desynchronization) e `brace-expansion` (transitiva, DoS), piu' `next` e
+  `postcss` moderate. **Carry-over aperto per decisione dell'utente**: si trattano dopo il merge, per
+  non mescolare un aggiornamento del lockfile con la generazione in un solo commit.
+- **Baseline d'igiene**: `.trueline/hygiene-baseline.json`, **64 impronte**. **Attribuita PRIMA di
+  ricatturare**, mai il contrario:
+  - Il primo checkpoint dava **4 duplicazioni nuove** (`dup:69`).
+  - **3 erano VERE e sono state RIMOSSE, non benedette**: i corpi `rules:` di `eslint.config.mjs`
+    erano ricopiati da un blocco all'altro. Estratti in tre costanti condivise
+    (`CONFINI_PRIVILEGIATI`, `SOLO_SERVICE_ROLE`, `CONFINI_DEL_SITO_GENERATO`). Misurato: `dup` da
+    **69 a 66**.
+  - **1 e' SPURIA e resta, dichiarata**: `05-generation-e2e.md:142`. Il file **non e' modificato**
+    (git lo conferma) e il blocco duplicato e' il `## Self-check`, **byte-identico nei cinque
+    moduli** da prima della sessione: editando `03` sono cambiate le POSIZIONI e `jscpd` ha
+    ri-accoppiato. E' **R-04**, e ha colpito **lo stesso file** anche al checkpoint precedente.
+- **Suite**: **976 test in 77 file**, 0 falliti, 0 skippati. Erano 858 in 68.
+- **Budget/forma**: un workflow di BUILD da **12 agenti** (6 builder + 6 verifier BLIND; 0 errori,
+  2,7M token) e uno di **FIX da 6 agenti** (0 errori, 1,1M token). Il metodo di §8.1 ha retto.
 
-## 5. Esiti del BUILD di `generation-engine` (framing onesto)
+## 5. Esiti del BUILD di `generation-llm` (framing onesto)
 
-**Tre cose che il checkpoint ha trovato e che nessuna review avrebbe visto.**
+**Tre cose che il checkpoint e la verifica avversariale hanno trovato e che nessuna review avrebbe
+visto.**
 
-1. **`testoPresente` era definita TRE VOLTE identica** in `blocks.ts`, `pages.ts` e `resolve.ts`.
-   Non e' un'utilita': decide se un blocco ESISTE, quindi se il modello riceve i suoi slot
-   (P2-D7), e poi se una pagina esiste (T-213) e se un campo entra nel documento (T-214). Estratta
-   in `gate.ts`, la sede che esisteva gia' per le primitive condivise. **Verificato che l'estrazione
-   non l'abbia spostata dove nessuno guarda**: togliere il trim da' 7 rossi, renderla sempre vera
-   ne da' 20 — e ora una sola mutazione e' giudicata dai test di tre moduli insieme.
-   **Perche' le tre copie esistevano**: i JSDoc lo DICHIARAVANO («l'alternativa sarebbe aprire un
-   artefatto gia' passato dal checkpoint del proprio macrotask»). I builder sapevano; il vincolo
-   «tocchi esattamente due file» lo imponeva. E' un costo del metodo, e il checkpoint di macrotask
-   e' il posto giusto in cui pagarlo.
-2. **La deduplicazione dei blocchi in `resolve` non e' difensiva, e' PORTANTE.** Su una one-pager
-   le sequenze dei ruoli assorbiti si sovrappongono a `home_blocks` per costruzione (ogni blocco
-   dichiara il ruolo `home`), quindi senza di essa OGNI one-pager avrebbe il blocco offerte due
-   volte. Misurato spegnendola: il caso peggiore passa da **6.156.391 a 12.185.391 byte** (145,3%
-   del tetto di 8 MiB), con 12 blocchi per pagina — esattamente `blocks_per_page`. Il documento
-   viene rifiutato. `blocks_per_page` e' rispettato **per costruzione**, non da un controllo.
-3. **La difesa sul `photo_ref` non e' la riga di `resolve`.** Togliendo il `delete`, l'URL non
-   passa in silenzio: il gate di T-202 RIFIUTA il documento con `unrecognized_keys`.
-   L'irrappresentabilita' per tipo e' la difesa; la riga di `resolve` serve a non trasformarla in
-   una generazione fallita.
+1. **`normalizeForPrompt` non aveva ALCUN consumatore di produzione.** `grep -rn "generation/normalize"
+   src/` dava **zero** righe: `buildGenerationPayload` serializzava la proiezione GREZZA. La
+   riduzione di superficie dichiarata dalle security_notes di T-221 **non era in vigore sul percorso
+   reale**, e nessun oracolo poteva accorgersene — `knip` vede il file di test come consumatore,
+   quindi il controllo dead-code sarebbe restato VERDE su un modulo di igiene inutilizzato. Misurato
+   due volte: spegnendo la rimozione dei tag cadevano **solo i 5 test di normalize su 86**; dopo
+   `P2-D26` la stessa mutazione ne rompe **9 su 133, in 2 file**. Il blueprint non nominava il
+   consumatore in nessuno dei tre task a valle: era un buco della SPECIFICA, non del codice.
+2. **`scripts/**` era fuori dai confini di lint e dall'oracolo dead-code.** Misurato sulla stessa
+   sorgente lintata a percorsi diversi: `src/ui/**` **6 messaggi**, `src/app/**` **6**, `scripts/**`
+   **ZERO**. Non era aperta per decisione — non era mai stata considerata. E il primo file nato li'
+   costruisce `new Anthropic({ apiKey })`, cioe' il **secondo detentore della chiave grezza** del
+   repo, contro `P1-D7`. Precisazione che vale: `scripts/**` **era gia' typecheckato** (verificato
+   iniettando un errore di tipo), quindi il buco era di lint e dead-code, non di tipi.
+3. **I corpi `rules:` di `eslint.config.mjs` erano copie.** Il costo non e' la ripetizione: e' che
+   due blocchi che DEVONO dire la stessa cosa possono divergere in silenzio, e un confine che vieta
+   di piu' in un layer e di meno in un altro **si aggira scegliendo dove mettere il file**. Ora
+   «`scripts/**` e' trattato come `src/**`» e' un fatto del file. Comportamento verificato invariato,
+   non affermato: la sonda da' gli stessi **6/6/3/6/0** di prima e i 45 test di confine restano verdi.
 
-**Il confine di import, chiuso in ogni forma equivalente** (commit `ee9baa5`, fuori dal blueprint,
-deciso dall'utente). `no-restricted-imports` di ESLint 10.7.0 **non ha alcun handler
-`ImportExpression`**: `import('@/data/supabase-admin')` dava 0 messaggi da qualunque layer, page
-comprese. Chiuse cinque forme: import dinamico, estensione `.js`, file non-TS, **template literal**
-senza buchi, e segmento doppio/puntato. Sui due confini privilegiati regge comunque `server-only`
-(il build fallisce); su quello dei TEMI no — li' la regola di lint **e'** il meccanismo.
+**Una mutazione e' sopravvissuta anche alle fix, ed e' stata chiusa in orchestrazione.** Allargare
+l'allowlist degli slug con uno slug che nessuna fixture scrive (`'pagina-mai-chiesta'`, ma la forma
+plausibile e' l'aggiunta di comodo di `'home'`) lasciava verdi **133 test su 133**. Il fixer aveva
+chiuso il verso comportamentale — una pagina fuori allowlist cade — ma **nessun esito puo' osservare
+un'allowlist allargata con uno slug che nessuno scrive**: la proprieta' va vista sull'ARGOMENTO. Una
+spia non invasiva su `parsePool` la rende falsificabile.
 
-**Emendamenti al blueprint**, tutti approvati dall'utente su misure: `P2-D24` (la galleria fuori
-dal catalogo v1) · `P2-D25` (la DoD di T-215 allineata a cio' che il modulo puo' promettere con
-verita': `effect: 'unlocks' | 'specializes'`). Piu' la correzione del contratto di `PageSpec`
-(`section_roles` → `absorbed_roles`, `priority` e `justifying_blocks` tolti dove erano inerti),
-fatta **prima** che T-214 lo consumasse. `validate_blueprint.mjs` **EXIT 0** dopo ognuno.
+**Un errore dell'orchestratore, dichiarato perche' e' istruttivo.** Due mutazioni della batteria
+trasversale erano ancorate a una stringa (`strict: true`, `additionalProperties: false`) che compare
+**anche nei JSDoc**, e `String.replace` ha mutato il COMMENTO invece del codice: entrambe risultavano
+«SOPRAVVISSUTE» ed erano **misure invalide**. Rifatte ancorate alla riga di codice, sono PRESE. E'
+la stessa famiglia dei 37 falsi positivi di P1: **una mutazione non verificata sulla riga non e' una
+misura**. La batteria stampa ora il numero di riga e il suo testo, e rifiuta le ancore su commento.
 
 ## 6. Copertura dichiarata (cosa NON e coperto, da subito)
 
-> Le voci 1-21 sono ereditate dalle sessioni precedenti e restano valide. Qui le NUOVE.
+> Le voci 1-30 sono ereditate dalle sessioni precedenti e restano valide. Qui le NUOVE.
 
-22. **Il 404 interno e' irrappresentabile RELATIVAMENTE ALL'ARGOMENTO**, non al set generato.
-    `PageSpec` e' esportato senza brand: `navigationFor` su una spec fabbricata a mano con uno slug
-    inesistente restituisce quella destinazione. Che l'argomento sia il set generato e'
-    **precondizione del chiamante**. La versione forte (`pagesFor` che restituisce set e
-    navigazione insieme) e' stata valutata e SCARTATA: sarebbe un emendamento alla DoD.
-23. **La meta' STATICA del segmento doppio resta aperta**: `@/data//anthropic` sfugge ancora ai
-    `patterns` di ESLint. Tre gruppi di glob provati, nessuno chiude il segmento VUOTO (il
-    pacchetto `ignore` non lo fa combaciare). Chiuderla richiede un resolver, non un confronto di
-    stringhe. **Pinnata da un test** che diventera' rosso il giorno in cui qualcuno la chiude.
-24. **Il confine non vede `import(variabile)`, il template col buco sul nome, e `require()`.**
-    Dichiarato in `eslint.config.mjs`.
-25. **`applyRecipe` NON deduplica**: per T-214 «nessun doppione» e' una PRECONDIZIONE, non un
-    teorema. Il vincolo vale per le cinque ricette del catalogo, non per ogni `SiteRecipe` che un
-    chiamante possa costruire.
-26. **`resolve` lancia su due assi dichiarate**: un `role` o un ruolo assorbito fuori vocabolario
-    (l'eccezione cade dentro `applyRecipe`, T-212), e i cinque argomenti nulli. Difendersene
-    vorrebbe dire riscrivere qui la forma di cinque contratti di monte.
-27. **La chiave della mappa degli orari e' TESTO DELL'UTENTE** che entra nel documento come chiave
-    di oggetto. La forma la vincola T-202 e la lunghezza il brief, ma il contratto di sanificazione
-    dei blocchi nomina il CAMPO `hours`, non le sue chiavi: **T-231 deve trattarle come dato**.
-28. **`generatable` non da' la guida sulla soglia della pagina contatti ne' sulle materie FAQ.**
-    Misurato: da uno stato intermedio (un recapito gia' scritto, due materie su tre) **un solo
-    campo basterebbe** — 14 coppie fra i casi del file. Riscrivere qui quelle soglie sarebbe una
-    seconda verita' sulla stessa cosa.
-29. **L'identita' per riferimento delle voci restituite da `applyRecipe` e da `resolve` non e'
-    giudicata**, per una ragione strutturale: `toEqual` e' un confronto STRUTTURALE e uno spread
-    superficiale condivide array e closure, quindi una copia e' uguale per costruzione.
-30. **La provenienza dei ruoli superstiti in `generatable` non e' osservabile**: leggerli dal
-    risultato di `pagesFor` o ricalcolarli dalle precondizioni da' lo stesso risultato per ogni
-    tetto. La scelta resta giusta (una sola verita' non puo' divergere) ma e' architettura, non
-    un'asserzione.
+31. **Le asserzioni anti-fuga sono match per SOTTOSTRINGA, e ora il limite ha un numero.** Su T-220 il
+    prefisso comune cercato e' lungo 9: una fuga piu' corta, o presa dalla CODA invece che dalla
+    testa, non e' vista (misurato con due mutazioni dedicate). Su T-224 la granularita' scende a 6, e
+    sotto i 6 il confronto comincerebbe a colpire testo legittimo. Una fuga **trasformata** (base64,
+    percent-encoding, collasso degli spazi) sfugge a tutte.
+32. **`AC-224-5` non puo' fallire per colpa di `runGenerationTurn`**, ed e' corretto che sia cosi':
+    la funzione riceve `{ payload, phase, allowedSlugs }` e **non ha mai il Brief in mano**. Cio' che
+    non entra non puo' uscire. E' una proprieta' della FIRMA, non un'asserzione: l'oracolo prova che
+    T-220 e T-223 non perdono, non che questo modulo non possa.
+33. **`AC-221-5` e' VACUO sul modulo di produzione**: `normalizeForPrompt(text: string): string`
+    riceve e ritorna stringhe, che in JS sono immutabili, quindi **nessuna** implementazione puo'
+    mutare il brief. Le sue righe non possono diventare rosse per alcuna mutazione di `normalize.ts`.
+    Dichiarato nel file.
+34. **«il test riporta il valore misurato» non e' soddisfatto col reporter di default** (AC-220-4,
+    AC-223-4, AC-223-6): vitest 4 non stampa il `console.log` di un test PASSATO, quindi il numero si
+    vede solo sul rosso o con `--reporter=verbose`. **Decisione dell'utente**: si dichiara il limite
+    invece di cambiare il meccanismo, che vive identico in quattro file gia' checkpointati.
+35. **Un letterale al posto della costante non e' distinguibile da alcun oracolo di comportamento**
+    (stesso valore, stesso esito). L'unica rete e' la scansione dei letterali di `AC-223-6`, che e'
+    limitata per costruzione a `src/domain/generation/**`, `src/data/generations.ts` e
+    `src/data/anthropic.ts` — e vede solo i LETTERALI: la stessa evasione scritta come ESPRESSIONE
+    (`600 * 1000`) le sfugge.
+36. **`scripts/measure-generation-usage.ts` puo' raggiungere il confine LLM**: e' l'eccezione
+    dichiarata di `P2-D27`, stretta quanto serve (il client `service_role` resta vietato anche li').
+    Un file NUOVO sotto `scripts/` non eredita l'eccezione. Resta vero che il repo ha ora **due**
+    posti che costruiscono un client con la chiave grezza, e il secondo e' sorvegliato dalla
+    configurazione, non da un oracolo di test.
+37. **Gli schemi strict non sono provati contro l'API reale** (eredita P1 §6-bis p.2): senza chiave
+    ogni oracolo mocka il confine. Cio' che e' provato e' la conformita' al sottoinsieme accertato da
+    `P1-D20`, che e' la migliore approssimazione disponibile e **non** un via libera dell'API.
+38. **La qualita' del copy e la lingua non sono oracolabili.** `AC-223-1` prova che i prompt
+    per-locale esistono, sono non vuoti, sono diversi e sono legati al locale: una traduzione
+    SBAGLIATA ma diversa passerebbe. Cio' che il controllo garantisce davvero e' la **totalita' sul
+    tipo** — un locale nuovo rompe il typecheck e obbliga a decidere.
 
 ## 7. Carry-over
 
 ### Chiusi da questo macrotask
-- **P1 §7 p.1** (*«`isBriefComplete` verifica presenza e non provenienza»*): **CHIUSO** da
-  `AC-215-4`. Il caso e' costruito passando dal validatore vero e asserito nei due versi; il
-  verifier l'ha rimisurato su 11 brief: **sei sono accettati da P1 e rifiutati da P2**, e il verso
-  opposto non esiste.
-- **Copertura §11 di P2** (*il `page_role` di uno slot non e' pinnato*): **CHIUSO** in T-213, che
-  pinna la corrispondenza fra i blocchi giustificanti e il `page_role` dei loro slot.
+- **Copertura §6 p.24 di P2** (*il confine non vede `import(variabile)` e `require()`*): **resta
+  aperta**, ma il perimetro si e' allargato — `scripts/**` non e' piu' fuori dai blocchi.
+- Il rischio dichiarato **P1 §6-bis p.2** (nested `additionalProperties:false` SENZA `required`) e'
+  ora **chiuso in entrambe le meta'** da `AC-222-1` emendato (`P2-D28`).
 
 ### Aperti, dichiarati
-- **R-01/R-03** (cecita di `RLS004` su `generation_pools`, `parse_warnings` non fatali) e **R-04**
-  (le due normalizzazioni divergenti): vivono nella **skill trueline**, non nel repo.
+- **`osv:7`, di cui 2 HIGH** (`undici` diretta, `brace-expansion` transitiva): lavoro a se', dopo il
+  merge, per decisione dell'utente.
+- **R-01/R-03/R-04** vivono nella **skill trueline**, non nel repo. R-04 ha prodotto di nuovo
+  un'impronta spuria su `05-generation-e2e.md`, il file gia' colpito al checkpoint precedente.
 - Il lato (a) di **S2-05**; il costo di rigidita' dello schema A.
 - **La CI non e' mai stata provata da una run reale** (`gh` non installato).
-- Le voci 22-30 di §6.
+- Le voci 22-38 di §6.
 
 ### Restano aperti da P1
-`readyForReview` verifica presenza e non provenienza (§7 p.1 — la parte su `readyForReview`, non
-quella su `isBriefComplete`); la history della chat non e' persistita; `upsertBrief` non riporta i
-campi scartati; T-122 fonde le offerte per nome; `P1-D11` sul contratto di altitudine, **ancora
-rinviato**.
+`readyForReview` verifica presenza e non provenienza; la history della chat non e' persistita;
+`upsertBrief` non riporta i campi scartati; T-122 fonde le offerte per nome; `P1-D11` sul contratto
+di altitudine, **ancora rinviato**.
 
 ## 8. Prossimi passi & decisioni
 
-1. **METODO NUOVO, deciso dall'utente il 2026-07-30 — vale DAL PROSSIMO MACROTASK.**
-   **UN SOLO dynamic workflow per MACROTASK**, in `pipeline()` sul DAG interno: un **builder** per
-   task atomico, un **verifier BLIND** per task (legge codice e AC, **non** il report del builder),
-   un **fixer per TASK** (non per rilievo: due fixer sullo stesso file si sovrascrivono), e **UNA
-   SOLA fermata umana** con tutti i rilievi insieme. In `generation-engine` quattro task su cinque
-   hanno prodotto una decisione dell'utente: quattro fermate invece di una.
-   - **`isolation: 'worktree'` e' praticabile, MISURATO il 30/07**: un worktree git non porta
-     `node_modules` (gitignorato), ma una **giunzione** (`cmd /c mklink /J`) basta —
-     `npx vitest run` 37 verdi e `npx tsc --noEmit` exit 0, **senza `npm ci`**.
-   - **PERICOLO DISTRUTTIVO**: rimuovere la giunzione con `rmdir` **PRIMA** del worktree. Un
-     `rm -rf` o un `git worktree remove --force` la attraverserebbero e cancellerebbero il
-     `node_modules` **vero**.
-   - Il worktree isola i FILE, non Supabase: i test DB-backed vanno **serializzati** e la suite
-     intera si esegue **una volta sola, al checkpoint**.
-   - **Lo schema di ritorno degli agenti: max ~6 campi di TESTO PIATTI.** Uno schema con 11 campi e
-     due array annidati ha fatto sbattere un agente contro il tetto di 5 tentativi di
-     `StructuredOutput`: **160 tool call e 493k token persi per un errore di forma**.
-2. **Prossimo BUILD**: `generation-llm` (T-220..T-225).
-3. **Riconfermare il deploy-coupling** all'apertura: non e' una formalita', e' la ragione per cui
-   il merge e' autonomo.
-4. **Decisioni ancora dell'utente**: taratura crediti/prezzi dopo T-225; attivazione del contratto
-   `architecture:` (`P1-D11`).
-5. **INVOCAZIONE DEL CHECKPOINT — due trappole misurate il 30/07, entrambe costose:**
-   - **Il percorso del repo va passato ASSOLUTO.** Con `.` lo script risolve il workspace sulla
-     **directory della skill** e misura il repo sbagliato: il primo giro ha prodotto un finding
-     HIGH dentro `eval/reference-app/` della skill e tre controlli degradati.
-   - **`baseline.mjs capture <dir> --hygiene` scrive sulla baseline di SICUREZZA.** Il flag
-     seleziona gli ORACOLI d'igiene ma l'output va su `.trueline/baseline.json` a meno di passare
-     `--out`; `hygieneBaselinePath` esiste nel file ma la CLI non la usa. Invocazione giusta:
-     `capture <dir> --hygiene --out .trueline/hygiene-baseline.json`.
-   - Restano valide: `db reset` + restart di kong + attesa che `/auth/v1/health` risponda 200 (un
-     rosso da kong non pronto sarebbe FALSO); `.env.local` FUORI dal repo con le variabili
-     esportate dalla shell; **`rm -rf .next` prima di ogni checkpoint** (senza, il controllo 2
-     produce 28 finding CRITICAL falsi dentro la cache di build); `--in-place --mode build`
-     **senza** `--blueprint`; e **il verdetto si legge nel JSON**, mai dall'exit code — al
-     checkpoint finale `exit=0` conviveva con `green: false`.
-6. **TRAPPOLA DELL'ORACOLO DI MUTAZIONE**, da non ricomprare: `npx vitest run --reporter=basic`
-   NON esiste in vitest 4.1.10 — il processo muore al caricamento del reporter ed esce **sempre**
-   != 0, quindi *tutte* le mutazioni risultano "PRESE". Un ri-verificatore ci ha firmato **37 falsi
-   positivi** prima di accorgersene. Il rosso si riconosce dalla **riga di riepilogo**
-   ("Tests N failed / N passed"); un'esecuzione senza quella riga e' **INVALIDA**, non rossa.
-7. **Nota sull'infrastruttura, dichiarata**: in questa sessione i workflow sono morti tre volte per
-   cause esterne (due 529 con 0 agenti partiti, un limite di sessione) e una per lo schema di
-   ritorno. In due casi il giro di fix e la ri-verifica sono stati eseguiti
-   **dall'orchestratore**, con l'albero verificato intatto per sha256 prima di procedere e le
-   mutazioni del verifier rigirate una per una. E' una differenza di metodo, **dichiarata e non
-   dedotta**. `resumeFromRunId` e' la mitigazione: gli agenti completati tornano dalla cache.
+1. **IL PROTOCOLLO DI LETTURA DELL'ORACOLO CAMBIA, ed e' la lezione di metodo di questa sessione.**
+   **La riga `Test Files` e' obbligatoria quanto la riga `Tests`.** Misurato: con un modulo che lancia
+   all'import, vitest stampa `Tests  3 passed (3)` — **zero falliti** — mentre `Test Files  2 failed |
+   1 passed (3)` dice che **due file su tre non sono nemmeno partiti**. Chi legge la sola riga
+   «Tests», come prescriveva il protocollo, firmerebbe un verde su una suite che non e' partita. E'
+   il gemello della trappola di `--reporter=basic` di P1: entrambe fanno sembrare misurato cio' che
+   non e' stato eseguito.
+2. **Il metodo di §8.1 ha retto e resta.** Un workflow per macrotask (builder + verifier BLIND per
+   task), **una sola fermata umana**, poi un workflow di soli fixer. Due precisazioni misurate:
+   - **I fixer stanno FUORI dal workflow di build**, perche' «una sola fermata umana» e
+     «human-in-the-loop sulle fix» sono compatibili solo se i rilievi arrivano all'umano PRIMA che
+     qualcuno li applichi. Ha funzionato: 7 decisioni in due blocchi, nessuna patch applicata prima.
+   - **`isolation: 'worktree'` NON e' stato usato, ed e' stata la scelta giusta qui**: i file di ogni
+     livello erano disgiunti e il macrotask non ha **un solo test DB-backed** (il confine e' mockato
+     ovunque). Il rischio distruttivo della giunzione non era ripagato da alcun beneficio.
+   - **Le onde vanno ordinate sul DAG anche per i FIXER**, non solo per i builder: `P2-D26` cambia
+     `buildGenerationPayload`, cioe' il payload che T-224 cattura e che T-225 compone. Ogni fixer di
+     valle ha ricevuto l'istruzione esplicita di **non ammorbidire un'asserzione** per riassorbire il
+     movimento.
+3. **Prossimo BUILD**: `generation-ui` (T-230..T-237). E' il macrotask piu' esposto e il primo che
+   aggiunge **rotte e un endpoint `/api`**: il deploy-coupling va **riconsiderato**, non riconfermato
+   per abitudine.
+4. **Decisioni ancora dell'utente**: taratura crediti/prezzi dopo la prima misura reale (`P2-D17`,
+   che T-225 puo' ora produrre appena esiste una chiave); attivazione del contratto `architecture:`
+   (`P1-D11`); gli avvisi `osv`.
+5. **INVOCAZIONE DEL CHECKPOINT — le trappole, tutte riconfermate sul campo il 04/08:**
+   - **Il percorso del repo va passato ASSOLUTO.** Con `.` (o senza) lo script risolve il workspace
+     sulla directory della skill: `run_checkpoint.mjs --help` restituisce
+     `fixture canonico assente: .../skills/eval/reference-app`.
+   - **`baseline.mjs capture <dir> --hygiene` scrive sulla baseline di SICUREZZA** a meno di passare
+     `--out`. Invocazione giusta:
+     `capture <dir> --hygiene --out .trueline/hygiene-baseline.json`. **Verificato dopo la cattura**
+     che `.trueline/baseline.json` avesse l'hash invariato.
+   - **`rm -rf .next` prima di OGNI checkpoint**, e va rifatto ogni volta: **il checkpoint stesso lo
+     ricrea**, quindi il secondo giro parte sporco se non lo si rimuove di nuovo.
+   - **`db reset` NON e' sempre necessario, misurato.** I controlli 3 e 4 sono risultati verdi senza
+     reset. Serve quando la finestra di rate limit dell'auth e' stata consumata; se in sessione si
+     sono eseguiti solo file di test non DB-backed, **provare il checkpoint prima** invece di
+     dedurre. E' comunque un'operazione **distruttiva**: mai in autonomia.
+   - **I percorsi nei blocker portano il prefisso `eval/reference-app/`** anche quando il workspace
+     e' corretto: e' una normalizzazione dell'oracolo, non un altro repo. Lo conferma la baseline
+     stessa, che ha `project: C:/Users/claud/Desktop/progetto-web-ai` e voci con quel prefisso. **Non
+     dedurne che si stia misurando la directory sbagliata**: il segnale vero e' il campo `workspace`.
+   - **Il verdetto si legge nel JSON**, mai dall'exit code: in questa sessione `exit=0` ha convissuto
+     con `green: false` **due volte su tre**.
+6. **TRAPPOLA DELL'ORACOLO DI MUTAZIONE, ora in due forme.** (a) `npx vitest run --reporter=basic`
+   NON esiste in vitest 4.1.10: il processo muore ed esce sempre != 0, quindi *tutte* le mutazioni
+   sembrano PRESE (37 falsi positivi in P1). (b) **NUOVA, pagata il 04/08**: una mutazione ancorata a
+   una stringa che compare **anche in un commento** muta il commento, e il risultato «SOPRAVVISSUTA»
+   e' una **misura invalida**, non un rilievo. Il driver deve stampare **il numero di riga e il suo
+   testo** e rifiutare le ancore che cadono su un commento.
