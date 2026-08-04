@@ -5,7 +5,7 @@
     "src/data/**/*.ts",
     "tests/helpers/**/*.ts"
   ],
-  "project": ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}"],
+  "project": ["src/**/*.{ts,tsx}", "tests/**/*.{ts,tsx}", "scripts/**/*.{ts,tsx}"],
   "ignoreBinaries": ["supabase"],
   "ignoreDependencies": ["jscpd", "madge", "prettier"]
 }

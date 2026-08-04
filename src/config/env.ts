@@ -72,3 +72,24 @@ export function getAnthropicOnboardingModel(
   const value = source.ANTHROPIC_MODEL_ONBOARDING;
   return value !== undefined && value.trim() !== '' ? value : DEFAULT_ANTHROPIC_MODEL_ONBOARDING;
 }
+
+// T-224 (macrotask generation-llm, P2) — modello della GENERAZIONE dei mockup quando
+// ANTHROPIC_MODEL_GENERATION e assente: Sonnet 5 (decisione P2-D11). E' un accessor
+// SEPARATO da quello dell'intervista e non un default condiviso, perche' le due fasi
+// hanno compiti e costi diversi — l'intervista e' dialogo breve, la generazione scrive
+// il sito — e il giorno in cui una delle due cambia modello l'altra non deve seguirla
+// per distrazione. Config pubblica, non un segreto.
+const DEFAULT_ANTHROPIC_MODEL_GENERATION = 'claude-sonnet-5';
+
+/**
+ * Modello Anthropic della generazione dei mockup: il valore configurato se valorizzato,
+ * altrimenti il default. Vuota/whitespace = non impostata (come loadEnv e come il modello
+ * dell'intervista).
+ * @param source sorgente delle variabili (default: process.env) — parametrizzato per i test.
+ */
+export function getAnthropicGenerationModel(
+  source: Record<string, string | undefined> = process.env,
+): string {
+  const value = source.ANTHROPIC_MODEL_GENERATION;
+  return value !== undefined && value.trim() !== '' ? value : DEFAULT_ANTHROPIC_MODEL_GENERATION;
+}
