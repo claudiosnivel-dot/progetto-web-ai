@@ -8,9 +8,9 @@
 |---|---|
 | **Progetto** | Belora |
 | **Ecosistema** | supabase-jsts (JS/TS + Supabase) |
-| **Ultimo aggiornamento** | 2026-08-04 (BUILD del macrotask **`generation-llm`**: T-220..T-225 costruiti, checkpoint **VERDE 4/4**, mergeato su `main` con `4f36e16`) |
-| **Sessione corrente** | **BUILD di `generation-llm`**, il terzo macrotask di P2. Sei task atomici. **Suite da 858 a 976 test.** Sette decisioni dell'utente, sei registrate come `P2-D26`..`P2-D31`. Checkpoint di macrotask VERDE 4/4, `degraded: []`, merge autonomo su `main` |
-| **Sessione precedente** | BUILD di `generation-engine` (30/07): T-210..T-215, checkpoint VERDE 4/4 |
+| **Ultimo aggiornamento** | 2026-08-04 (BUILD del macrotask **`generation-ui`**: T-230..T-237 costruiti, checkpoint **VERDE 4/4** `degraded:[]`, mergeato su `main` con `0dfe7d7`) |
+| **Sessione corrente** | **BUILD di `generation-ui`**, il quarto macrotask di P2 e il piu' esposto (testo non fidato reso in pagina, 2 rotte nuove + 1 endpoint `/api`). Otto task atomici. **Suite a 1108 test in 102 file** (era 976). Emendamento **`P2-D32`** (fase 2 a chunk). Metodo: 2 workflow di build (fondamenta WF1 + composizione WF2) → **una** fermata umana → 3 workflow di risoluzione (R1 spina, R2/R3 rinforzo oracolo) + refactor d'igiene. **49 rilievi chiusi** (WF1 11 · WF2 31 · R1 7). Batteria di mutazione trasversale **5/5 PRESE**. Checkpoint VERDE 4/4, merge autonomo su `main` |
+| **Sessione precedente** | BUILD di `generation-llm` (04/08): T-220..T-225, checkpoint VERDE 4/4, merge `4f36e16` |
 
 ---
 
@@ -21,10 +21,10 @@
 | generation-model | **done** | **VERDE 4/4** (2026-07-28) | T-200..T-204 |
 | generation-engine | **done** | **VERDE 4/4** (2026-07-30) | T-210..T-215 |
 | generation-llm | **done** | **VERDE 4/4** (2026-08-04) | T-220..T-225. 9 commit sul branch + 1 di merge. `degraded: []` |
-| generation-ui | **todo** | — | T-230..T-237 — il macrotask piu' esposto. **Prossimo BUILD** |
-| generation-e2e | **todo** | — | T-240..T-241 — il primo end-to-end vero |
+| generation-ui | **done** | **VERDE 4/4** (2026-08-04) | T-230..T-237. 1 commit atomico + 1 di merge (`0dfe7d7`). `degraded: []`. Refactor d'igiene (4 helper condivisi), baseline igiene ricatturata 66→70 |
+| generation-e2e | **todo** | — | T-240..T-241 — il primo end-to-end vero. **Prossimo BUILD** |
 
-**→ 27 task atomici, 5 macrotask. Tre costruiti e chiusi, due da costruire.**
+**→ 27 task atomici, 5 macrotask. QUATTRO costruiti e chiusi, UNO da costruire (generation-e2e).**
 
 ### 1-bis. I sei task di `generation-llm`, e cosa ha prodotto il verde
 
@@ -59,23 +59,58 @@ modifica reale. Non e' una promessa che sappia diventare rosso: e' un fatto osse
 
 ## 2. Macrotask corrente
 
-- **Selezionato**: nessuno. Il prossimo BUILD e' **`generation-ui`** (T-230..T-237), le cui
-  dipendenze (`generation-model`, `generation-engine`, `generation-llm`) sono ora tutte verdi.
-- **Attenzione**: e' il macrotask **piu' esposto** di P2 — il rendering del testo non fidato del
-  brief nel sito generato (carry-over P1 §7 p.5) — e il primo che aggiunge rotte e un endpoint
-  `/api`. Il deploy-coupling andra' riconsiderato, non solo riconfermato.
+- **Selezionato**: nessuno. Il prossimo BUILD e' **`generation-e2e`** (T-240..T-241), le cui
+  dipendenze (`generation-model/engine/llm/ui`) sono ora tutte verdi.
+- **NUOVO IN P2**: e' il **primo end-to-end vero** (Chromium). Il **CANARY viene PRIMA del verde**:
+  se le asserzioni sull'effetto non sanno prendere il componente deliberatamente insicuro, non
+  provano nulla. L'e-2-e gira al CHECKPOINT di macrotask, non nel giro per-task. E' la sede della
+  prova sull'EFFETTO che generation-ui ha lasciato aperta (il testo non fidato non esegue in un
+  browser reale): oggi provata solo la struttura (jsdom non carica risorse) e la raggiungibilita'.
 - **Task atomici in corso**: nessuno.
 
 ## 3. Stato git
 
 | Campo | Valore |
 |---|---|
-| Branch di lavoro | `trueline/build/generation-llm` — 9 commit, tutti pushati |
-| Stato merge su `main` | **Mergeato sul verde** (`4f36e16`, `--no-ff`). `main == origin/main`. Working tree pulito |
-| Deploy-coupling | **`main_deploy_coupled: false` RICONFERMATO dall'utente al confine del macrotask**, non all'apertura: la richiesta fatta all'apertura non aveva avuto una risposta esplicita e **non e' stata data per concessa**. Il rilevatore dice `true` (segnale unico: `supabase/config.toml`); l'override e' una decisione umana ripetuta. Nessun deploy, nessuna operazione distruttiva |
-| Nota | `generation-llm` non ha aggiunto migrazioni, rotte o endpoint `/api`: dominio puro, piu' un'aggiunta al confine esistente, un accessor di config, e la configurazione di lint/knip |
+| Branch di lavoro | `trueline/build/generation-ui` — 1 commit atomico (`3d149cd`, 80 file, +10787/-459), pushato |
+| Stato merge su `main` | **Mergeato sul verde** (`0dfe7d7`, `--no-ff`). `main == origin/main`. Working tree pulito (piu' i doc di session-end) |
+| Deploy-coupling | **`main_deploy_coupled: false` RICONFERMATO dall'utente all'APERTURA del BUILD** (col «via»), stavolta con risposta esplicita perche' generation-ui e' il primo ad aggiungere superficie deploy-sensibile. Il rilevatore dice `true` (segnale unico: `supabase/config.toml`); l'override e' una decisione umana ripetuta. Merge autonomo sul verde. Nessun deploy, nessuna operazione distruttiva. **`db reset` NON eseguito** (auth non rate-limited: un test DB-backed passava 27/27) |
+| Nota | `generation-ui` aggiunge **2 rotte** (`/{locale}/generate/{siteId}`, `/{locale}/preview/{siteId}`) e **1 endpoint** `POST /api/generate`, ma **nessuna migrazione** (le tabelle sono di T-200). Aggiunte anche 2 server action (`markReady`/`markFailed`), `runPhase2`, `readHomePools`, `readGenerationDocument`, `selectVariant`/`applyRechoose`, e 4 helper d'igiene condivisi |
 
 ## 4. Baseline & budget
+
+### generation-ui (2026-08-04) — sessione corrente
+
+- **Baseline di SICUREZZA INVARIATA**: hash sha256 di `.trueline/baseline.json` identico prima e
+  dopo la ricattura d'igiene (salvaguardia `--out` VERIFICATA). `gitleaks:0 osv:7 semgrep:0 rls:0`.
+- **Baseline d'IGIENE ricatturata 66→70, DOPO attribuzione** (mai prima — §8.5). Il checkpoint dava
+  25 duplicazioni nuove (`dup:81`); un refactor ha estratto le REALI a rischio-divergenza (le due
+  catene di guardia-pagina, il preambolo-etichetta degli 8 blocchi, il preambolo-auth delle action,
+  i corpi CAS di `generations.ts`) in **4 helper condivisi** — `dup` a 71, cioe' 15 residue. Le 15
+  **dichiarate** come similarita' strutturale accettabile (`jsonError` 2-righe, JSX dei blocchi,
+  residui delle action, client component, `sites.ts` pre-esistente): estrarle sarebbe
+  over-abstraction. Solo DOPO l'attribuzione la baseline e' stata ricatturata.
+- **La riserva del 29/07 su `rls:0` RESTA VALIDA**: generation-ui **non aggiunge tabelle** (sono di
+  T-200), quindi `rls:0` = «nessun rilievo nuovo», non «`generation_pools`/`profiles` auditate a
+  runtime». L'RLS delle azioni nuove e' pero' esercitato a runtime dai test DB-backed (`signInAs`
+  con auth reale su Supabase locale), non dall'SQL editor.
+- **Batteria di mutazione dell'ORCHESTRATORE, trasversale**: 5 mutazioni sui giunti FRA-task
+  (renderer T-231↔chooser/preview; accumulo pool `inner` T-234↔copy-on-write; link non fidato T-237;
+  perimetro middleware T-230; catalogo i18n condiviso T-231↔T-237/T-235). **5/5 PRESE (rosse), 0
+  sopravvissute, 0 skip**, ripristino verificato per **sha256** (tutti identici). La sanita'
+  palesemente fatale (`renderBlock→null`) e' fra le cinque.
+- **`osv` resta a 7** (2 HIGH: `undici`, `brace-expansion`): **carry-over aperto**, generation-ui
+  non aggiunge dipendenze; si tratta dopo, per decisione dell'utente.
+- **Suite**: **1108 test in 102 file**, 0 falliti (era 976/77). Un solo intoppo trovato dal
+  checkpoint: `npm run lint` rosso per 2 variabili inutilizzate in un test (fatto cadere dal test
+  scaffold T-001); corretto → verde.
+- **Budget/forma**: build in 2 workflow (WF1 6 agenti, WF2 10) + risoluzione in 3 (R1 6, R2 4, R3 2)
+  + 1 agente di refactor d'igiene; 0 errori d'agente salvo un limite-di-sessione a meta' R1 (ripreso
+  da cache: T-234/SEC dalla cache, WIRE+verifier freschi). **Nota di metodo**: gli `args` di un
+  Workflow arrivano come STRINGA se non passati come valore JSON — l'estrazione `args.extraFixes`
+  cadeva a vuoto (R2 salto' gli stream F5); workaround: rilievi INCORPORATI nello script (R3).
+
+### generation-llm (sessione precedente) — conservato sotto
 
 - **Baseline di sicurezza**: **INVARIATA**, hash identico prima e dopo (`gitleaks:0 semgrep:0 rls:0`).
   Verificato **dopo** la cattura d'igiene, non prima: e' la trappola di §8.5 (senza `--out`,
@@ -120,7 +155,33 @@ modifica reale. Non e' una promessa che sappia diventare rosso: e' un fatto osse
 - **Budget/forma**: un workflow di BUILD da **12 agenti** (6 builder + 6 verifier BLIND; 0 errori,
   2,7M token) e uno di **FIX da 6 agenti** (0 errori, 1,1M token). Il metodo di §8.1 ha retto.
 
-## 5. Esiti del BUILD di `generation-llm` (framing onesto)
+## 5. Esiti del BUILD (framing onesto)
+
+### generation-ui (2026-08-04)
+
+1. **T-234 era BLOCCATO e il builder si e' FERMATO invece di ammorbidire un AC.** `AC-234-3`
+   (persistenza incrementale + fallimento parziale) non era esprimibile con `appendPages`
+   checkpointato (CAS atomico `chosen→complete`): emendamento **`P2-D32`** deciso dall'utente
+   (opzione A), non un workaround. La tensione secondaria (una fase 2 morta a meta' lascia una riga
+   `chosen` con pagine parziali, stantia ma non riconciliabile → sito bloccato per sempre) e' chiusa
+   togliendo il guard `!haPagineInterne` da `motivoStantio`.
+2. **Un verifier BLIND ha smentito una openQuestion sbagliata del builder**: il builder di T-237
+   temeva che `block.data.vertical` non fosse popolato; il verifier ha verificato
+   `resolve.ts:386 dati.vertical = brief.vertical` → in produzione la variante offerte differenzia
+   davvero. E' esattamente perche' la verifica e' cieca.
+3. **`AC-232-1` "un solo renderer" era un oracolo TAUTOLOGICO** (`f(x)===f(x)`, segnalato da 4
+   verifier): confrontava VariantCard vs SiteView sullo stesso documento risolto, senza mai rendere
+   la PreviewPage reale (documento congelato dal DB). Chiuso con un import-guard + un test che rende
+   la PreviewPage REALE e confronta la sequenza data-block-id con la card sullo stesso pool.
+
+**Il montaggio era un ORFANO del blueprint.** Il selettore→scegli→anteprima→fase2 non era agganciato
+ad alcuna rotta (ogni task lo rimandava al successivo): senza montaggio il checkpoint sarebbe stato
+un FALSO-VERDE su un deliverable non raggiungibile (AC-235-5). Chiuso montando `GenerationChooser` +
+`ChooseVariantButton` + `Phase2Trigger` nella `/generate`; `selectVariant`/`runPhase2` ora
+raggiungibili (knip pulito). La `/preview` NON importa il chooser, cosi' l'oracolo di T-235 resta
+falsificabile.
+
+### generation-llm (sessione precedente)
 
 **Tre cose che il checkpoint e la verifica avversariale hanno trovato e che nessuna review avrebbe
 visto.**
@@ -198,9 +259,48 @@ misura**. La batteria stampa ora il numero di riga e il suo testo, e rifiuta le 
     SBAGLIATA ma diversa passerebbe. Cio' che il controllo garantisce davvero e' la **totalita' sul
     tipo** — un locale nuovo rompe il typecheck e obbliga a decidere.
 
+> **generation-ui (04/08) — nuove voci 39+** (le 31-38 sono di generation-llm).
+
+39. **La prova sull'EFFETTO del testo non fidato NON e' data**: i test dei blocchi girano in jsdom,
+    che NON carica risorse — provano «nessun elemento script/img/iframe NASCE dal testo» e «nessun
+    href fuori da https/tel/mailto», NON «nessuno script ha girato». Il canary in un browser reale e'
+    di **T-241 (generation-e2e)**, non ancora fatto.
+40. **`AC-234-2` (prefisso payload cacheable byte-identico) e' provato sulla FORMA, non contro
+    l'API**: senza chiave il caching reale non e' misurabile; il tool di fase 2 e' costruito
+    dall'INTERO set interno (le pagine del chunk stanno solo nel messaggio volatile), quindi il
+    chunking limita persistenza/isolamento-fallimento/cache, NON l'uscita per-chiamata.
+41. **Le CAS nuove** (`markReady`/`markFailed`/`failGenerationPhase2`/`applyRechoose`/persistenza
+    incrementale) **hanno oracoli DB-backed `skipIf(!SB)`**: esercitate al checkpoint (Supabase su) +
+    un test node-env strutturale per la provenienza anteprima; senza `.env.local` si auto-skippano.
+42. **La rigenerazione concorrente spende AL PIU' UNA scrittura utile, non AL PIU' una chiamata al
+    confine**: due `regenerateVariant` concorrenti chiamano entrambe il confine, l'UNIQUE deduplica
+    solo la SCRITTURA (lock rinviato, filosofia T-232). Il gate `siteId↔generationId`
+    (anti-avvelenamento cross-sito intra-tenant) e' pero' imposto PRIMA del confine.
+43. **`AC-237-2` (photo_ref→src) e' vacuo a livello T-237** (il tipo dell'offerta OMETTE `photo_ref`,
+    T-202): garanzia per-TIPO a monte, prova sull'effetto a T-241. **`AC-236-1` (una query)** dipende
+    da `AC-203-6` per la prova vera (richieste HTTP), non dal conteggio di invocazioni.
+44. **Le 15 duplicazioni residue del controllo 1 sono DICHIARATE** (baseline igiene ricatturata
+    66→70), non estratte: similarita' strutturale accettabile, non «coppie che devono restare
+    identiche».
+
 ## 7. Carry-over
 
-### Chiusi da questo macrotask
+### Chiusi da generation-ui (04/08)
+- **Carry-over P1 §7 p.5** (testo estratto = input non fidato in RENDERING): chiuso per la STRUTTURA
+  (nessun elemento nasce dal testo, link solo da campi validati); la prova sull'EFFETTO resta a T-241.
+- **N+1 della dashboard sullo STATO di generazione** (P1 §7 p.15): chiuso — `listGenerationStatuses`
+  in UNA query. **Resta aperto** l'N+1 di `getBrief` per-sito (fuori scope, carry-over P1 su T-123).
+- **Orfani selettore/scelta/anteprima/fase2**: chiusi dal montaggio (P2-D26 rispettato).
+
+### Aperti, dichiarati (generation-ui)
+- **`osv:7` (2 HIGH: `undici`, `brace-expansion`)**: lavoro a se', dopo, per decisione dell'utente.
+- **Prova sull'EFFETTO in un browser reale**: e' T-240/T-241 (generation-e2e), col CANARY.
+- **La CI non e' mai stata provata da una run reale** (`gh` non installato).
+- **`db reset` non eseguito**: se il prossimo checkpoint trova la finestra rate-limit auth consumata,
+  servira' (distruttivo, mai in autonomia).
+- Le voci 39-44 di §6.
+
+### Chiusi da generation-llm (sessione precedente)
 - **Copertura §6 p.24 di P2** (*il confine non vede `import(variabile)` e `require()`*): **resta
   aperta**, ma il perimetro si e' allargato — `scripts/**` non e' piu' fuori dai blocchi.
 - Il rischio dichiarato **P1 §6-bis p.2** (nested `additionalProperties:false` SENZA `required`) e'
@@ -241,9 +341,11 @@ di altitudine, **ancora rinviato**.
      `buildGenerationPayload`, cioe' il payload che T-224 cattura e che T-225 compone. Ogni fixer di
      valle ha ricevuto l'istruzione esplicita di **non ammorbidire un'asserzione** per riassorbire il
      movimento.
-3. **Prossimo BUILD**: `generation-ui` (T-230..T-237). E' il macrotask piu' esposto e il primo che
-   aggiunge **rotte e un endpoint `/api`**: il deploy-coupling va **riconsiderato**, non riconfermato
-   per abitudine.
+3. **Prossimo BUILD**: `generation-e2e` (T-240..T-241), l'ULTIMO macrotask di P2 e il **primo
+   end-to-end vero** (Chromium). Il **CANARY viene PRIMA del verde**. E' la sede della prova
+   sull'EFFETTO che generation-ui ha lasciato aperta (§6 voce 39). Non serve la chiave API:
+   l'artefatto sotto test e' il DOCUMENTO (una fixture). Deploy-coupling gia' riconfermato; nessuna
+   tabella nuova prevista.
 4. **Decisioni ancora dell'utente**: taratura crediti/prezzi dopo la prima misura reale (`P2-D17`,
    che T-225 puo' ora produrre appena esiste una chiave); attivazione del contratto `architecture:`
    (`P1-D11`); gli avvisi `osv`.
