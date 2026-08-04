@@ -115,6 +115,15 @@ vi.mock('@/data/briefs', () => ({
   getBrief: getBriefSpy,
 }));
 
+// T-236 — la dashboard ora legge anche lo stato di generazione (listGenerationStatuses, UNA
+// query). Questo file resta focalizzato sull'aggancio ONBOARDING di T-153 (CTA + stato del
+// brief): la lettura di generazione e' doppiata con ok:true e NESSUNO stato (ogni sito → CTA
+// 'genera'), cosi' la pagina si rende senza toccare il DB reale. La CTA di generazione e i suoi
+// stati sono coperti a parte in tests/dashboard-generation-state.test.ts.
+vi.mock('@/data/generations', () => ({
+  listGenerationStatuses: vi.fn(async () => ({ ok: true as const, statuses: [] })),
+}));
+
 // Import DOPO i mock (vi.mock e' hoisted).
 import DashboardPage from '@/app/[locale]/dashboard/page';
 
@@ -172,10 +181,8 @@ const EXPECTED_HREF_IT: Record<string, string> = {
 };
 
 const itCta = itMessages.dashboard.onboarding.cta;
-const itBadge = itMessages.dashboard.onboarding.readyToGenerate;
 const itUnavailable = itMessages.dashboard.onboarding.statusUnavailable;
 const esCta = esMessages.dashboard.onboarding.cta;
-const esBadge = esMessages.dashboard.onboarding.readyToGenerate;
 
 async function renderDashboard(locale: string) {
   const ui = await DashboardPage({ params: Promise.resolve({ locale }) });
@@ -242,42 +249,25 @@ describe('T-153 dashboard: CTA onboarding + stato del brief', () => {
     expect(href).not.toContain('/../'); // covers: AC-153-1
   });
 
-  // covers: AC-153-2
-  it("brief 'confirmed': SOLO le righe di quei siti mostrano il badge 'pronto per generare'", async () => {
+  // T-236 ha SOSTITUITO il badge segnaposto 'pronto per generare' con la CTA di generazione:
+  // le asserzioni sul badge (ex AC-153-2) vivono ora, nella loro forma reale, in
+  // tests/dashboard-generation-state.test.ts. Qui resta il CTA di onboarding, che T-236 non
+  // tocca. I controlli T-105 della riga (salva + elimina) restano invariati: nessun bottone
+  // 'genera' nasce nella riga (la generazione e' un LINK, non un bottone).
+  it('la riga conserva i soli controlli T-105 (salva + elimina), nessun bottone di generazione', async () => {
     await renderDashboard('it');
 
-    for (const name of ['Bar Sole', 'Studio Verdi']) {
-      expect(within(rowFor(name)).getByText(itBadge)).toBeTruthy(); // covers: AC-153-2
-    }
-    for (const name of ['Panificio Aurora', 'Palestra Nord', 'Osteria Guasto']) {
-      expect(within(rowFor(name)).queryByText(itBadge)).toBeNull(); // covers: AC-153-2
-    }
-    // Il badge compare due volte in tutta la pagina: una per riga confermata, non di piu'.
-    expect(screen.getAllByText(itBadge)).toHaveLength(2); // covers: AC-153-2
-  });
-
-  // covers: AC-153-2
-  it('il badge e un SEGNAPOSTO: nessun controllo di generazione nella riga confermata', async () => {
-    await renderDashboard('it');
-
-    const row = rowFor('Bar Sole');
-    // L'unico link della riga e' il CTA di onboarding: il badge non e' cliccabile e non
-    // esiste un secondo link (la generazione e' P2, non c'e' nulla da raggiungere).
-    const links = within(row).getAllByRole('link');
-    expect(links).toHaveLength(1); // covers: AC-153-2
-    expect(links[0].getAttribute('href')).toBe(EXPECTED_HREF_IT['Bar Sole']); // covers: AC-153-2
-    // I bottoni della riga restano quelli di T-105 (salva + elimina): nessun 'genera'.
-    const buttonNames = within(row)
+    const buttonNames = within(rowFor('Bar Sole'))
       .getAllByRole('button')
       .map((button) => button.textContent);
     expect(buttonNames).toEqual([
       itMessages.dashboard.actions.save,
       itMessages.dashboard.actions.delete,
-    ]); // covers: AC-153-2
+    ]);
   });
 
   // covers: AC-153-3
-  it('locale es: CTA e badge in spagnolo, con href sotto /es (chiavi diverse dalla versione it)', async () => {
+  it('locale es: il CTA di onboarding e in spagnolo, con href sotto /es (chiavi diverse dalla versione it)', async () => {
     await renderDashboard('es');
 
     // Il CTA: per ogni riga, etichetta spagnola e href sotto il locale es.
@@ -289,27 +279,19 @@ describe('T-153 dashboard: CTA onboarding + stato del brief', () => {
       SITES.map((site) => EXPECTED_HREF_IT[site.name].replace('/it/', '/es/')),
     ); // covers: AC-153-3
 
-    // Il badge: spagnolo, e solo sulle righe confermate.
-    expect(within(rowFor('Bar Sole')).getByText(esBadge)).toBeTruthy(); // covers: AC-153-3
-    expect(within(rowFor('Studio Verdi')).getByText(esBadge)).toBeTruthy(); // covers: AC-153-3
-    expect(within(rowFor('Panificio Aurora')).queryByText(esBadge)).toBeNull(); // covers: AC-153-3
-
-    // Le stringhe italiane NON sono rese in es, e i due cataloghi differiscono davvero.
-    expect(screen.queryByText(itBadge)).toBeNull(); // covers: AC-153-3
+    // La stringa italiana del CTA NON e' resa in es, e i due cataloghi differiscono davvero.
     expect(screen.queryByRole('link', { name: itCta })).toBeNull(); // covers: AC-153-3
     expect(esCta).not.toBe(itCta); // covers: AC-153-3
-    expect(esBadge).not.toBe(itBadge); // covers: AC-153-3
   });
 
   // pin (vincolo 6): un GUASTO DI LETTURA non e' "nessun brief". La riga di un sito il cui
-  // getBrief ritorna ok:false non mostra il badge (non si puo' affermare 'confirmed') MA
-  // dichiara che lo stato non e' disponibile, invece di essere indistinguibile da un draft.
+  // getBrief ritorna ok:false dichiara che lo stato del brief non e' disponibile, invece di
+  // essere indistinguibile da un draft.
   it('getBrief ok:false: la riga dichiara lo stato non disponibile e non finge un brief assente', async () => {
     await renderDashboard('it');
 
     const guasta = rowFor('Osteria Guasto');
     expect(within(guasta).getByText(itUnavailable)).toBeTruthy();
-    expect(within(guasta).queryByText(itBadge)).toBeNull();
     // Il CTA resta (il link non e' un gate: l'autorizzazione e' a valle, T-150 + RLS).
     expect(within(guasta).getByRole('link', { name: itCta }).getAttribute('href')).toBe(
       EXPECTED_HREF_IT['Osteria Guasto'],

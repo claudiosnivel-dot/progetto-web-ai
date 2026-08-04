@@ -101,6 +101,16 @@ vi.mock('@/data/briefs', () => ({
   getBrief: vi.fn(async () => ({ ok: true, brief: null, status: null, complete: false })),
 }));
 
+// T-236 — La dashboard legge ora anche lo stato di generazione di tutti i siti via
+// listGenerationStatuses (@/data/generations), in UNA query, per la CTA di generazione per
+// riga. È una DIPENDENZA NUOVA della pagina, non un cambio di comportamento di T-102: senza
+// questo mock la server action reale girerebbe in jsdom e chiamerebbe createServerSupabaseClient
+// (assente dal mock di @/data/supabase-ssr qui sopra). Si stubba "nessuna generazione" per tutti
+// i siti; gli AC di T-236 vivono in tests/dashboard-generation-state.test.ts.
+vi.mock('@/data/generations', () => ({
+  listGenerationStatuses: vi.fn(async () => ({ ok: true as const, statuses: [] })),
+}));
+
 // Import DOPO i mock (vi.mock è hoisted).
 import DashboardPage from '@/app/[locale]/dashboard/page';
 

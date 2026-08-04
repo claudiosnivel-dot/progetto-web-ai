@@ -2,9 +2,9 @@
 
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getAuthedClient } from '@/data/authed-client';
 import { createServerSupabaseClient } from '@/data/supabase-ssr';
 import { DOCUMENT_LIMITS, parseDocument } from '@/domain/generation/document';
-import { isPlainObject } from '@/domain/generation/gate';
 import { parsePool } from '@/domain/generation/pool';
 import type { PageRole } from '@/domain/generation/slots';
 import { GENERATION_TIMEOUTS } from '@/domain/generation/timeouts';
@@ -77,6 +77,10 @@ export type GenerationSummary = {
   id: string;
   site_id: string;
   status: GenerationStatus;
+  // La variante scelta (0..4), o `null` finche' l'utente non ha scelto. La legge l'azione
+  // di fase 2 (T-234): scrive i pool 'inner' e le pagine sotto QUELLA variante, e senza
+  // questo campo dovrebbe rileggere la riga per conto proprio.
+  chosen_variant: number | null;
   max_pages: number;
   failure_reason: string | null;
   updated_at: string | null;
@@ -117,14 +121,16 @@ export type ListGenerationStatusesResult =
 // del ramo di errore di parsePool/parseDocument, P2-D20).
 const MOTIVO_RICONCILIAZIONE: Record<keyof typeof GENERATION_TIMEOUTS.phases, string> = {
   phase1: 'riconciliazione: nessun avanzamento entro il timeout della fase 1',
-  phase2: 'riconciliazione: pagine interne assenti oltre il timeout della fase 2',
+  phase2: 'riconciliazione: fase 2 non conclusa entro il suo timeout',
 };
 
-// Colonne nominate, mai select('*') (DoD 4). `document` serve al solo predicato della
-// fase 2 (esistono pagine interne?) e NON viene restituito: questo modulo riporta lo
-// STATO, il documento e materia di T-204/T-214.
+// Colonne nominate, mai select('*') (DoD 4). `chosen_variant` serve all'azione di fase 2
+// (T-234), che scrive pool e pagine sotto la variante scelta. Il `document` NON e' piu' fra
+// le colonne: dall'EMENDAMENTO P2-D32 la riconciliazione della fase 2 non guarda piu' le
+// pagine parziali (una fase 2 conclusa sarebbe 'complete'), quindi non c'e' piu' un predicato
+// che lo legga qui — il documento resta materia di T-204/T-214/T-235.
 const COLONNE_GENERAZIONE =
-  'id, site_id, status, max_pages, failure_reason, created_at, updated_at, document';
+  'id, site_id, status, chosen_variant, max_pages, failure_reason, created_at, updated_at';
 
 // maxPages e input del CLIENT: validato server-side entro il tetto del documento
 // (DOCUMENT_LIMITS.max_pages, P2-D13) — derivato, mai ricopiato. Il minimo e 1 perche la
@@ -148,11 +154,11 @@ type RigaGenerazione = {
   id: string;
   site_id: string;
   status: string;
+  chosen_variant: number | null;
   max_pages: number;
   failure_reason: string | null;
   created_at: string | null;
   updated_at: string | null;
-  document: unknown;
 };
 
 // Uno status fuori dal vocabolario del CHECK di T-200 e irrappresentabile; se comparisse
@@ -180,29 +186,13 @@ function etaMs(riga: { updated_at: string | null }): number | null {
 }
 
 /**
- * Il documento contiene almeno una pagina NON home, cioe la fase 2 ha prodotto qualcosa.
- *
- * NON valida il documento: il gate e `parseDocument` (T-202) e gira in scrittura (T-204).
- * Qui la colonna e jsonb OPACO e la domanda e una sola, quindi il controllo e
- * strutturale e prudente — conta solo una pagina che DICHIARI un ruolo diverso da 'home'.
- * Un documento malformato o assente vale percio "nessuna pagina interna", che porta alla
- * riconciliazione: e la scelta che preserva la DISPONIBILITA (la fase 2 puo essere
- * ritentata) invece di lasciare un sito in uno stato che nessuno puo piu smuovere.
- */
-function haPagineInterne(document: unknown): boolean {
-  if (!isPlainObject(document)) return false;
-  const pagine = document.pages;
-  if (!Array.isArray(pagine)) return false;
-  return pagine.some(
-    (pagina) =>
-      isPlainObject(pagina) && typeof pagina.role === 'string' && pagina.role !== RUOLO_HOME,
-  );
-}
-
-/**
  * Quale timeout di P2-D15 ha superato questa riga, o `null` se non e stantia.
  *  - 'generating' oltre phase1: il processo che la possedeva non c'e piu.
- *  - 'chosen' SENZA pagine interne oltre phase2: la fase 2 e morta a meta.
+ *  - 'chosen' oltre phase2: la fase 2 non si e conclusa. E' stantia A PRESCINDERE dalle
+ *    pagine parziali (EMENDAMENTO P2-D32): la fase 2 e' a CHUNK e ogni chunk lascia la riga
+ *    in 'chosen' estendendo il documento, quindi una riga 'chosen' con pagine interne
+ *    parziali e' una fase 2 morta a meta' esattamente come una senza — una fase 2 CONCLUSA
+ *    sarebbe 'complete'. Guardare le pagine parziali qui la lascerebbe bloccata per sempre.
  * Gli altri stati (ready/complete/failed) sono di riposo: nessuno li possiede, quindi
  * non c'e nulla da riconciliare.
  */
@@ -210,13 +200,7 @@ function motivoStantio(riga: RigaGenerazione): keyof typeof GENERATION_TIMEOUTS.
   const eta = etaMs(riga);
   if (eta === null) return null;
   if (riga.status === 'generating' && eta > GENERATION_TIMEOUTS.phases.phase1) return 'phase1';
-  if (
-    riga.status === 'chosen' &&
-    !haPagineInterne(riga.document) &&
-    eta > GENERATION_TIMEOUTS.phases.phase2
-  ) {
-    return 'phase2';
-  }
+  if (riga.status === 'chosen' && eta > GENERATION_TIMEOUTS.phases.phase2) return 'phase2';
   return null;
 }
 
@@ -225,6 +209,7 @@ function sommario(riga: RigaGenerazione): GenerationSummary {
     id: riga.id,
     site_id: riga.site_id,
     status: comeStato(riga.status),
+    chosen_variant: riga.chosen_variant,
     max_pages: riga.max_pages,
     failure_reason: riga.failure_reason,
     updated_at: riga.updated_at,
@@ -725,6 +710,55 @@ async function assenteOppureConflitto(
 }
 
 /**
+ * IL CORPO COMUNE DELLE TRANSIZIONI COMPARE-AND-SET su `site_generations`: l'UPDATE di `patch`
+ * filtrato per `id` E per lo stato di PARTENZA `fromStatus` — il CAS valutato dal DB nello stesso
+ * istante della scrittura (decisione (f)), mai un controllo-poi-scrivi — con `updated_at` SEMPRE
+ * toccato (prova di vita, decisione (1)) e la distinzione 404/409 sullo zero-righe
+ * (`assenteOppureConflitto`, che NON deduce l'esistenza dal rifiuto: la rilegge). E' cio' che
+ * `markReady`/`markFailed`/`failGenerationPhase2`/`chooseVariant`/`appendPages` ripetevano verbatim
+ * (misurato come duplicazione dal controllo dead-code del checkpoint); il `patch` e lo stato di
+ * partenza sono il solo punto che DIVERGE, e sono parametri. Semantica IDENTICA — `.eq('status',
+ * fromStatus)` tiene il vincolo di partenza dentro la scrittura, cosi' due richieste concorrenti
+ * non transizionano entrambe.
+ */
+/**
+ * L'APERTURA COMUNE di ogni scrittura su una generazione: il client con SESSIONE (RLS attiva, mai
+ * service_role — R7) piu' la VALIDAZIONE dell'id PRIMA di qualunque round-trip (decisione (k)).
+ * writePool/chooseVariant/appendPages/markReady/markFailed/failGenerationPhase2 lo ripetevano
+ * verbatim (misurato come duplicazione dal controllo dead-code del checkpoint). Ritorna il risultato
+ * del parse (`id`) cosi' i chiamanti continuano a usare `id.data` senza cambi; l'assenza di sessione
+ * e' 401, un id malformato 400 — entrambi PRIMA di toccare il DB, come nel codice inline.
+ */
+async function beginTransition(
+  generationId: string,
+): Promise<
+  { ok: true; supabase: SupabaseClient; id: { readonly data: string } } | { ok: false; status: 400 | 401 }
+> {
+  const gate = await getAuthedClient();
+  if (!gate.ok) return gate;
+  const id = generationIdSchema.safeParse(generationId);
+  if (!id.success) return { ok: false, status: 400 };
+  return { ok: true, supabase: gate.supabase, id: { data: id.data } };
+}
+
+async function eseguiCas(
+  supabase: SupabaseClient,
+  idData: string,
+  patch: Record<string, unknown>,
+  fromStatus: GenerationStatus,
+): Promise<TransitionResult> {
+  const { data, error } = await supabase
+    .from('site_generations')
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq('id', idData)
+    .eq('status', fromStatus)
+    .select('id');
+  if (error) return { ok: false, status: 500 };
+  if (!data || data.length === 0) return await assenteOppureConflitto(supabase, idData);
+  return { ok: true };
+}
+
+/**
  * Scrive UN pool (uscita del modello) di una generazione dell'account dell'utente.
  *
  * `variantIndex` null = pool CONDIVISO fra le varianti; 0..4 = copia-su-scrittura di una
@@ -742,18 +776,12 @@ export async function writePool(
   content: unknown,
   allowedSlugs: readonly string[],
 ): Promise<WritePoolResult> {
-  const supabase = await createServerSupabaseClient();
+  // Apertura comune: client con sessione + id validato PRIMA di ogni round-trip (decisione (k)).
+  // TUTTO cio' che arriva da fuori e' validato prima del DB; l'id non fa eccezione.
+  const ctx = await beginTransition(generationId);
+  if (!ctx.ok) return ctx;
+  const { supabase, id } = ctx;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, status: 401 };
-
-  // TUTTO cio che arriva da fuori e validato PRIMA di qualunque round-trip: un rifiuto
-  // che passasse dal DB non sarebbe "prima di raggiungere il DB" (DoD 5). L'id della
-  // generazione non fa eccezione (decisione (k)).
-  const id = generationIdSchema.safeParse(generationId);
-  if (!id.success) return { ok: false, status: 400 };
   const ambito = poolScopeSchema.safeParse(scope);
   if (!ambito.success) return { ok: false, status: 400 };
   const variante = sharedOrVariantIndexSchema.safeParse(variantIndex);
@@ -826,15 +854,10 @@ export async function chooseVariant(
   index: number,
   document: unknown,
 ): Promise<TransitionResult> {
-  const supabase = await createServerSupabaseClient();
+  const ctx = await beginTransition(generationId);
+  if (!ctx.ok) return ctx;
+  const { supabase, id } = ctx;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, status: 401 };
-
-  const id = generationIdSchema.safeParse(generationId);
-  if (!id.success) return { ok: false, status: 400 };
   const variante = variantIndexSchema.safeParse(index);
   if (!variante.success) return { ok: false, status: 400 };
 
@@ -864,26 +887,28 @@ export async function chooseVariant(
   );
   if (!visto) return await assenteOppureConflitto(supabase, id.data);
 
-  const { data, error } = await supabase
-    .from('site_generations')
-    .update({
-      status: 'chosen',
-      chosen_variant: variante.data,
-      document: parsed.document,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', id.data)
-    // IL VINCOLO DI PARTENZA, valutato dal DB insieme alla scrittura (decisione (f)).
-    .eq('status', 'ready')
-    .select('id');
-  if (error) return { ok: false, status: 500 };
-  if (!data || data.length === 0) return await assenteOppureConflitto(supabase, id.data);
-
-  return { ok: true };
+  // IL VINCOLO DI PARTENZA e' 'ready', valutato dal DB insieme alla scrittura (decisione (f)):
+  // corpo CAS condiviso (eseguiCas), col solo `patch` proprio della scelta.
+  return eseguiCas(
+    supabase,
+    id.data,
+    { status: 'chosen', chosen_variant: variante.data, document: parsed.document },
+    'ready',
+  );
 }
 
 /**
- * LA FASE 2: 'chosen' → 'complete'. ESTENDE `document.pages` con le pagine interne.
+ * LA FASE 2: ESTENDE `document.pages` con le pagine interne. Con `opts.final` decide se
+ * CHIUDERE la generazione o lasciarla aperta per il chunk successivo (EMENDAMENTO P2-D32,
+ * fase 2 a chunk di T-234):
+ *  - `final: true` (DEFAULT, retro-compatibile con le chiamate a 2 argomenti di T-204):
+ *    'chosen' → 'complete'. E' l'ULTIMO chunk, o la one-pager, o l'append unico di T-204.
+ *  - `final: false`: 'chosen' → 'chosen' (la riga RESTA aperta), document esteso. E' la
+ *    persistenza INCREMENTALE di un chunk non finale: cosi' un troncamento del chunk
+ *    successivo perde quel chunk e non le pagine gia' scritte (AC-234-3).
+ * In ENTRAMBI i casi il CAS parte da 'chosen', gli STESSI vincoli sono imposti (parseDocument,
+ * `max_pages` della RIGA, home unica) e `updated_at` e' toccato — la prova di vita che
+ * impedisce alla riconciliazione (P2-D15/P2-D32) di uccidere una fase 2 viva a meta'.
  *
  * La base e il documento LETTO dalla riga, non un documento che il chiamante riporta: le
  * pagine gia congelate non sono riscrivibili da qui. Il documento ESTESO passa per intero
@@ -895,16 +920,12 @@ export async function chooseVariant(
 export async function appendPages(
   generationId: string,
   pages: unknown,
+  opts: { readonly final?: boolean } = {},
 ): Promise<TransitionResult> {
-  const supabase = await createServerSupabaseClient();
+  const ctx = await beginTransition(generationId);
+  if (!ctx.ok) return ctx;
+  const { supabase, id } = ctx;
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { ok: false, status: 401 };
-
-  const id = generationIdSchema.safeParse(generationId);
-  if (!id.success) return { ok: false, status: 400 };
   if (!Array.isArray(pages)) return { ok: false, status: 400 };
 
   // Serve il documento corrente per ESTENDERLO, quindi qui la lettura precede la
@@ -942,20 +963,155 @@ export async function appendPages(
   // costante che usa `chooseVariant`. `parseDocument` non lo controlla, e non deve.
   if (quanteHome(parsed.document.pages) !== 1) return { ok: false, status: 400 };
 
-  const { data: aggiornate, error: updateError } = await supabase
-    .from('site_generations')
-    .update({
-      status: 'complete',
-      document: parsed.document,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', id.data)
-    .eq('status', 'chosen')
-    .select('id');
-  if (updateError) return { ok: false, status: 500 };
-  if (!aggiornate || aggiornate.length === 0) {
-    return await assenteOppureConflitto(supabase, id.data);
-  }
+  // `final` DEFAULT true: un append a 2 argomenti (T-204) chiude la generazione, come prima.
+  // `final: false` la lascia 'chosen' per il chunk successivo (P2-D32). Lo stato di ARRIVO
+  // cambia; il CAS di PARTENZA resta 'chosen' in entrambi i casi.
+  const nuovoStato: GenerationStatus = opts.final ?? true ? 'complete' : 'chosen';
 
-  return { ok: true };
+  // Lo stato di ARRIVO cambia (`nuovoStato`), il CAS di PARTENZA resta 'chosen' in entrambi i casi:
+  // corpo CAS condiviso (eseguiCas), col solo `patch` proprio dell'append.
+  return eseguiCas(
+    supabase,
+    id.data,
+    { status: nuovoStato, document: parsed.document },
+    'chosen',
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T-230 — LE DUE TRANSIZIONI DELLA FASE 1, chiamate dalla rotta POST /api/generate.
+// La macchina a stati di P2-D13 non aveva alcuna transizione 'generating' → 'ready':
+// `createGeneration` apre la riga a 'generating' e `chooseVariant` la porta da 'ready' a
+// 'chosen', ma il passo intermedio — la fase 1 ha prodotto il pool CONDIVISO, le cinque
+// varianti sono pronte da mostrare — non esisteva. Le due azioni qui lo aggiungono, e sono
+// entrambe COMPARE-AND-SET da 'generating': lo stato di partenza e' il FILTRO dell'UPDATE
+// (decisione (f) del blocco T-204), valutato dal DB nello stesso istante della scrittura,
+// cosi' due richieste concorrenti non transizionano entrambe. Zero righe toccate → una
+// lettura mirata (`assenteOppureConflitto`) distingue il 409 (c'e', ma in un altro stato)
+// dal 404 (non c'e', o non e' visibile a questa identita': nessun oracolo di enumerazione).
+//
+// SONO IL DOPPIO ESITO DELL'ORDINE DURABILE della rotta (P2-D15, meta' 'route' di AC-230-7):
+// createGeneration('generating') PRIMA della chiamata al confine → confine → writePool del
+// pool condiviso → `markReady`. Se il confine FALLISCE o writePool fallisce, la rotta chiama
+// `markFailed` invece: la riga non resta MAI 'generating' in modo incoerente. La meta'
+// mancante — il processo che muore senza che nessun `finally` giri — la copre la
+// riconciliazione in lettura di sopra (`getGeneration`), che porta a 'failed' una riga
+// 'generating' stantia.
+//
+// `updated_at` E' IMPOSTO DA ENTRAMBE (invariante di decisione (1) in testa al modulo):
+// senza il tocco la riga invecchierebbe e la riconciliazione la ucciderebbe da viva.
+
+/**
+ * IL VOCABOLARIO DEI MOTIVI DI FALLIMENTO scrivibili in `failure_reason` dalla rotta di
+ * fase 1. E' un insieme CHIUSO e nostro (P2-D20): `failure_reason` e' una colonna che
+ * qualcuno logghera', quindi non vi si interpola input non fidato — il motivo arriva sempre
+ * da qui, non dal modello. I primi quattro RISPECCHIANO gli esiti nominati di
+ * `runGenerationTurn` (T-224): sono duplicati come stringhe letterali di proposito, perche'
+ * `markFailed` DEVE validare il proprio input (e' una server action) e l'unico modo di
+ * rifiutare un motivo inventato prima del DB e' confrontarlo con un elenco che vive qui.
+ */
+const FAILURE_REASONS = [
+  // esiti nominati del confine (T-224): il tetto di uscita sfondato, la tool-call assente,
+  // uno stop_reason anomalo, il pool fuori contratto.
+  'risposta_troncata',
+  'tool_use_assente',
+  'stop_reason_anomalo',
+  'pool_non_valido',
+  // il confine ha LANCIATO invece di ritornare un esito (rete, SDK).
+  'confine_in_errore',
+  // il confine ha prodotto un pool valido, ma la sua scrittura non e' riuscita.
+  'pool_non_scritto',
+  // il pool e' stato scritto, ma la transizione durabile 'generating'->'ready' e' andata PERSA:
+  // la finestra P2-D15 ha riconciliato la riga a 'failed' durante la lunga chiamata al confine,
+  // oppure l'UPDATE ha fallito. La generazione NON e' viva, quindi la rotta lo dice al client
+  // con 'error' e non con un 'pool' di successo — simmetrico a 'pool_non_scritto'.
+  'ready_non_scritto',
+  // FASE 2 (T-234): un chunk delle pagine interne e' tornato TRONCATO dal confine. E' il
+  // motivo con cui `failGenerationPhase2` chiude una fase 2 morta a meta' (AC-234-3), e sta
+  // qui — non altrove — perche' `failure_reason` e' una colonna nostra e chiusa (P2-D20).
+  'fase2_troncata',
+] as const;
+
+/** I motivi ammessi per `markFailed`. Derivato dall'elenco, mai riscritto. */
+export type GenerationFailureReason = (typeof FAILURE_REASONS)[number];
+
+const failureReasonSchema = z.enum(FAILURE_REASONS);
+
+/**
+ * 'generating' → 'ready'. La fase 1 ha scritto il pool CONDIVISO e le cinque varianti sono
+ * pronte da mostrare. CAS da 'generating': una partenza diversa e' un 409 e NON modifica la
+ * riga. `updated_at` e' toccato (prova di vita, decisione (1)).
+ */
+export async function markReady(generationId: string): Promise<TransitionResult> {
+  const ctx = await beginTransition(generationId);
+  if (!ctx.ok) return ctx;
+  const { supabase, id } = ctx;
+
+  // CAS da 'generating' (il vincolo di partenza, decisione (f)): corpo condiviso `eseguiCas`.
+  return eseguiCas(supabase, id.data, { status: 'ready' }, 'generating');
+}
+
+/**
+ * 'generating' → 'failed' con un `failure_reason` NOMINATO. La chiama la rotta quando il
+ * confine fallisce o writePool non riesce, cosi' la riga non resta 'generating' in modo
+ * incoerente (AC-230-7). CAS da 'generating' come `markReady`; il motivo e' validato contro
+ * il vocabolario chiuso `FAILURE_REASONS` PRIMA del DB (nessun input non fidato in
+ * `failure_reason`, P2-D20). `updated_at` e' toccato.
+ */
+/**
+ * IL FALLIMENTO NOMINATO di una generazione: 'X' → 'failed' con `failure_reason` validato contro
+ * il vocabolario chiuso `FAILURE_REASONS` PRIMA del DB (nessun input non fidato in `failure_reason`,
+ * P2-D20). Lo stato di PARTENZA e' un PARAMETRO: `markFailed` (da 'generating') e
+ * `failGenerationPhase2` (da 'chosen') sono la STESSA transizione con partenze diverse, quindi
+ * delegano qui invece di ripeterla. NON tocca `document` (non e' nel patch): le pagine gia'
+ * scritte restano dov'erano.
+ */
+async function failGeneration(
+  generationId: string,
+  reason: GenerationFailureReason,
+  fromStatus: GenerationStatus,
+): Promise<TransitionResult> {
+  const ctx = await beginTransition(generationId);
+  if (!ctx.ok) return ctx;
+
+  const motivo = failureReasonSchema.safeParse(reason);
+  if (!motivo.success) return { ok: false, status: 400 };
+
+  return eseguiCas(
+    ctx.supabase,
+    ctx.id.data,
+    { status: 'failed', failure_reason: motivo.data },
+    fromStatus,
+  );
+}
+
+export async function markFailed(
+  generationId: string,
+  reason: GenerationFailureReason,
+): Promise<TransitionResult> {
+  // CAS da 'generating': la riga non resta 'generating' in modo incoerente (AC-230-7).
+  return failGeneration(generationId, reason, 'generating');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// T-234 — IL FALLIMENTO DELLA FASE 2. Simmetrica a `markFailed`, ma la CAS parte da
+// 'chosen' e non da 'generating': la fase 2 gira su una generazione GIA' scelta, e un suo
+// chunk troncato deve chiuderla a 'failed' SENZA toccare il documento gia' persistito — la
+// home piu' i chunk riusciti restano, e la generazione NON dichiara mai 'complete' (AC-234-3,
+// "onesta' dello stato"). E' l'altra meta' di `appendPages({final:false})`: quella estende e
+// tiene aperto, questa chiude in errore. `failure_reason` e' NOMINATO e validato contro il
+// vocabolario chiuso `FAILURE_REASONS` prima del DB (nessun input non fidato, P2-D20).
+
+/**
+ * 'chosen' → 'failed' con un `failure_reason` NOMINATO. La chiama l'azione di fase 2 (T-234)
+ * quando un chunk delle pagine interne non produce un pool (troncamento o altro esito
+ * terminale del confine). CAS da 'chosen': una partenza diversa e' un 409 e NON modifica la
+ * riga. NON tocca `document`: le pagine gia' scritte restano dov'erano.
+ */
+export async function failGenerationPhase2(
+  generationId: string,
+  reason: GenerationFailureReason,
+): Promise<TransitionResult> {
+  // CAS da 'chosen' (non 'generating'): e' la fase 2 che fallisce; `document` resta intatto.
+  return failGeneration(generationId, reason, 'chosen');
 }

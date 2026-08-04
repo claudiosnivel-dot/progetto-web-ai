@@ -36,8 +36,13 @@
     },
     "onboarding": {
       "cta": "Avvia o continua l'onboarding",
-      "readyToGenerate": "Pronto per generare",
       "statusUnavailable": "Stato del brief non disponibile"
+    },
+    "generation": {
+      "generate": "Genera il sito",
+      "resume": "Riprendi la generazione",
+      "preview": "Vedi l'anteprima",
+      "retry": "Riprova la generazione"
     }
   },
   "onboarding": {
@@ -121,5 +126,78 @@
       "geoLat": "Latitudine",
       "geoLng": "Longitudine"
     }
+  },
+  "site": {
+    "blocks": {
+      "hero": "Intestazione",
+      "offerte": "Offerta",
+      "chiSiamo": "Chi siamo",
+      "orari": "Orari",
+      "contatti": "Contatti",
+      "recensioni": "Recensioni",
+      "faq": "Domande frequenti",
+      "ctaWhatsapp": "Contatto WhatsApp"
+    },
+    "offerings": {
+      "menu": "Menu",
+      "courses": "Corsi",
+      "services": "Servizi",
+      "catalog": "Catalogo",
+      "generic": "La nostra offerta"
+    },
+    "nav": {
+      "home": "Home",
+      "offerings": "Offerta",
+      "hours": "Orari",
+      "contact": "Contatti",
+      "reviews": "Recensioni",
+      "faq": "Domande frequenti"
+    },
+    "actions": {
+      "whatsapp": "Scrivici su WhatsApp"
+    }
+  },
+  "generate": {
+    "title": "Genera il tuo sito",
+    "readError": "Non è stato possibile leggere il brief di questo sito: ricarica la pagina. Non è un problema del contenuto del brief.",
+    "cta": "Genera cinque proposte",
+    "launcher": {
+      "generating": "Sto generando le cinque proposte…",
+      "done": "Le cinque proposte sono pronte.",
+      "error": "La generazione non è andata a buon fine: riprova."
+    },
+    "missing": {
+      "title": "Prima di generare, completa il brief",
+      "onboardingCta": "Torna all'onboarding per completare il brief",
+      "effect": {
+        "unlocks": "sblocca una sezione del sito",
+        "specializes": "specializza la sezione dell'offerta"
+      },
+      "fields": {
+        "businessName": "Nome dell'attività",
+        "offerings": "Offerta",
+        "vertical": "Settore",
+        "description": "Descrizione",
+        "highlights": "Punti di forza",
+        "hours": "Orari",
+        "address": "Indirizzo",
+        "phone": "Telefono",
+        "whatsapp": "WhatsApp",
+        "email": "Email",
+        "other": "Un altro campo del brief"
+      }
+    },
+    "chooser": {
+      "regenerate": "Rigenera questa proposta",
+      "unavailable": "Le proposte non sono al momento disponibili: ricarica la pagina.",
+      "choose": "Scegli questa proposta",
+      "confirmPrompt": "Cambiare proposta ora rigenera le pagine interne del sito: è una nuova generazione a pagamento. Vuoi procedere?",
+      "confirm": "Sì, rigenera con questa proposta",
+      "cancel": "Annulla"
+    },
+    "buildInner": "Genera le pagine interne del sito"
+  },
+  "preview": {
+    "unavailable": "L'anteprima non è ancora disponibile per questo sito."
   }
 }

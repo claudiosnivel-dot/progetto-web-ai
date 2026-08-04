@@ -24,7 +24,7 @@ import middleware from '@/middleware';
 // MODULO — mai ricopiandone il pattern qui, o il test resterebbe verde proprio
 // sulla mutazione che deve prendere; `routing` a derivare i locale dall'unica
 // sorgente di verità invece di scriverli a mano.
-import { config } from '@/middleware';
+import { config, protectedRoute } from '@/middleware';
 import { routing } from '@/i18n/routing';
 
 const fakeUser = { id: '00000000-0000-0000-0000-000000000001' } as User;
@@ -108,6 +108,42 @@ describe('T-041 middleware: guardia auth composta con next-intl', () => {
     expect(res.status).toBe(307); // covers: AC-041-6
     expect(new URL(res.headers.get('location') as string).pathname).toBe('/es/login'); // covers: AC-041-6
   });
+
+  // T-230/T-235 (SEC) — /{locale}/generate (T-230) e /{locale}/preview (T-235) entrano fra le
+  // route protette (PROTECTED_SEGMENTS). Prima queste due rotte non erano asserite QUI: una
+  // regressione che le togliesse da PROTECTED_SEGMENTS le renderebbe pubbliche, e la sola difesa
+  // resterebbe il getUser della pagina — che il blueprint chiede di NON considerare l'unica linea
+  // (la guardia di route deve negare l'accesso PRIMA di eseguire il Server Component). Questi test
+  // esercitano la funzione middleware sul path reale: se il segmento uscisse dal perimetro, il
+  // redirect 307 sparirebbe e questi cadrebbero.
+  it('senza sessione, GET /it/generate/<siteId> reindirizza 307 a /it/login', async () => {
+    getUserFromRequestMock.mockResolvedValue(null);
+    const res = await run('/it/generate/00000000-0000-0000-0000-0000000000aa');
+    expect(res.status).toBe(307); // covers: AC-230-1
+    expect(new URL(res.headers.get('location') as string).pathname).toBe('/it/login'); // covers: AC-230-1
+  });
+
+  it('con sessione valida, GET /it/generate/<siteId> prosegue senza redirect al login', async () => {
+    getUserFromRequestMock.mockResolvedValue(fakeUser);
+    const res = await run('/it/generate/00000000-0000-0000-0000-0000000000aa');
+    expect(res.headers.get('location')).toBeNull(); // covers: AC-230-1
+    expect(getUserFromRequestMock).toHaveBeenCalledOnce(); // covers: AC-230-1
+  });
+
+  it('senza sessione, GET /es/preview/<siteId> reindirizza 307 a /es/login (locale es preservato)', async () => {
+    getUserFromRequestMock.mockResolvedValue(null);
+    const res = await run('/es/preview/00000000-0000-0000-0000-0000000000aa');
+    // il routing di locale non è corto-circuitato: es resta es.
+    expect(res.status).toBe(307); // covers: AC-235-3
+    expect(new URL(res.headers.get('location') as string).pathname).toBe('/es/login'); // covers: AC-235-3
+  });
+
+  it('con sessione valida, GET /it/preview/<siteId> prosegue senza redirect al login', async () => {
+    getUserFromRequestMock.mockResolvedValue(fakeUser);
+    const res = await run('/it/preview/00000000-0000-0000-0000-0000000000aa');
+    expect(res.headers.get('location')).toBeNull(); // covers: AC-235-3
+    expect(getUserFromRequestMock).toHaveBeenCalledOnce(); // covers: AC-235-3
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -154,13 +190,57 @@ describe('T-041 proprietà di sicurezza della guardia (audit oracoli, schema D)'
       `/${locale}/dashboard`,
       `/${locale}/dashboard/${SITE_ID}`,
       `/${locale}/onboarding/${SITE_ID}`,
+      // T-230/T-235 (SEC): /generate e /preview erano OMESSE da questa lista, quindi una
+      // regressione che le escludesse dal perimetro del matcher non sarebbe stata vista qui.
+      `/${locale}/generate/${SITE_ID}`,
+      `/${locale}/preview/${SITE_ID}`,
     ]);
-    expect(protette.length).toBe(routing.locales.length * 3);
+    expect(protette.length).toBe(routing.locales.length * 5);
 
     for (const pathname of protette) {
       // Se questa asserzione cade, la guardia non viene MAI eseguita su quel path,
       // per quanto corretta sia: la rotta è pubblica.
       expect(isInMiddlewarePerimeter(pathname), pathname).toBe(true); // covers: AC-041-1, AC-150-1 (installazione, non solo funzione)
+    }
+  });
+
+  // A3-04 (la meta' che config.matcher NON prova) — MUTAZIONE CHE LO RENDE ROSSO: togliere
+  // 'generate' (o 'preview', o 'dashboard') da PROTECTED_SEGMENTS in src/middleware.ts.
+  // `isInMiddlewarePerimeter` (config.matcher) NON lo vedrebbe: il matcher e' il catch-all
+  // '/((?!api|_next|_vercel|.*\\..*).*)', quindi /it/generate/<id> vi cade DENTRO comunque —
+  // da pubblica o protetta che sia — e asserirne la membership li' e' vero-per-costruzione, il
+  // difetto di questa stessa lista prima che vi si aggiungessero /generate e /preview. Cio' che
+  // DAVVERO decide se una rotta e' GUARDATA e' `protectedRoute` (src/middleware.ts), la regex
+  // REALE derivata da PROTECTED_SEGMENTS: e' contro QUELLA che si asserisce l'appartenenza, cosi'
+  // togliere un segmento dal perimetro fa cadere anche l'audit (non solo le prove funzionali).
+  it('ogni rotta protetta — e in particolare /generate e /preview — e GUARDATA da protectedRoute, non solo dentro il matcher catch-all', () => {
+    expect(routing.locales.length).toBeGreaterThan(0); // anti-vacuita'
+
+    const protette = routing.locales.flatMap((locale) => [
+      `/${locale}/dashboard`,
+      `/${locale}/dashboard/${SITE_ID}`,
+      `/${locale}/onboarding/${SITE_ID}`,
+      `/${locale}/generate/${SITE_ID}`,
+      `/${locale}/preview/${SITE_ID}`,
+    ]);
+    expect(protette.length).toBe(routing.locales.length * 5);
+
+    for (const pathname of protette) {
+      // Se questa cade, quel segmento e' uscito da PROTECTED_SEGMENTS: la rotta e' nel matcher
+      // (il middleware gira) ma protectedRoute non la intercetta, quindi la guardia non parte.
+      expect(protectedRoute.test(pathname), pathname).toBe(true); // covers: AC-230-1, AC-235-3
+    }
+
+    // Falsificabilita' del predicato: protectedRoute NON e' un match-all. Le rotte PUBBLICHE, e
+    // un path protetto SENZA locale, non vi cadono dentro — se cosi' fosse, l'assert sopra
+    // passerebbe a vuoto per QUALUNQUE PROTECTED_SEGMENTS (anche una lista vuota).
+    for (const pubblica of [
+      '/it/login',
+      '/es/signup',
+      '/it/auth/callback',
+      `/generate/${SITE_ID}`,
+    ]) {
+      expect(protectedRoute.test(pubblica), pubblica).toBe(false); // covers: AC-230-1, AC-235-3
     }
   });
 

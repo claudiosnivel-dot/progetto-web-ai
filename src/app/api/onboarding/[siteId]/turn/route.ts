@@ -1,11 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { getUser } from '@/data/supabase-ssr';
-import { listSites } from '@/data/sites';
-import { getBrief, upsertBrief } from '@/data/briefs';
+import { upsertBrief } from '@/data/briefs';
 import { runInterviewTurn } from '@/domain/onboarding/interview';
-import { emptyBrief, type Brief } from '@/domain/onboarding/brief';
-import { routing } from '@/i18n/routing';
+import { type Brief } from '@/domain/onboarding/brief';
+import { guardMutatingRequest } from '@/app/api/_shared/request-guard';
+import { guardOwnedSite, loadRouteBrief } from '@/app/api/_shared/route-guards';
 
 // T-150 (macrotask onboarding-ui, P1) — endpoint di UN turno della chat di
 // onboarding: same-origin -> identita' -> proprieta' del sito -> tetto sui byte del
@@ -196,32 +196,16 @@ function briefToUpdate(brief: Brief) {
 type TurnContext = { params: Promise<{ siteId: string }> };
 
 export async function POST(request: NextRequest, context: TurnContext): Promise<Response> {
-  // 1) Same-origin (CSRF, vedi sopra), DUE gate entrambi fail-CLOSED.
-  //
-  //    Gate 1 — `Sec-Fetch-Site` PRETESO uguale a 'same-origin': assente → 403, non
-  //    "controllalo se c'e'". Trattare l'assenza come un permesso era un fail-OPEN:
-  //    bastava NON mandare l'header per scavalcare questo gate e restare col solo gate
-  //    2, che poggia su un origin ricostruito. Preteso, invece, questo gate vale ANCHE
-  //    se `nextUrl.origin` diverge da quello vero: e' l'unico dei due indipendente
-  //    dalla ricostruzione.
-  //    COSTO REALE, non nullo: i metadata Fetch non sono in ogni browser mai esistito
-  //    (Chrome 76+, Firefox 90+, Safari 16.4+), quindi un browser piu' vecchio si vede
-  //    rifiutare la propria chat pur essendo legittimo — prima lo copriva il gate 2. Il
-  //    baratto e' accettato consapevolmente: e' un endpoint che MUTA STATO, e per la
-  //    fascia di browser che manda l'header (tutti quelli in supporto) il gate diventa
-  //    solido invece che aggirabile. Il solo client legittimo e' il fetch di T-151.
-  if (request.headers.get('sec-fetch-site') !== 'same-origin') {
-    return jsonError(403, 'forbidden');
-  }
-  //    Gate 2 — `Origin` confrontato con l'origin della richiesta; i browser lo inviano
-  //    sempre su POST, quindi assente = 403. BASELINE NON CANONICA, limite dichiarato:
-  //    `nextUrl.origin` e' l'origin che Next RICOSTRUISCE dalla richiesta (host/
-  //    x-forwarded-*), non un origin configurato, quindi dietro un reverse proxy mal
-  //    configurato puo' divergere da quello reale. E' il motivo per cui il gate 1 e'
-  //    stato reso indipendente da esso.
-  if (request.headers.get('origin') !== request.nextUrl.origin) {
-    return jsonError(403, 'forbidden');
-  }
+  // 1) Catena same-origin + tetto sui BYTE (CSRF A01:2025 / dimensione A05:2025), estratta
+  //    in _shared/request-guard (T-230): e' la STESSA catena che applica POST /api/generate,
+  //    e due copie di una difesa CSRF divergono in silenzio alla prossima modifica. Le tre
+  //    citazioni vivono ora nel modulo condiviso: Sec-Fetch-Site PRETESO e fail-CLOSED,
+  //    Origin confrontato con l'origin ricostruito, e Content-Length → 413 PRIMA di leggere
+  //    il corpo (col LIMITE dichiarato del chunked senza Content-Length). Il tetto e' un
+  //    PARAMETRO perche' il corpo legittimo di questa rotta — la history rigiocata — e' piu'
+  //    grande di quello di /generate: MAX_BODY_BYTES e' derivato QUI, accanto ai suoi cap.
+  const guardFailure = guardMutatingRequest(request, { maxBodyBytes: MAX_BODY_BYTES });
+  if (guardFailure) return guardFailure;
 
   // 2) Identita' server-side VALIDATA (getUser rivalida il token), mai un flag client.
   const user = await getUser();
@@ -231,31 +215,14 @@ export async function POST(request: NextRequest, context: TurnContext): Promise<
 
   const { siteId } = await context.params;
 
-  // 3) Proprieta' del sito (P1-D21), prima di leggere o scrivere qualunque brief.
-  const sitesResult = await listSites();
-  if (!sitesResult.ok) {
-    return jsonError(sitesResult.status === 401 ? 401 : 500, 'unavailable');
-  }
-  if (!sitesResult.sites.some((site) => site.id === siteId)) {
-    return jsonError(404, 'not-found');
-  }
+  // 3) Proprieta' del sito (P1-D21), prima di leggere o scrivere qualunque brief. Catena
+  //    condivisa con l'endpoint /generate (guardOwnedSite, _shared/route-guards).
+  const ownership = await guardOwnedSite(siteId);
+  if (ownership) return ownership;
 
-  // 4) Tetto sui BYTE del body (MAX_BODY_BYTES), PRIMA di leggerlo: e' l'unico punto in
-  //    cui rifiutare costa quanto leggere un header invece che materializzare il corpo.
-  //    NON COPERTO (limite dichiarato): un client che omette `Content-Length` — una POST
-  //    in `Transfer-Encoding: chunked`, che nessun browser produce per un body di
-  //    stringa ma un client scritto a mano si — non e' fermato da questa guardia e resta
-  //    limitato dai soli cap di zod, dopo la lettura. Fermarlo davvero vorrebbe dire
-  //    contare i byte mentre si consuma lo stream, che e' un'altra forma della route.
-  //    Nessun `Number.isFinite` nella condizione, ed e' voluto: un header assente da'
-  //    NaN e `NaN > cap` e' falso (passa, come dichiarato sopra), mentre 'Infinity'
-  //    da' Infinity e `Infinity > cap` e' VERO (413). Filtrare i non-finiti prima del
-  //    confronto avrebbe fatto passare proprio 'Infinity'.
-  if (Number(request.headers.get('content-length')) > MAX_BODY_BYTES) {
-    return jsonError(413, 'payload-too-large');
-  }
-
-  // 5) Body: input NON FIDATO dal browser.
+  // 4) Body: input NON FIDATO dal browser. Il tetto sui byte l'ha gia' applicato la catena
+  //    di guardie al punto (1), PRIMA di arrivare qui: `request.json()` non materializza un
+  //    corpo oltre MAX_BODY_BYTES.
   let rawBody: unknown;
   try {
     rawBody = await request.json();
@@ -267,17 +234,15 @@ export async function POST(request: NextRequest, context: TurnContext): Promise<
     return jsonError(400, 'invalid-body');
   }
 
-  // 6) Stato corrente del brief (RLS). Se il brief non esiste ancora si parte da uno
+  // 5) Stato corrente del brief (RLS). Se il brief non esiste ancora si parte da uno
   //    vuoto: il locale non e' nel body (P1-D19) e la rotta di pagina non e' in questo
   //    percorso, quindi l'unico valore disponibile e' il default del routing. Dal
   //    primo update_brief in avanti il locale del brief e' quello persistito.
-  const briefResult = await getBrief(siteId);
-  if (!briefResult.ok) {
-    return jsonError(briefResult.status === 401 ? 401 : 500, 'unavailable');
-  }
-  const brief = briefResult.brief ?? emptyBrief(routing.defaultLocale);
+  const briefLoad = await loadRouteBrief(siteId);
+  if (!briefLoad.ok) return briefLoad.response;
+  const brief = briefLoad.brief;
 
-  // 7) Il turno di intervista (T-132 → confine T-131). AWAIT PRIMA di aprire lo
+  // 6) Il turno di intervista (T-132 → confine T-131). AWAIT PRIMA di aprire lo
   //    stream: finche' lo status HTTP e' scrivibile, un guasto del modello resta un
   //    errore onesto (502) invece di un 200 con un chunk d'errore. Nulla c'e' da
   //    flushare prima che il modello abbia risposto, quindi l'ordine di P1-D18 non
@@ -296,7 +261,7 @@ export async function POST(request: NextRequest, context: TurnContext): Promise<
     return jsonError(502, 'turn-failed');
   }
 
-  // 8) I DUE flush ordinati (P1-D18). Lo stream e' di TRASPORTO: il confine T-131
+  // 7) I DUE flush ordinati (P1-D18). Lo stream e' di TRASPORTO: il confine T-131
   //    resta non-streaming. Serve a nascondere il round-trip al DB dietro la lettura
   //    della risposta, non a mostrare i token uno a uno — LIMITE DICHIARATO.
   const stream = new ReadableStream<Uint8Array>({
