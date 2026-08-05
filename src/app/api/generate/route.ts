@@ -11,7 +11,7 @@ import {
 import { guardMutatingRequest } from '@/app/api/_shared/request-guard';
 import { guardOwnedSite, loadRouteBrief } from '@/app/api/_shared/route-guards';
 import { generatable } from '@/domain/generation/generatable';
-import { runGenerationPhase1 } from '@/domain/generation/phase1';
+import { runGenerationPhase1 } from '@/data/generation-phase1';
 import { RECIPES } from '@/domain/generation/recipes';
 import { DOCUMENT_LIMITS } from '@/domain/generation/document';
 

@@ -3,7 +3,7 @@
 import { z } from 'zod';
 import { loadOwnBrief, loadOwnGeneration } from '@/data/generation-action-reads';
 import { writePool } from '@/data/generations';
-import { runGenerationPhase1 } from '@/domain/generation/phase1';
+import { runGenerationPhase1 } from '@/data/generation-phase1';
 
 // T-232 (macrotask generation-ui, P2) — RIGENERA IL TESTO DI UNA VARIANTE (P2-D3,
 // copia-su-scrittura). UNA sola chiamata al confine — `runGenerationPhase1` (dominio) esegue
@@ -12,8 +12,8 @@ import { runGenerationPhase1 } from '@/domain/generation/phase1';
 // a rendere dal pool condiviso (poolForVariant, T-232): e' cio' che rende AC-232-3 verificabile
 // contando le chiamate al modello, non l'effetto visivo.
 //
-// Vive in src/data/ e raggiunge il confine ATTRAVERSO l'orchestrazione di dominio
-// `runGenerationPhase1`, mai importando `@/data/anthropic` direttamente — la stessa forma con
+// Vive in src/data/ e raggiunge il confine ATTRAVERSO l'orchestrazione `runGenerationPhase1`
+// (co-locata in src/data, T-AH5), mai importando `@/data/anthropic` direttamente — la stessa forma con
 // cui la rotta di fase 1 (T-230) tiene il segreto Anthropic dietro il confine server-only. Il
 // client con SESSIONE (RLS attiva) e' quello di `getBrief`/`writePool`; nessuna service_role
 // (R7), e l'account non arriva mai dal client (writePool lo deriva dalla riga, decisione (e) di

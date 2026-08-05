@@ -1,7 +1,5 @@
 import type Anthropic from '@anthropic-ai/sdk';
-import { runGenerationTurn } from '@/data/anthropic';
 import type { Brief } from '@/domain/onboarding/brief';
-import type { Pool } from '@/domain/generation/pool';
 import { blocksFor, slotsForBlocks } from '@/domain/generation/blocks';
 import type { PageSpec } from '@/domain/generation/pages';
 import { briefProjection } from '@/domain/generation/projection';
@@ -9,14 +7,13 @@ import { buildGenerationPayload, type GenerationPayload } from '@/domain/generat
 import { buildPoolTool } from '@/domain/generation/tool';
 import type { SlotId } from '@/domain/generation/slots';
 
-// T-234 (macrotask generation-ui, P2) — L'ORCHESTRAZIONE DELLA FASE 2 A CHUNK (P2-D13,
-// EMENDAMENTO "A" = P2-D32): assembla il turno delle PAGINE INTERNE e chiama il confine unico
-// (T-224). Vive nel layer di DOMINIO e non nella rotta/azione per la stessa ragione di
-// `phase1.ts`: src/app NON puo' importare @/data/anthropic (il confine e' server-only e detiene
-// il segreto Anthropic, regola ESLint), e la fase 2 dev'essere richiamabile dall'azione di
-// scrittura (src/data/generation-phase2.ts) attraverso un orchestratore, non importando il
-// confine di la'. La PROIEZIONE 'inner' (T-220) e' la difesa in ingresso: al confine arriva la
-// sola porzione ammessa del brief — la fase 2 NON riapre l'allowlist (T-220/AC-220-5).
+// T-234 / architecture-hardening (T-AH5) — LA COSTRUZIONE PURA DEL PAYLOAD della fase 2 a chunk
+// (P2-D13, EMENDAMENTO "A" = P2-D32). Questo modulo di DOMINIO resta PURO: non importa @/data.
+// L'ESECUZIONE del turno (runGenerationPhase2Chunk, che chiama il confine unico @/data/anthropic)
+// e' stata spostata in src/data/generation-phase2-chunk.ts, accanto al suo chiamante — cosi' il
+// dominio non dipende dal confine (contratto di altitudine). La PROIEZIONE 'inner' (T-220) e' la
+// difesa in ingresso: al confine arriva la sola porzione ammessa del brief — la fase 2 NON riapre
+// l'allowlist (T-220/AC-220-5).
 //
 // ── IL PREFISSO STABILE E' IDENTICO FRA I CHUNK (AC-234-2), ED E' UNA SCELTA CON UN COSTO ────
 // L'API rende il prompt nell'ordine tools -> system -> messages e il prompt caching e' un
@@ -37,21 +34,6 @@ import type { SlotId } from '@/domain/generation/slots';
 // DoD di T-234 ha scelto di non prendere ("Il prefisso stabile ... e' identico fra i chunk,
 // perche' sia cacheabile"). L'effetto sul modello non e' oracolabile senza chiave (P1 §6-bis
 // p.2), quindi qui e' un limite DICHIARATO e non un fatto misurato.
-
-/** I motivi di fallimento NOMINATI del confine (T-224), derivati e non riscritti. */
-type Phase2ChunkFailure = Extract<
-  Awaited<ReturnType<typeof runGenerationTurn>>,
-  { ok: false }
->['reason'];
-
-/**
- * L'esito di UN chunk della fase 2. Il fallimento e' TERMINALE e NOMINATO (stesso contratto di
- * T-224): nessun pool parziale. In caso di successo porta anche l'allowlist degli slug con cui
- * il pool e' stato validato — la STESSA che l'azione passa a `writePool`, senza ricalcolarla.
- */
-export type Phase2ChunkResult =
-  | { readonly ok: true; readonly pool: Pool; readonly allowedSlugs: readonly string[] }
-  | { readonly ok: false; readonly reason: Phase2ChunkFailure };
 
 /** La consegna che nomina, nella parte VOLATILE, le pagine di QUESTO chunk. */
 const APERTURA_DELLE_PAGINE = '<pagine>';
@@ -120,26 +102,4 @@ export function buildPhase2ChunkPayload(
     tools: base.tools,
     messages: [{ role: 'user', content }],
   };
-}
-
-/**
- * Assembla e ESEGUE il turno di UN chunk della fase 2 sul confine, restituendo il pool delle
- * pagine di quel chunk. L'allowlist passata a `parsePool` (via `runGenerationTurn`) e' quella
- * dell'INTERO set interno — la stessa su cui e' costruito il tool stabile — cosi' un pool che
- * portasse una pagina non prevista dalla fase 2 cade per intero (T-201), e le pagine del chunk
- * ne sono comunque un sottoinsieme.
- *
- * @returns il pool validato con la sua allowlist, oppure il motivo nominato del fallimento.
- */
-export async function runGenerationPhase2Chunk(
-  brief: Brief,
-  innerPages: readonly PageSpec[],
-  chunk: readonly PageSpec[],
-): Promise<Phase2ChunkResult> {
-  const allowedSlugs = innerPages.map((pagina) => pagina.slug);
-  const payload = buildPhase2ChunkPayload(brief, innerPages, chunk);
-
-  const turn = await runGenerationTurn({ payload, phase: 'phase2_chunk', allowedSlugs });
-  if (!turn.ok) return { ok: false, reason: turn.reason };
-  return { ok: true, pool: turn.pool, allowedSlugs };
 }

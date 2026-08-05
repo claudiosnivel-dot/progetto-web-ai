@@ -10,7 +10,7 @@ import {
 } from '@/data/generations';
 import { GENERATION_BUDGET } from '@/domain/generation/budget';
 import { pagesFor, type PageSpec } from '@/domain/generation/pages';
-import { runGenerationPhase2Chunk, type Phase2ChunkResult } from '@/domain/generation/phase2';
+import { runGenerationPhase2Chunk, type Phase2ChunkResult } from '@/data/generation-phase2-chunk';
 import { RECIPES } from '@/domain/generation/recipes';
 import { resolve } from '@/domain/generation/resolve';
 import { THEMES } from '@/domain/generation/themes';
@@ -19,8 +19,8 @@ import { THEMES } from '@/domain/generation/themes';
 // INTERNE della variante scelta, a CHUNK (P2-D13, EMENDAMENTO "A" = P2-D32). Gira SOLO su
 // status='chosen' e SOLO per la variante scelta (scope='inner', variant_index = chosen_variant).
 //
-// Vive in src/data/ e raggiunge il confine ATTRAVERSO l'orchestrazione di dominio
-// `runGenerationPhase2Chunk`, mai importando @/data/anthropic direttamente — la stessa forma con
+// Vive in src/data/ e raggiunge il confine ATTRAVERSO l'orchestrazione `runGenerationPhase2Chunk`
+// (co-locata in src/data, T-AH5), mai importando @/data/anthropic direttamente — la stessa forma con
 // cui la rigenerazione (T-232) e la rotta di fase 1 (T-230) tengono il segreto Anthropic dietro
 // il confine server-only. Il client con SESSIONE (RLS attiva) e' quello di
 // `getBrief`/`getGeneration`/`writePool`/`appendPages`; nessuna service_role (R7), e l'account

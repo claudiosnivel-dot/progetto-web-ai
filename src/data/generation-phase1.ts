@@ -8,13 +8,14 @@ import { buildGenerationPayload } from '@/domain/generation/prompt';
 import { buildPoolTool } from '@/domain/generation/tool';
 import { DOCUMENT_LIMITS } from '@/domain/generation/document';
 
-// T-230 (macrotask generation-ui, P2) — L'ORCHESTRAZIONE DELLA FASE 1: assembla il turno e
-// chiama il confine unico (T-224), restituendo il pool CONDIVISO della home. Vive nel layer
-// di DOMINIO e non nella rotta per la stessa ragione per cui `runInterviewTurn` (T-132) sta
-// qui e non nell'endpoint di turno: la rotta (src/app/**) NON puo' importare il confine LLM
-// (regola ESLint, il confine e' server-only e detiene il segreto Anthropic), mentre il layer
-// di dominio e' l'unico APERTO a esso. La rotta chiama questa funzione; questa chiama il
-// confine.
+// T-230 / architecture-hardening (T-AH5) — L'ORCHESTRAZIONE DELLA FASE 1: assembla il turno e
+// chiama il confine unico (T-224), restituendo il pool CONDIVISO della home. La funzione I/O vive
+// nel layer `data`, accanto ai suoi chiamanti (la rotta src/app/api/generate e
+// src/data/generation-regenerate): la rotta (src/app/**) NON puo' importare il confine LLM (regola
+// ESLint + contratto di altitudine: il confine e' server-only e detiene il segreto Anthropic),
+// quindi chiama questa funzione, che nel layer data puo' importarlo. I mattoni di assemblaggio
+// (pagesFor/blocksFor/briefProjection/buildPoolTool/buildGenerationPayload) restano PURI in
+// src/domain/generation e sono importati da qui (data->domain, lecito).
 //
 // UNA SOLA CHIAMATA, UN SOLO POOL (P2-D2): la fase 1 produce il pool della HOME, che e' il
 // pool CONDIVISO da cui nascono normalmente le cinque varianti (P2-D3). Le cinque cornici
