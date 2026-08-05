@@ -22,7 +22,7 @@
 // persistenza a revisioni e' un'altra cosa (save-point, T-309), non questo modulo.
 
 import type { SiteBlock, SiteDocument } from '@/domain/generation/document';
-import { addBlock } from '@/domain/editor/block-ops';
+import { addBlock, reorderBlock } from '@/domain/editor/block-ops';
 
 /**
  * Una modifica inline di uno slot di testo. `path` e' la coordinata STRUTTURATA che l'isola
@@ -54,13 +54,21 @@ type SlotEdit = {
 
 /**
  * Le azioni del reducer: una edit inline, uno switch di tema, l'aggiunta di un blocco dalla libreria
- * (T-314), oppure un passo di undo/redo. `addBlock` porta lo slug della pagina target e il blocco
- * RISOLTO da inserire (content + data + images), sorgentato dal baseline dal chiamante (model-free).
+ * (T-314), il RIORDINO di un blocco entro una pagina (T-315), oppure un passo di undo/redo.
+ * `addBlock` porta lo slug della pagina target e il blocco RISOLTO da inserire (content + data +
+ * images), sorgentato dal baseline dal chiamante (model-free). `reorderBlock` porta lo slug della
+ * pagina e gli indici sorgente/destinazione dello spostamento (lista ordinabile, nessun drag).
  */
 export type DraftAction =
   | { readonly type: 'editSlot'; readonly edit: SlotEdit }
   | { readonly type: 'setTheme'; readonly themeId: string }
   | { readonly type: 'addBlock'; readonly pageSlug: string; readonly block: SiteBlock }
+  | {
+      readonly type: 'reorderBlock';
+      readonly pageSlug: string;
+      readonly fromIndex: number;
+      readonly toIndex: number;
+    }
   | { readonly type: 'undo' }
   | { readonly type: 'redo' };
 
@@ -121,6 +129,15 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
       // storia spuria e nulla che possa poi essere persistito. Altrimenti nuovo stato con push su
       // past e futuro azzerato, la stessa disciplina di editSlot/setTheme.
       const next = addBlock(state.document, action.pageSlug, action.block);
+      if (next === null) return state;
+      return { document: next, past: [...state.past, state.document], future: [] };
+    }
+    case 'reorderBlock': {
+      // RIORDINO ENTRO UNA PAGINA (T-315): il dominio sposta il blocco da fromIndex a toIndex,
+      // ri-gate del documento e ritorna la copia validata. Un rifiuto (indici invalidi/fuori range,
+      // stessa posizione, pagina assente) e' null -> no-op: stesso stato, nessuna voce di storia
+      // spuria. Altrimenti nuovo stato con push su past e futuro azzerato, come editSlot/addBlock.
+      const next = reorderBlock(state.document, action.pageSlug, action.fromIndex, action.toIndex);
       if (next === null) return state;
       return { document: next, past: [...state.past, state.document], future: [] };
     }

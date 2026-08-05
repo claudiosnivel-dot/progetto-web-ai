@@ -97,6 +97,9 @@ export default async function EditorPage({ params }: EditorPageProps) {
         offer={offer}
         offerPageSlug={offerPage.slug}
         addBlockTitle={t('addBlock')}
+        reorderTitle={t('reorderBlocks')}
+        moveUpLabel={t('moveBlockUp')}
+        moveDownLabel={t('moveBlockDown')}
         labels={{
           revisionsTitle: t('revisions'),
           restore: t('restore'),

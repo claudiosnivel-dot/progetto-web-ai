@@ -32,6 +32,13 @@ export function useEditorDraft(initialDocument: SiteDocument) {
     (pageSlug: string, block: SiteBlock) => dispatch({ type: 'addBlock', pageSlug, block }),
     [],
   );
+  // Il riordino di un blocco entro una pagina (T-315): il controllo lista passa lo slug della pagina e
+  // gli indici sorgente/destinazione. Il dominio riordina e ri-gate; un rifiuto e' un no-op nel reducer.
+  const reorderBlock = useCallback(
+    (pageSlug: string, fromIndex: number, toIndex: number) =>
+      dispatch({ type: 'reorderBlock', pageSlug, fromIndex, toIndex }),
+    [],
+  );
   const undo = useCallback(() => dispatch({ type: 'undo' }), []);
   const redo = useCallback(() => dispatch({ type: 'redo' }), []);
 
@@ -42,6 +49,7 @@ export function useEditorDraft(initialDocument: SiteDocument) {
     editSlot,
     setTheme,
     addBlock,
+    reorderBlock,
     undo,
     redo,
   };

@@ -118,3 +118,62 @@ export function addBlock(
   const parsed = parseDocument(candidate);
   return parsed.ok ? parsed.document : null;
 }
+
+/** Un indice di posizione CANONICO: un intero non negativo entro `[0, count)`. */
+function isCanonicalIndex(value: number, count: number): boolean {
+  return Number.isInteger(value) && value >= 0 && value < count;
+}
+
+/**
+ * RIORDINA (T-315) un blocco entro una pagina spostandolo da `fromIndex` a `toIndex` (modello a
+ * LISTA, nessun drag pixel-libero). Ritorna la COPIA VALIDATA del documento, oppure `null` se il
+ * riordino e' rifiutato (pagina assente, indici non canonici o fuori range, `fromIndex === toIndex`,
+ * o qualunque invariante rotto dal gate). Puro: non muta il documento in ingresso.
+ *
+ * NO-OP -> null (non "documento invariato"): un `fromIndex === toIndex` o un indice invalido NON
+ * sono un movimento, quindi si rifiuta come `addBlock` fa col proprio rifiuto — cosi' il reducer
+ * (che tratta `null` come stessa reference) non spinge una voce di storia spuria. Su input invalido
+ * NON si muta nulla e non si costruisce alcun candidato.
+ *
+ * Due passi, nell'ordine:
+ *  1. SPLICE IMMUTABILE entro `page.blocks`: si rimuove il blocco a `fromIndex` e lo si reinserisce
+ *     a `toIndex` su una COPIA dell'array. NEL CANDIDATO INTERMEDIO gli altri blocchi restano la
+ *     stessa reference e lo spostato e' lo stesso oggetto (non ricostruito): cambia l'ORDINE, mai il
+ *     contenuto (AC-315-1).
+ *  2. GATE `parseDocument` sul documento risultante. Passa -> ritorna `parsed.document` (la copia che
+ *     lo schema ha benedetto, mai l'input): come in `addBlock`, il valore RESTITUITO e' la copia
+ *     validata, quindi il CONTENUTO e' invariato ma le reference dei blocchi non sono piu' quelle in
+ *     ingresso. Una home resta una home e i limiti sono preservati (AC-315-3). Non passa -> `null`:
+ *     rifiuto, nulla di mutato.
+ */
+export function reorderBlock(
+  document: SiteDocument,
+  pageSlug: string,
+  fromIndex: number,
+  toIndex: number,
+): SiteDocument | null {
+  const pageIndex = document.pages.findIndex((candidate) => candidate.slug === pageSlug);
+  if (pageIndex === -1) return null;
+
+  const page = document.pages[pageIndex];
+  const count = page.blocks.length;
+  // Indici VALIDATI: interi canonici, entrambi in range di `page.blocks`. Un input invalido o un
+  // movimento nullo (stessa posizione) e' un no-op rifiutato.
+  if (!isCanonicalIndex(fromIndex, count) || !isCanonicalIndex(toIndex, count)) return null;
+  if (fromIndex === toIndex) return null;
+
+  // Splice immutabile su una copia: rimuovi da `fromIndex`, reinserisci a `toIndex`. I blocchi non
+  // toccati conservano la loro reference — solo la sequenza cambia.
+  const blocks = page.blocks.slice();
+  const [moved] = blocks.splice(fromIndex, 1);
+  blocks.splice(toIndex, 0, moved);
+
+  const nextPage = { ...page, blocks };
+  const candidate: SiteDocument = {
+    ...document,
+    pages: document.pages.map((current, index) => (index === pageIndex ? nextPage : current)),
+  };
+
+  const parsed = parseDocument(candidate);
+  return parsed.ok ? parsed.document : null;
+}

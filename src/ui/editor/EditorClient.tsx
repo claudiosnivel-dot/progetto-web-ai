@@ -43,6 +43,7 @@ import { useEditorDraft } from '@/ui/editor/useEditorDraft';
 import { ThemeSwitcher } from '@/ui/editor/ThemeSwitcher';
 import { SaveControls } from '@/ui/editor/SaveControls';
 import { BlockPanel, type AddableOffer } from '@/ui/editor/BlockPanel';
+import { BlockReorderList } from '@/ui/editor/BlockReorderList';
 import {
   saveRevision,
   restoreRevision,
@@ -94,6 +95,14 @@ type EditorClientProps = {
   readonly offerPageSlug?: string;
   /** Il nome i18n del pannello blocchi (namespace 'editor'), risolto dal server. */
   readonly addBlockTitle?: string;
+  /**
+   * Le etichette i18n del controllo di RIORDINO (T-315), risolte dal server (namespace 'editor'). Il
+   * controllo compare solo quando tutte e tre sono presenti e la pagina ha piu' di un blocco; le
+   * rotte/test che non le passano non lo mostrano — stessa disciplina del pannello blocchi.
+   */
+  readonly reorderTitle?: string;
+  readonly moveUpLabel?: string;
+  readonly moveDownLabel?: string;
   /** L'anteprima gia' resa dal RENDERER UNICO (SiteView editable). Renderer unico, nessuna copia client. */
   readonly children: ReactNode;
   /** Debounce dell'autosave (ms); opzionale, per test/tuning — il default vive in useAutosave. */
@@ -109,10 +118,20 @@ export function EditorClient({
   offer,
   offerPageSlug,
   addBlockTitle,
+  reorderTitle,
+  moveUpLabel,
+  moveDownLabel,
   children,
   debounceMs,
 }: EditorClientProps) {
   const draft = useEditorDraft(initialDocument);
+
+  // LA PAGINA DA RIORDINARE (T-315): la home (che esiste sempre, P2-D13; altrimenti la prima), letta
+  // dal DRAFT — cosi' la lista rispecchia l'ordine corrente e si aggiorna dopo ogni spostamento. Gli
+  // id dei blocchi vengono dallo schema (forma vincolata), non da testo del modello.
+  const reorderPage =
+    draft.document.pages.find((page) => page.role === 'home') ?? draft.document.pages[0];
+  const reorderItems = reorderPage.blocks.map((block) => ({ id: block.id, label: block.id }));
   const previewRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -237,6 +256,20 @@ export function EditorClient({
             offer={offer}
             title={addBlockTitle}
             onAdd={draft.addBlock}
+          />
+        ) : null}
+
+        {/* IL RIORDINO DEI BLOCCHI (T-315): lista ordinabile su/giu' della pagina corrente. L'ordine
+            entra nel draft (dominio: sposta + ri-gate) e si riflette nell'anteprima; il save-point lo
+            persiste. Compare solo con le etichette i18n presenti e piu' di un blocco da riordinare. */}
+        {reorderTitle && moveUpLabel && moveDownLabel ? (
+          <BlockReorderList
+            pageSlug={reorderPage.slug}
+            items={reorderItems}
+            title={reorderTitle}
+            moveUpLabel={moveUpLabel}
+            moveDownLabel={moveDownLabel}
+            onReorder={draft.reorderBlock}
           />
         ) : null}
 
