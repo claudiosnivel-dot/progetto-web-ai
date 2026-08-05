@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type Anthropic from '@anthropic-ai/sdk';
-import { runOnboardingTurn } from '@/data/anthropic';
 import { runInterviewTurn } from '@/domain/onboarding/interview';
+import type { OnboardingLlmPort } from '@/domain/onboarding/llm-port';
 import {
   applyBriefUpdate,
   emptyBrief,
@@ -12,12 +12,12 @@ import {
 // T-132 (macrotask ai-onboarding, P1) — orchestrazione dell'intervista.
 // Le asserzioni derivano dagli acceptance_criteria AC-132-1..7 (02-ai-onboarding.md),
 // dove AC-132-5 e EMENDATO e AC-132-6/AC-132-7 sono NUOVI (emendamento P1-D24).
-// Il confine LLM di T-131 e mockato: la parte non deterministica resta fuori dagli
-// oracoli e i turni/tool-call sono preconfezionati.
+// Il confine LLM e' iniettato come porta (dependency inversion, T-AH4): qui e' una FAKE
+// PORT locale, cosi' la parte non deterministica resta fuori dagli oracoli e i
+// turni/tool-call sono preconfezionati. La porta e' chiamata con lo STESSO primo argomento
+// di runOnboardingTurn, quindi le asserzioni su `boundary.mock.calls[...][0]` non cambiano.
 
-vi.mock('@/data/anthropic', () => ({ runOnboardingTurn: vi.fn() }));
-
-const boundary = vi.mocked(runOnboardingTurn);
+const boundary = vi.fn<OnboardingLlmPort>();
 
 const USER_MESSAGE = 'Ho un bar a Roma, si chiama Bar Sole';
 
@@ -163,7 +163,7 @@ function invertedBrief(locale: Brief['locale'] = 'it') {
 async function turnPayload(brief: Brief): Promise<{ payload: string; system: string }> {
   boundary.mockReset();
   boundary.mockResolvedValue(modelReply([textBlock('Ok.')]));
-  await runInterviewTurn({ messages: [], brief, userMessage: USER_MESSAGE });
+  await runInterviewTurn({ messages: [], brief, userMessage: USER_MESSAGE }, boundary);
   const call = boundary.mock.calls[0][0];
   return { payload: JSON.stringify(call), system: call.system };
 }
@@ -202,7 +202,7 @@ describe('T-132 orchestrazione dell intervista di onboarding', () => {
       messages: [],
       brief: emptyBrief('it'),
       userMessage: USER_MESSAGE,
-    });
+    }, boundary);
 
     expect(boundary).toHaveBeenCalledTimes(1); // covers: AC-132-1 — il turno passa dal confine T-131
     expect(result.brief.business_name).toBe('Bar Sole'); // covers: AC-132-1
@@ -224,7 +224,7 @@ describe('T-132 orchestrazione dell intervista di onboarding', () => {
       messages: previous,
       brief: emptyBrief('it'),
       userMessage: USER_MESSAGE,
-    });
+    }, boundary);
 
     expect(boundary.mock.calls[0][0].messages).toEqual([
       ...previous,
@@ -249,7 +249,7 @@ describe('T-132 orchestrazione dell intervista di onboarding', () => {
       messages: [],
       brief: emptyBrief('it'),
       userMessage: USER_MESSAGE,
-    });
+    }, boundary);
 
     expect(result.brief.business_name).toBeUndefined(); // security_notes T-132 — nulla passa senza validazione
     expect(result.brief).toEqual(emptyBrief('it')); // security_notes T-132 — brief intatto
@@ -259,7 +259,7 @@ describe('T-132 orchestrazione dell intervista di onboarding', () => {
   it('passa al confine LLM update_brief strict (additionalProperties:false, required valorizzato) e mark_ready_for_review', async () => {
     boundary.mockResolvedValue(modelReply([textBlock('Come si chiama la tua attivita?')]));
 
-    await runInterviewTurn({ messages: [], brief: emptyBrief('it'), userMessage: USER_MESSAGE });
+    await runInterviewTurn({ messages: [], brief: emptyBrief('it'), userMessage: USER_MESSAGE }, boundary);
 
     const tools = boundary.mock.calls[0][0].tools.filter(isCustomTool);
     const updateBrief = tools.find((tool) => tool.name === 'update_brief');
@@ -298,8 +298,8 @@ describe('T-132 orchestrazione dell intervista di onboarding', () => {
   it('localizza il system prompt: con locale es e in spagnolo e diverso dalla versione it', async () => {
     boundary.mockResolvedValue(modelReply([textBlock('Hola.')]));
 
-    await runInterviewTurn({ messages: [], brief: emptyBrief('es'), userMessage: USER_MESSAGE });
-    await runInterviewTurn({ messages: [], brief: emptyBrief('it'), userMessage: USER_MESSAGE });
+    await runInterviewTurn({ messages: [], brief: emptyBrief('es'), userMessage: USER_MESSAGE }, boundary);
+    await runInterviewTurn({ messages: [], brief: emptyBrief('it'), userMessage: USER_MESSAGE }, boundary);
 
     const systemEs = boundary.mock.calls[0][0].system;
     const systemIt = boundary.mock.calls[1][0].system;
@@ -324,7 +324,7 @@ describe('T-132 orchestrazione dell intervista di onboarding', () => {
       ]),
     );
 
-    const result = await runInterviewTurn({ messages: [], brief: base, userMessage: USER_MESSAGE });
+    const result = await runInterviewTurn({ messages: [], brief: base, userMessage: USER_MESSAGE }, boundary);
 
     expect(result.brief.vertical).toBe('ristorazione'); // covers: AC-132-4 — campo invariato
     expect(result.brief).toEqual(base); // covers: AC-132-4 — nessuna corruzione del resto del brief
@@ -349,7 +349,7 @@ describe('T-132 orchestrazione dell intervista di onboarding', () => {
         toolUseBlock('mark_ready_for_review', {}),
       ]),
     );
-    const after = await runInterviewTurn({ messages: [], brief: base, userMessage: USER_MESSAGE });
+    const after = await runInterviewTurn({ messages: [], brief: base, userMessage: USER_MESSAGE }, boundary);
 
     expect(isBriefComplete(after.brief)).toBe(true); // covers: AC-132-5 — i campi essenziali ci sono
     expect(after.readyForReview).toBe(true); // covers: AC-132-5
@@ -372,7 +372,7 @@ describe('T-132 orchestrazione dell intervista di onboarding', () => {
       messages: [],
       brief: complete,
       userMessage: USER_MESSAGE,
-    });
+    }, boundary);
 
     expect(result.readyForReview).toBe(false); // covers: AC-132-5
   });
@@ -398,7 +398,7 @@ describe('T-132 orchestrazione dell intervista di onboarding', () => {
         toolUseBlock('mark_ready_for_review', {}),
       ]),
     );
-    const result = await runInterviewTurn({ messages: [], brief: base, userMessage: USER_MESSAGE });
+    const result = await runInterviewTurn({ messages: [], brief: base, userMessage: USER_MESSAGE }, boundary);
 
     expect(isBriefComplete(result.brief)).toBe(false); // covers: AC-132-6 — campi essenziali assenti
     expect(result.readyForReview).toBe(false); // covers: AC-132-6
@@ -502,7 +502,7 @@ describe('T-132 orchestrazione dell intervista di onboarding', () => {
       ]),
     );
 
-    const result = await runInterviewTurn({ messages: [], brief: base, userMessage: USER_MESSAGE });
+    const result = await runInterviewTurn({ messages: [], brief: base, userMessage: USER_MESSAGE }, boundary);
 
     expect(result.brief.phone).toBe('+39 06 5550101'); // il turno ha davvero compilato
     expect(result.brief.address).toBe('Via del Colosseo 9');
@@ -530,7 +530,7 @@ describe('T-132 orchestrazione dell intervista di onboarding', () => {
     expect(emptied.hours).toEqual({});
 
     boundary.mockResolvedValue(modelReply([textBlock('Ok.')]));
-    await runInterviewTurn({ messages: [], brief: emptied, userMessage: USER_MESSAGE });
+    await runInterviewTurn({ messages: [], brief: emptied, userMessage: USER_MESSAGE }, boundary);
 
     const system = boundary.mock.calls[0][0].system;
     const missing = promptLine(system, '- ancora da raccogliere');
@@ -546,7 +546,7 @@ describe('T-132 orchestrazione dell intervista di onboarding', () => {
     // quindi il valore 'altro' non prova nulla e spacciarlo per una scelta farebbe
     // saltare al modello LA domanda che decide il tipo di sito.
     boundary.mockResolvedValue(modelReply([textBlock('Ciao.')]));
-    await runInterviewTurn({ messages: [], brief: emptyBrief('it'), userMessage: USER_MESSAGE });
+    await runInterviewTurn({ messages: [], brief: emptyBrief('it'), userMessage: USER_MESSAGE }, boundary);
 
     const systemDefault = boundary.mock.calls[0][0].system;
     expect(promptLine(systemDefault, '- tipo di attivita')).toContain('(non ancora scelto)'); // covers: AC-132-7
@@ -557,7 +557,7 @@ describe('T-132 orchestrazione dell intervista di onboarding', () => {
 
     // Contro-prova: un vertical scelto e DIVERSO dal default arriva col suo valore.
     const chosen = applyBriefUpdate(emptyBrief('it'), { vertical: 'fitness' }).brief;
-    await runInterviewTurn({ messages: [], brief: chosen, userMessage: USER_MESSAGE });
+    await runInterviewTurn({ messages: [], brief: chosen, userMessage: USER_MESSAGE }, boundary);
     expect(promptLine(boundary.mock.calls[1][0].system, '- tipo di attivita')).toContain('fitness'); // covers: AC-132-7
   });
 
@@ -632,7 +632,7 @@ describe('T-132 orchestrazione dell intervista di onboarding', () => {
       messages: [],
       brief: emptyBrief('it'),
       userMessage: USER_MESSAGE,
-    });
+    }, boundary);
 
     expect(result.brief.primary_goal).toBe('prenota'); // il sostituto sarebbe VERO qui
     expect(result.brief.business_name).toBeUndefined();
@@ -664,7 +664,7 @@ describe('T-132 orchestrazione dell intervista di onboarding', () => {
       messages: [],
       brief: emptyBrief('it'),
       userMessage: USER_MESSAGE,
-    });
+    }, boundary);
 
     expect(result.brief.vertical).toBe('altro'); // il default di T-121, non una scelta
     expect(isBriefComplete(result.brief)).toBe(true);

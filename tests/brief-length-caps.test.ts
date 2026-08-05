@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type Anthropic from '@anthropic-ai/sdk';
-import { runOnboardingTurn } from '@/data/anthropic';
 import { fetchSafe } from '@/domain/import/fetchSafe';
 import { fromUrl } from '@/domain/import/fromUrl';
 import { runInterviewTurn } from '@/domain/onboarding/interview';
+import type { OnboardingLlmPort } from '@/domain/onboarding/llm-port';
 import {
   BRIEF_LIMITS,
   BriefSchema,
@@ -22,10 +22,11 @@ import {
 // Dominio puro: nessun DB. Il confine LLM (T-131) e il fetch SSRF-safe (T-140) sono
 // mockati solo per leggere cio' che viene DICHIARATO al modello.
 
-vi.mock('@/data/anthropic', () => ({ runOnboardingTurn: vi.fn() }));
 vi.mock('@/domain/import/fetchSafe', () => ({ fetchSafe: vi.fn() }));
 
-const boundary = vi.mocked(runOnboardingTurn);
+// Il confine LLM e' iniettato come porta (dependency inversion, T-AH4): FAKE PORT locale
+// passata a runInterviewTurn e a fromUrl, cosi' si legge cio' che viene DICHIARATO al modello.
+const boundary = vi.fn<OnboardingLlmPort>();
 const fetcher = vi.mocked(fetchSafe);
 
 // Marcatore riconoscibile in testa a ogni valore fuori scala: AC-E17-5 cerca
@@ -205,7 +206,7 @@ async function toolsDichiaratiAlModello(): Promise<Anthropic.ToolUnion[]> {
   // irrilevante qui, quindi non si ricostruisce un Anthropic.Message intero.
   boundary.mockResolvedValue({ content: [] } as unknown as Anthropic.Message);
 
-  await runInterviewTurn({ messages: [], brief: emptyBrief('it'), userMessage: 'ciao' });
+  await runInterviewTurn({ messages: [], brief: emptyBrief('it'), userMessage: 'ciao' }, boundary);
 
   // La pagina non dichiara nulla di se stessa (nessun JSON-LD dell'attivita, nessun
   // og:title) ma ha del testo: e' la condizione in cui T-141 invoca il confine.
@@ -213,7 +214,7 @@ async function toolsDichiaratiAlModello(): Promise<Anthropic.ToolUnion[]> {
     ok: true,
     html: '<html lang="it"><body><p>Officina Rossi ripara auto a Bologna.</p></body></html>',
   });
-  await fromUrl('https://officina-rossi.example/');
+  await fromUrl('https://officina-rossi.example/', undefined, boundary);
 
   return boundary.mock.calls.flatMap((call) => call[0].tools);
 }

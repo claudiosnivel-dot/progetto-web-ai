@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type Anthropic from '@anthropic-ai/sdk';
-import { runOnboardingTurn } from '@/data/anthropic';
 import { fetchSafe } from '@/domain/import/fetchSafe';
 import { fromUrl } from '@/domain/import/fromUrl';
+import type { OnboardingLlmPort } from '@/domain/onboarding/llm-port';
 
 // T-141 (macrotask url-import, P1) — estrazione del brief proposto da un URL.
 // Le asserzioni derivano dagli acceptance_criteria AC-141-1..4 (03-url-import.md);
@@ -12,14 +12,15 @@ import { fromUrl } from '@/domain/import/fromUrl';
 // un AC portano il marker corrispondente e NON un `covers:`.
 //
 // Due doppi, entrambi per moduli gia' verificati altrove: il fetch SSRF-safe (T-140)
-// e il confine LLM (T-131, stessa convenzione di tests/interview-orchestration.test.ts).
+// e il confine LLM. Il confine e' iniettato come porta (dependency inversion, T-AH4):
+// qui e' una FAKE PORT locale passata a fromUrl come ultimo argomento, chiamata con lo
+// STESSO primo argomento di runOnboardingTurn (le asserzioni su boundary non cambiano).
 // Nessun test apre una connessione: fromUrl non ha porte di rete proprie, e questo
 // e' esso stesso oggetto di asserzione.
 
-vi.mock('@/data/anthropic', () => ({ runOnboardingTurn: vi.fn() }));
 vi.mock('@/domain/import/fetchSafe', () => ({ fetchSafe: vi.fn() }));
 
-const boundary = vi.mocked(runOnboardingTurn);
+const boundary = vi.fn<OnboardingLlmPort>();
 const fetcher = vi.mocked(fetchSafe);
 
 const IMPORT_URL = 'https://trattoria-da-nonna.example/contatti';
@@ -119,8 +120,8 @@ async function proposedBrief(html: string, fallbackLocale?: 'it' | 'es') {
   fetcher.mockResolvedValue({ ok: true, html });
   const result =
     fallbackLocale === undefined
-      ? await fromUrl(IMPORT_URL)
-      : await fromUrl(IMPORT_URL, fallbackLocale);
+      ? await fromUrl(IMPORT_URL, undefined, boundary)
+      : await fromUrl(IMPORT_URL, fallbackLocale, boundary);
   if (result.status !== 'proposed') throw new Error(`import non proposto: ${result.reason}`);
   return result.brief;
 }
@@ -366,7 +367,7 @@ describe('T-141 estrazione del brief proposto da un URL', () => {
     );
 
     fetcher.mockResolvedValue({ ok: true, html: RESIDUE_HTML });
-    const result = await fromUrl(IMPORT_URL);
+    const result = await fromUrl(IMPORT_URL, undefined, boundary);
     if (result.status !== 'proposed') throw new Error('import non proposto');
 
     expect(boundary).toHaveBeenCalledTimes(1); // covers: AC-141-3 — il residuo passa dal confine
@@ -390,7 +391,7 @@ describe('T-141 estrazione del brief proposto da un URL', () => {
     );
 
     fetcher.mockResolvedValue({ ok: true, html: RESIDUE_HTML });
-    const result = await fromUrl(IMPORT_URL);
+    const result = await fromUrl(IMPORT_URL, undefined, boundary);
     if (result.status !== 'proposed') throw new Error('import non proposto');
 
     expect(result.brief.business_name).toBe('Officina Rossi'); // covers: AC-141-3
@@ -519,7 +520,7 @@ describe('T-141 estrazione del brief proposto da un URL', () => {
   it('restituisce una proposta con status diverso da confirmed, e nient altro che il brief', async () => {
     fetcher.mockResolvedValue({ ok: true, html: JSON_LD_HTML });
 
-    const result = await fromUrl(IMPORT_URL);
+    const result = await fromUrl(IMPORT_URL, undefined, boundary);
 
     expect(result.status).toBe('proposed'); // covers: AC-141-4
     expect(result.status).not.toBe('confirmed'); // covers: AC-141-4
@@ -534,9 +535,10 @@ describe('T-141 estrazione del brief proposto da un URL', () => {
     expect(/supabase/i.test(source)).toBe(false); // covers: AC-141-4
     expect(source.includes('@/data/briefs')).toBe(false); // covers: AC-141-4
     expect(/upsertBrief|confirmBrief|\.upsert\(|\.insert\(|\.update\(/.test(source)).toBe(false); // covers: AC-141-4
-    // L'unico modulo di src/data importato e' il confine LLM (T-131).
+    // Dopo T-AH4 (dependency inversion) NON importa piu' alcun modulo di src/data: il
+    // confine LLM arriva iniettato come porta, quindi l'arco domain->data e' rimosso.
     const dataImports = [...source.matchAll(/from\s+'@\/data\/([\w-]+)'/g)].map((m) => m[1]);
-    expect(dataImports).toEqual(['anthropic']); // covers: AC-141-4
+    expect(dataImports).toEqual([]); // covers: AC-141-4
     // Nessuna porta di rete propria: si esce solo da fetchSafe (security_notes T-141).
     expect(/\bfetch\s*\(/.test(source)).toBe(false); // security_notes T-141
     expect(/from\s+'undici'|node:(dns|net|http|https)/.test(source)).toBe(false); // security_notes T-141
@@ -553,7 +555,7 @@ describe('T-141 estrazione del brief proposto da un URL', () => {
   it('propaga il motivo del blocco di fetchSafe senza produrre una proposta', async () => {
     for (const reason of ['address-blocked', 'scheme-not-allowed', 'too-large'] as const) {
       fetcher.mockResolvedValue({ ok: false, reason });
-      const result = await fromUrl(IMPORT_URL);
+      const result = await fromUrl(IMPORT_URL, undefined, boundary);
 
       expect(result, reason).toEqual({ status: 'failed', reason }); // security_notes T-141
       expect(boundary, reason).not.toHaveBeenCalled(); // security_notes T-141
@@ -580,7 +582,7 @@ describe('T-141 rilievi della verifica avversariale (regressioni pinnate)', () =
         html: `<html lang="it"><head><script type="application/ld+json">${jsonLd}</script><title>Bar Ostile</title></head><body><p>testo</p></body></html>`,
       });
       boundary.mockResolvedValue(modelReply([textBlock('ok')]));
-      const result = await fromUrl(IMPORT_URL);
+      const result = await fromUrl(IMPORT_URL, undefined, boundary);
       expect(result.status, nome).toBe('proposed'); // security_notes T-141
     }
   });
@@ -646,7 +648,7 @@ describe('T-141 rilievi della verifica avversariale (regressioni pinnate)', () =
       ]),
     );
 
-    const result = await fromUrl(IMPORT_URL);
+    const result = await fromUrl(IMPORT_URL, undefined, boundary);
     if (result.status !== 'proposed') throw new Error('atteso proposed');
 
     // Il campo dichiarato passa...
@@ -704,7 +706,7 @@ describe('T-141 rilievi della verifica avversariale (regressioni pinnate)', () =
 
     // Il JSON-LD c'e', quindi il modello non viene nemmeno chiamato: i dati restano
     // quelli del sito.
-    const conJsonLd = await fromUrl(IMPORT_URL);
+    const conJsonLd = await fromUrl(IMPORT_URL, undefined, boundary);
     if (conJsonLd.status !== 'proposed') throw new Error('atteso proposed');
     expect(conJsonLd.brief.phone).toBe('+39 06 VERO'); // DoD T-141
     expect(boundary).not.toHaveBeenCalled(); // DoD T-141
@@ -716,7 +718,7 @@ describe('T-141 rilievi della verifica avversariale (regressioni pinnate)', () =
       ok: true,
       html: `<html lang="it"><head><title>Nome Dal Title</title></head><body><p>testo</p></body></html>`,
     });
-    const senzaJsonLd = await fromUrl(IMPORT_URL);
+    const senzaJsonLd = await fromUrl(IMPORT_URL, undefined, boundary);
     if (senzaJsonLd.status !== 'proposed') throw new Error('atteso proposed');
     expect(boundary).toHaveBeenCalledTimes(1); // DoD T-141
     expect(senzaJsonLd.brief.business_name).toBe('Nome Dal Title'); // DoD T-141 — non sovrascritto
@@ -752,7 +754,7 @@ describe('T-141 rilievi della verifica avversariale (regressioni pinnate)', () =
       boundary.mockClear();
       boundary.mockResolvedValue(modelReply([textBlock('ok')]));
       fetcher.mockResolvedValue({ ok: true, html });
-      await fromUrl(IMPORT_URL);
+      await fromUrl(IMPORT_URL, undefined, boundary);
       expect(boundary.mock.calls.length > 0, nome).toBe(atteso); // DoD T-141
     }
   });
@@ -778,7 +780,7 @@ describe('T-141 rilievi della verifica avversariale (regressioni pinnate)', () =
       html: `<html lang="it"><head></head><body><div title="attenzione: <script non chiuso">Officina Bianchi ripara biciclette da trent anni in Via Garibaldi</div><p>Telefono 051 000000</p></body></html>`,
     });
 
-    await fromUrl(IMPORT_URL);
+    await fromUrl(IMPORT_URL, undefined, boundary);
 
     const testo = boundary.mock.calls[0][0].messages[0].content;
     expect(typeof testo).toBe('string'); // DoD T-141
@@ -797,7 +799,7 @@ describe('T-141 rilievi della verifica avversariale (regressioni pinnate)', () =
         ok: true,
         html: '<html lang="it"><head><title>Un Nome</title></head><body><p>testo</p></body></html>',
       });
-      const result = await fromUrl(IMPORT_URL);
+      const result = await fromUrl(IMPORT_URL, undefined, boundary);
       expect(result.status, JSON.stringify(risposta)).toBe('proposed'); // security_notes T-141
     }
   });

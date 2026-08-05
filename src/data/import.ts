@@ -2,6 +2,7 @@
 
 import { getUser } from '@/data/supabase-ssr';
 import { fromUrl } from '@/domain/import/fromUrl';
+import { onboardingLlmPort } from '@/data/llm-ports';
 import type { Brief } from '@/domain/onboarding/brief';
 
 // T-151 (macrotask onboarding-ui, P1) — Server Action SOTTILE fra la UrlImportBar
@@ -70,7 +71,7 @@ export async function importBriefFromUrl(rawUrl: unknown): Promise<ImportBriefRe
   // pre-riempie dalla proposta (un sito = una lingua, T-121, ed e' una proprieta' del
   // sito, non un dato che una pagina esterna possa cambiare), quindi il valore che
   // fromUrl mette in `brief.locale` non viene usato dal pannello.
-  const proposal = await fromUrl(rawUrl);
+  const proposal = await fromUrl(rawUrl, undefined, onboardingLlmPort);
   if (proposal.status === 'failed') return { ok: false, reason: 'import-failed' };
 
   return { ok: true, brief: proposal.brief };

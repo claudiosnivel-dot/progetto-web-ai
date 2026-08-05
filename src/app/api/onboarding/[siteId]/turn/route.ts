@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getUser } from '@/data/supabase-ssr';
 import { upsertBrief } from '@/data/briefs';
 import { runInterviewTurn } from '@/domain/onboarding/interview';
+import { onboardingLlmPort } from '@/data/llm-ports';
 import { type Brief } from '@/domain/onboarding/brief';
 import { guardMutatingRequest } from '@/app/api/_shared/request-guard';
 import { guardOwnedSite, loadRouteBrief } from '@/app/api/_shared/route-guards';
@@ -249,14 +250,17 @@ export async function POST(request: NextRequest, context: TurnContext): Promise<
   //    cambia.
   let turn: Awaited<ReturnType<typeof runInterviewTurn>>;
   try {
-    turn = await runInterviewTurn({
-      messages: parsed.data.messages.map((message) => ({
-        role: message.role,
-        content: message.text,
-      })),
-      brief,
-      userMessage: parsed.data.userMessage,
-    });
+    turn = await runInterviewTurn(
+      {
+        messages: parsed.data.messages.map((message) => ({
+          role: message.role,
+          content: message.text,
+        })),
+        brief,
+        userMessage: parsed.data.userMessage,
+      },
+      onboardingLlmPort,
+    );
   } catch {
     return jsonError(502, 'turn-failed');
   }

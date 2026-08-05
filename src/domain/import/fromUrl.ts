@@ -1,6 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
-import { runOnboardingTurn } from '@/data/anthropic';
+import type { OnboardingLlmPort } from '@/domain/onboarding/llm-port';
 import { fetchSafe } from '@/domain/import/fetchSafe';
 import {
   BriefUpdateSchema,
@@ -188,10 +188,13 @@ type PageData = {
  * Scarica un URL e ne propone un brief. Non persiste nulla.
  * @param rawUrl URL non fidato, cosi' come arriva dall'utente.
  * @param fallbackLocale locale da usare se la pagina non dichiara la sua lingua.
+ * @param llm porta LLM iniettata (dependency inversion): il dominio non importa il
+ *   confine server-only @/data/anthropic, il layer che chiama costruisce e passa la porta.
  */
 export async function fromUrl(
   rawUrl: string,
   fallbackLocale: Brief['locale'] = 'it',
+  llm: OnboardingLlmPort,
 ): Promise<ImportProposal> {
   const fetched = await fetchSafe(rawUrl);
   if (!fetched.ok) return { status: 'failed', reason: fetched.reason };
@@ -211,7 +214,7 @@ export async function fromUrl(
   // strutturati "bastano".
   const declaresItself = page.business !== null || page.meta.has('og:title');
   if (!declaresItself) {
-    const fromModel = await structureResidue(page, locale);
+    const fromModel = await structureResidue(page, locale, llm);
     brief = applyBriefUpdate(brief, residuePatch(fromModel, determined)).brief;
   }
 
@@ -239,12 +242,16 @@ function residuePatch(
 }
 
 /** Fa strutturare il testo residuo al modello. Ritorna undefined se non si puo'. */
-async function structureResidue(page: PageData, locale: Brief['locale']): Promise<unknown> {
+async function structureResidue(
+  page: PageData,
+  locale: Brief['locale'],
+  llm: OnboardingLlmPort,
+): Promise<unknown> {
   if (page.text.length === 0) return undefined;
 
   let reply: Anthropic.Message | undefined;
   try {
-    reply = await runOnboardingTurn({
+    reply = await llm({
       system: EXTRACTION_PROMPTS[locale],
       // Il testo della pagina viaggia come messaggio UTENTE, mai dentro le
       // istruzioni di sistema: e' contenuto da analizzare, non un comando.

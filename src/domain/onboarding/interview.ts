@@ -1,6 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
-import { runOnboardingTurn } from '@/data/anthropic';
+import type { OnboardingLlmPort } from '@/domain/onboarding/llm-port';
 import {
   BRIEF_LIMITS,
   BriefUpdateSchema,
@@ -306,17 +306,22 @@ function briefStateSection(brief: Brief): string {
  * Esegue un turno dell'intervista: manda al modello i messaggi precedenti piu il
  * turno dell'utente e interpreta la risposta.
  * @param turn messaggi precedenti, brief corrente e messaggio dell'utente.
+ * @param llm porta LLM iniettata (dependency inversion): il dominio non importa il
+ *   confine server-only @/data/anthropic, il layer che chiama costruisce e passa la porta.
  * @returns testo assistente, brief aggiornato e flag di passaggio a Rivedi&conferma.
  */
-export async function runInterviewTurn(turn: {
-  messages: Anthropic.MessageParam[];
-  brief: Brief;
-  userMessage: string;
-}): Promise<{ assistantText: string; brief: Brief; readyForReview: boolean }> {
+export async function runInterviewTurn(
+  turn: {
+    messages: Anthropic.MessageParam[];
+    brief: Brief;
+    userMessage: string;
+  },
+  llm: OnboardingLlmPort,
+): Promise<{ assistantText: string; brief: Brief; readyForReview: boolean }> {
   // Il riepilogo descrive `turn.brief`, cioe' lo stato PRIMA di questo turno: e' quello
   // che il modello deve conoscere per non ri-chiedere e per sapere cosa manca. Il brief
   // risultante non esiste ancora (dipende dalla risposta che stiamo chiedendo).
-  const reply = await runOnboardingTurn({
+  const reply = await llm({
     system: [SYSTEM_PROMPTS[turn.brief.locale], briefStateSection(turn.brief)].join('\n\n'),
     messages: [...turn.messages, { role: 'user', content: turn.userMessage }],
     tools: TOOLS,
