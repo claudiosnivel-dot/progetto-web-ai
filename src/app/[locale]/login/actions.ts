@@ -3,11 +3,17 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { hasLocale } from 'next-intl';
-import { loginSchema, type LoginState } from './validation';
+import { loginSchema, type LoginState } from '@/domain/auth/validation';
 import { createServerSupabaseClient } from '@/data/supabase-ssr';
 import { routing } from '@/i18n/routing';
 
 // Server Action di login/logout e avvio dell'OAuth Google (T-043).
+//
+// Vive nel layer `app` (co-locata con login/page.tsx): sono azioni framework-bound
+// — leggono next/headers, lasciano che l'adapter SSR muti i cookie di sessione e
+// chiamano redirect(). app puo' toccare `data` (@/data/supabase-ssr) e `domain`
+// (la validazione zod, che resta in @/domain/auth/validation) senza violare il
+// contratto di altitudine.
 //
 // Sicurezza (security_notes HARD del blueprint):
 //  - A07:2025 (authentication failures): a credenziali errate si ritorna SEMPRE

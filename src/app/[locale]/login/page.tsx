@@ -3,7 +3,7 @@
 import { useActionState } from 'react';
 import { useLocale } from 'next-intl';
 import { Button, Card, CardContent, CardHeader, Input, Label } from '@/ui/primitives';
-import { login, signInWithGoogle } from '@/domain/auth/login';
+import { login, signInWithGoogle } from './actions';
 import type { LoginState } from '@/domain/auth/validation';
 
 const initialState: LoginState = { status: 'idle' };

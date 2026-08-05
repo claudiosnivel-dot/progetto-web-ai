@@ -55,7 +55,7 @@ vi.mock('@/data/supabase-ssr', () => ({
 }));
 
 // Import DOPO i mock (vi.mock è hoisted).
-import { signInWithGoogle } from '@/domain/auth/login';
+import { signInWithGoogle } from '@/app/[locale]/login/actions';
 
 describe("T-043 Accedi con Google (avvio signInWithOAuth)", () => {
   beforeEach(() => {

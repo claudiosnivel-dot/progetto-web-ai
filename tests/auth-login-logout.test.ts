@@ -79,7 +79,7 @@ vi.mock('@supabase/ssr', async (importActual) => {
 
 // Import DOPO i mock (vi.mock è hoisted): azioni e middleware risolvono
 // next/headers, next/navigation e @supabase/ssr ai mock.
-import { login, logout } from '@/domain/auth/login';
+import { login, logout } from '@/app/[locale]/login/actions';
 import middleware from '@/middleware';
 
 // "Cookie di sessione presenti": esiste almeno un cookie con valore NON vuoto.
