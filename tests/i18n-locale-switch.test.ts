@@ -36,7 +36,8 @@ vi.mock('@/data/updateProfileLocale', () => ({
 // Import DOPO i mock (vi.mock è hoisted). Il middleware non tocca i moduli
 // mockati: gira con il vero next-intl per la risoluzione da cookie.
 import middleware from '@/middleware';
-import { setLocale } from '@/domain/setLocale';
+import { setLocale } from '@/app/[locale]/_shared/set-locale';
+import { updateProfileLocale } from '@/data/updateProfileLocale';
 
 describe('T-082 setLocale (server action) + persistenza cookie', () => {
   beforeEach(() => {
@@ -67,6 +68,21 @@ describe('T-082 setLocale (server action) + persistenza cookie', () => {
       'es',
       expect.objectContaining({ path: '/', sameSite: 'lax' }),
     ); // covers: AC-082-2
+  });
+
+  it('persiste best-effort: se updateProfileLocale fallisce, cookie e redirect avvengono comunque', async () => {
+    vi.mocked(updateProfileLocale).mockRejectedValueOnce(new Error('DB down'));
+    try {
+      await setLocale('es', '/dashboard');
+    } catch (e) {
+      expect(e).toBe(REDIRECT);
+    }
+    expect(cookieSetSpy).toHaveBeenCalledWith(
+      'NEXT_LOCALE',
+      'es',
+      expect.objectContaining({ path: '/', sameSite: 'lax' }),
+    );
+    expect(redirectSpy).toHaveBeenCalledWith({ href: '/dashboard', locale: 'es' }); // covers: AC-AH1-2
   });
 
   it('rifiuta un locale fuori allowlist (fr) con 400, senza cookie né redirect', async () => {

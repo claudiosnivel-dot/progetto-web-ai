@@ -6,24 +6,30 @@ import { redirect } from '@/i18n/navigation';
 import { routing } from '@/i18n/routing';
 import { updateProfileLocale } from '@/data/updateProfileLocale';
 
-// Risultato del percorso di rifiuto (validazione fallita). Sul percorso valido
-// la funzione non ritorna un valore: redirect() interrompe il flusso lanciando.
+// Server action del selettore lingua. Vive nel layer `app` (non in `domain`):
+// e' orchestrazione framework-bound — legge next/headers, scrive il cookie
+// NEXT_LOCALE e chiama redirect() di next-intl — e app puo' toccare `data`
+// (@/data/updateProfileLocale) senza violare il contratto di altitudine. La sola
+// parte pura (validazione) e' inline qui sotto.
+//
+// Risultato del percorso di rifiuto (validazione fallita). Sul percorso valido la
+// funzione non ritorna un valore: redirect() interrompe il flusso lanciando.
 type SetLocaleRejected = { ok: false; status: number };
 
-// Server action del selettore lingua. VALIDAZIONE SERVER-SIDE (entrambi gli
-// argomenti sono controllabili dal client): (1) il nextLocale e confrontato con
-// l'allowlist routing.locales (['it','es']) tramite il type guard hasLocale;
-// (2) il currentPathname e ammesso solo se e un path interno — esattamente '/'
-// oppure un singolo '/' seguito da un carattere diverso da '/' e '\' — e privo
-// di caratteri di controllo Unicode. Cosi si rifiutano href assoluti
-// ('https://...'), protocol-relative ('//evil.com'), backslash-trick ('/\evil'),
-// schemi ('javascript:...') e lo smuggling via caratteri di controllo (che i
-// parser di URL rimuovono, potendo far uscire la destinazione dal same-origin)
-// che next-intl inoltrerebbe. Nessuna delle due validazioni interpola mai il
-// valore grezzo in un path o header Location. Fuori allowlist o path non interno
-// -> { ok: false, status: 400 }, senza cookie ne redirect. Se entrambi validi:
-// imposta il cookie NEXT_LOCALE (Path=/, SameSite=Lax) e reindirizza allo stesso
-// path col nuovo prefisso di locale tramite l'helper tipato di next-intl.
+// VALIDAZIONE SERVER-SIDE (entrambi gli argomenti sono controllabili dal client):
+// (1) il nextLocale e confrontato con l'allowlist routing.locales (['it','es'])
+// tramite il type guard hasLocale; (2) il currentPathname e ammesso solo se e un
+// path interno — esattamente '/' oppure un singolo '/' seguito da un carattere
+// diverso da '/' e '\' — e privo di caratteri di controllo Unicode. Cosi si
+// rifiutano href assoluti ('https://...'), protocol-relative ('//evil.com'),
+// backslash-trick ('/\evil'), schemi ('javascript:...') e lo smuggling via
+// caratteri di controllo (che i parser di URL rimuovono, potendo far uscire la
+// destinazione dal same-origin) che next-intl inoltrerebbe. Nessuna delle due
+// validazioni interpola mai il valore grezzo in un path o header Location. Fuori
+// allowlist o path non interno -> { ok: false, status: 400 }, senza cookie ne
+// redirect. Se entrambi validi: imposta il cookie NEXT_LOCALE (Path=/,
+// SameSite=Lax) e reindirizza allo stesso path col nuovo prefisso di locale
+// tramite l'helper tipato di next-intl.
 export async function setLocale(
   nextLocale: string,
   currentPathname: string,

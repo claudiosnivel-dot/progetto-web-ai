@@ -2,7 +2,7 @@
 
 import { useLocale } from 'next-intl';
 import { usePathname } from '@/i18n/navigation';
-import { setLocale } from '@/domain/setLocale';
+import { setLocale } from '@/app/[locale]/_shared/set-locale';
 import { routing } from '@/i18n/routing';
 import { cn } from '@/ui/lib/cn';
 

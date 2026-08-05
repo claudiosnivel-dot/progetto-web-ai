@@ -10,7 +10,7 @@ vi.mock('next-intl', () => ({
 vi.mock('@/i18n/navigation', () => ({
   usePathname: () => '/dashboard',
 }));
-vi.mock('@/domain/setLocale', () => ({
+vi.mock('@/app/[locale]/_shared/set-locale', () => ({
   setLocale: vi.fn(),
 }));
 
