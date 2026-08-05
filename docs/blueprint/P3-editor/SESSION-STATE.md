@@ -9,8 +9,8 @@
 |---|---|
 | **Progetto** | Belora |
 | **Ecosistema** | supabase-jsts (Next.js 16 App Router + TypeScript + Supabase) |
-| **Ultimo aggiornamento** | 2026-08-05 (bootstrap CHIUSO; blueprint verde su `main`) |
-| **Sessione corrente** | — (sessione di bootstrap chiusa; prossima: **BUILD `editor-core`**) |
+| **Ultimo aggiornamento** | 2026-08-05 (BUILD `editor-core` CHIUSO; checkpoint VERDE 4/4; mergiato su `main` `7844d8e`) |
+| **Sessione corrente** | — (editor-core costruito, verde e mergiato; prossime: **`architecture-hardening`** poi **`editor-blocks`**) |
 
 ---
 
@@ -20,18 +20,20 @@
 
 | Macrotask | Stato | Checkpoint | Note |
 |---|---|---|---|
-| `editor-core` | todo | — | 13 task (T-301…T-312, T-318). Nessuna dipendenza aperta: è il primo eseguibile |
-| `editor-blocks` | todo | — | 5 task (T-313…T-317). Dipende da `editor-core` (renderer editabile, persistenza, rotta) |
+| `editor-core` | done | **VERDE 4/4** | Commit `7844d8e`, mergiato su `main`. 13 task; batteria mutazione 4/4; suite 1214/1214 |
+| `editor-blocks` | todo | — | 5 task (T-313…T-317). Dipendenze ora VERDI (usa renderer editabile, persistenza, rotta di editor-core) |
 
 ## 2. Macrotask corrente
 
-- **Selezionato per la prossima sessione**: `editor-core` (dispatch trueline → **BUILD**).
-- **Branch di lavoro da creare a inizio BUILD**: `trueline/build/editor-core` (mai su `main`).
-- **Punti d'ingresso del DAG** (dipendenze P3 tutte verdi): `T-301` (tabella revisioni) e
-  `T-305` (SiteView editable) senza dipendenze aperte — paralleli, worktree solo se due
-  agenti mutano lo stesso file.
-- **Criteri/test di riferimento**: modulo `01-editor-core.md`; i `target_tests` dei task
-  sono l'oracolo del controllo 4 in BUILD.
+- **`editor-core`**: **DONE** — costruito, checkpoint VERDE 4/4, mergiato su `main` (`7844d8e`).
+- **Prossimo (dispatch trueline → BUILD)**, due macrotask eseguibili:
+  1. **`architecture-hardening`** (dalla decisione D1/split): i **7 `domain→data`** (auth/onboarding/
+     generation, già in `main`) via dependency-inversion + gate `architecture:` reso **alias-aware
+     repo-wide**. Il gate T-312 di editor-core è oggi alias-aware ma **scoped alla superficie P3**;
+     questo pass lo estende a tutto il repo e bonifica gli archi legacy. NON è ancora un modulo del
+     blueprint P3 → va bootstrappato/eseguito come pass dedicato (branch/checkpoint propri).
+  2. **`editor-blocks`** (T-313…T-317): l'altro modulo P3, dipendenze ora verdi. Modulo `02-editor-blocks.md`.
+- **Criteri/test di riferimento**: i `target_tests` dei task sono l'oracolo del controllo 4 in BUILD.
 
 ## 3. Stato git
 
@@ -39,19 +41,20 @@
 
 | Campo | Valore |
 |---|---|
-| Branch di lavoro | — (bootstrap produce solo docs); a inizio BUILD creare `trueline/build/editor-core` |
-| Ultimo commit | `e6394b3` — bootstrap blueprint P3 (docs-only su `main`, pushato) |
-| Stato merge su `main` | n/a per il bootstrap (solo documenti di piano; nessun deploy) |
-| Deploy-coupling | `unknown` — **da rilevare e riconfermare** a inizio BUILD (P3 aggiunge la rotta `/editor` e nuove server action → `main` potenzialmente deploy-coupled; in ambiguità si assume coupled e il merge resta human-gated anche sul verde, `05` §8.3 / `L-COL-025`) |
+| Branch di lavoro | `trueline/build/editor-core` (pushato). `main` = `7844d8e` (editor-core mergiato) |
+| Ultimo commit | `7844d8e` — feat(P3): editor-core (53 file, +7148/−242), su `main` e pushato |
+| Stato merge su `main` | **MERGIATO** (ff `964d821→7844d8e`, pushato) su via ESPLICITO dell'utente (deploy-coupled) |
+| Deploy-coupling | **`coupled` — CONFERMATO dall'utente**. Il merge di ogni macrotask P3 resta **human-gated anche sul verde** (mergiare può innescare il deploy della dashboard) |
 
 ## 4. Baseline & budget
 
-- **Baseline di sicurezza**: da **ricatturare** a inizio BUILD. P3 introduce la tabella
-  `site_document_revisions` (`rls` da **riconquistare**, non ereditare) e la superficie
-  `src/ui/editor` (scan statico anti-XSS da **estendere**). Baseline d'igiene (jscpd) da
-  ri-attribuire prima di ricatturare (l'aggiunta di file ri-fingerprinta impronte
-  pre-esistenti — R-04).
-- **Budget consumato**: 0 (nessun ciclo di BUILD ancora).
+- **Baseline di sicurezza**: **ricatturata** (`.trueline/baseline.json`, gitignored) = 1 finding
+  (osv MODERATE carry-over). `rls` **riconquistata** (checkpoint `rls:0`), scan anti-XSS **esteso**
+  a `src/ui/editor`. **Baseline d'igiene ri-attribuita** (R-04): `.trueline/hygiene-baseline.json`
+  (versionata) = **97 findings** (20 dup LOW nuove strutturali/documentate baselinate).
+  Gotcha: `baseline.mjs capture <dir> --hygiene` scrive nel default `baseline.json` — serve
+  `--out <hygiene path>`.
+- **Budget consumato**: 1 macrotask (`editor-core`), checkpoint VERDE 4/4.
 
 ## 5. Esiti dell'ultima sessione (framing onesto)
 
@@ -101,10 +104,11 @@
 
 ## 8. Prossimi passi
 
-1. Aprire la sessione di BUILD con `prompts/session-start.md`; selezionare `editor-core`.
-2. **Preflight** delle dipendenze (`scripts/preflight.mjs`) + **riconfermare il
-   deploy-coupling** (§3).
-3. Ricatturare la **baseline** di sicurezza e igiene (§4) prima del primo checkpoint.
-4. Costruire `editor-core` con la disciplina consueta (builder + verifier BLIND per task →
-   una fermata umana → fixer; `run_checkpoint.mjs` unico giudice; batteria di mutazione con
-   sanità fatale + ripristino per hash).
+1. **`editor-core` chiuso e mergiato** (§1/§3). Baseline ri-attribuite (§4).
+2. **Prossimo macrotask** (§2): `architecture-hardening` (7 domain→data DI + gate arch alias-aware
+   repo-wide) e/o `editor-blocks` (T-313…T-317). Aprire con `prompts/session-start.md`.
+3. **Deploy-coupling = `coupled` CONFERMATO** (§3): il merge di ogni macrotask resta human-gated.
+4. Disciplina invariata: 1 workflow build (builder + verifier BLIND per task) → 1 fermata umana →
+   1 workflow fixer; checkpoint `run_checkpoint.mjs --in-place --mode build --baseline <sicurezza>`
+   **SENZA `--blueprint`**, verdetto dal JSON `.green`; batteria di mutazione con sanità fatale +
+   ripristino per sha256; `db reset` azzera il rate-limit auth.
