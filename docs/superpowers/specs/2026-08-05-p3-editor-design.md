@@ -141,7 +141,7 @@ Il contratto **P1-D11** (asserzione `architecture:` sui confini di layer), rinvi
 
 Input per il bootstrap `trueline` (che genererà i moduli e i task atomici con `definition_of_done` / `acceptance_criteria` / `target_tests`):
 
-- **M1 — `editor-core`**: tabella `site_document_revisions` + RLS + persistenza (P3-D1/D2/D9) · editing **inline** di testi (prosa `content` + campi `data`) e SEO (`title`/`meta_description`) · **switch tema** fra i 5 · **undo client** + save-point (autosave debounce + esplicito) · **guardia riscelta soft** (P3-D3) · update del read-path · **estensione della sicurezza** (§6).
+- **M1 — `editor-core`**: tabella `site_document_revisions` + RLS + persistenza (P3-D1/D2/D9) · editing **inline** di testi (prosa `content` + campi `data`) e SEO (`title`/`meta_description`) · **switch tema** fra i 5 · **undo client** + save-point (autosave debounce + esplicito) · **guardia riscelta soft** (P3-D3) · **ripristino da storia** (T-318, append-only) · update del read-path · **estensione della sicurezza** (§6).
 - **M2 — `editor-blocks`**: operazioni **T2** (aggiungi/riordina/sostituisci blocchi dalla libreria) entro i guardrail · **ri-render server** del draft per la struttura · label i18n dei blocchi aggiunti · rispetto delle **precondition dati** dei blocchi (es. `recensioni` ha `precondition:()=>false` in v1 — nessun dato brief da cui attingere) · manutenzione di `brief_fields_rendered`.
 
 **DAG:** M1 → M2 (M2 usa la persistenza e il renderer editabile di M1).
