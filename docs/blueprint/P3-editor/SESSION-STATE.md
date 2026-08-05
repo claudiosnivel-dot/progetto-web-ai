@@ -9,8 +9,8 @@
 |---|---|
 | **Progetto** | Belora |
 | **Ecosistema** | supabase-jsts (Next.js 16 App Router + TypeScript + Supabase) |
-| **Ultimo aggiornamento** | 2026-08-05 (bootstrap del blueprint P3) |
-| **Sessione corrente** | bootstrap (nessun codice prodotto) |
+| **Ultimo aggiornamento** | 2026-08-05 (bootstrap CHIUSO; blueprint verde su `main`) |
+| **Sessione corrente** | — (sessione di bootstrap chiusa; prossima: **BUILD `editor-core`**) |
 
 ---
 
@@ -25,10 +25,11 @@
 
 ## 2. Macrotask corrente
 
-- **Selezionato**: nessuno ancora (bootstrap appena concluso).
-- **Prossimo eseguibile**: `editor-core` (dipendenze P3 tutte verdi; T-301 e T-305 senza
-  dipendenze aperte, punti d'ingresso paralleli — worktree solo se due agenti mutano lo
-  stesso file).
+- **Selezionato per la prossima sessione**: `editor-core` (dispatch trueline → **BUILD**).
+- **Branch di lavoro da creare a inizio BUILD**: `trueline/build/editor-core` (mai su `main`).
+- **Punti d'ingresso del DAG** (dipendenze P3 tutte verdi): `T-301` (tabella revisioni) e
+  `T-305` (SiteView editable) senza dipendenze aperte — paralleli, worktree solo se due
+  agenti mutano lo stesso file.
 - **Criteri/test di riferimento**: modulo `01-editor-core.md`; i `target_tests` dei task
   sono l'oracolo del controllo 4 in BUILD.
 
@@ -38,9 +39,9 @@
 
 | Campo | Valore |
 |---|---|
-| Branch di lavoro | — (nessuno; il bootstrap produce solo docs) |
-| Ultimo commit | il commit di bootstrap del blueprint P3 (docs-only su `main`) |
-| Stato merge su `main` | n/a per il bootstrap (solo documenti di piano) |
+| Branch di lavoro | — (bootstrap produce solo docs); a inizio BUILD creare `trueline/build/editor-core` |
+| Ultimo commit | `e6394b3` — bootstrap blueprint P3 (docs-only su `main`, pushato) |
+| Stato merge su `main` | n/a per il bootstrap (solo documenti di piano; nessun deploy) |
 | Deploy-coupling | `unknown` — **da rilevare e riconfermare** a inizio BUILD (P3 aggiunge la rotta `/editor` e nuove server action → `main` potenzialmente deploy-coupled; in ambiguità si assume coupled e il merge resta human-gated anche sul verde, `05` §8.3 / `L-COL-025`) |
 
 ## 4. Baseline & budget
@@ -56,10 +57,13 @@
 
 > Solo fatti: "generato e validato il blueprint", mai "P3 è pronto/sicuro" (`L-COL-006`).
 
-- Blueprint P3 **generato** (`00-INDEX`, `01-editor-core`, `02-editor-blocks`, `VISION`,
-  questa `SESSION-STATE`, i 3 prompt di lifecycle) dal design approvato del 2026-08-05.
-- Self-check **strutturale** (`validate_blueprint.mjs`) e **semantico** (checklist 6–10):
-  esito registrato al bootstrap (vedi §6).
+- Blueprint P3 **generato e committato** (`e6394b3`): `00-INDEX`, `01-editor-core` (13 task),
+  `02-editor-blocks` (5 task), `VISION`, questa `SESSION-STATE`, i 3 prompt di lifecycle.
+- **Oracolo strutturale** `validate_blueprint.mjs`: **exit 0, 18 task, 7/7 controlli OK**
+  (campi obbligatori, copertura AC→test, DAG aciclico, id univoci, ownership, contratto
+  `architecture:` ben formato).
+- **Self-check semantico** (punti 6–10): punti 6/7/9/10 OK; 1 rilievo di copertura chiuso su
+  conferma utente → **T-318** (ripristino da storia, append-only). Nessun codice prodotto.
 
 ## 6. Copertura dichiarata (cosa è verificato, cosa NO)
 
