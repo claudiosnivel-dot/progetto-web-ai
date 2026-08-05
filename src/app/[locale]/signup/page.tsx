@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react';
 import { Button, Card, CardContent, CardHeader, Input, Label } from '@/ui/primitives';
-import { signup } from '@/domain/auth/signup';
+import { signup } from './actions';
 import type { SignupState } from '@/domain/auth/validation';
 
 const initialState: SignupState = { status: 'idle' };

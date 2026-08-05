@@ -16,7 +16,7 @@ vi.mock('@/data/supabase-ssr', () => ({
 
 // Import DOPO il mock (vi.mock è hoisted).
 import { signupSchema } from '@/domain/auth/validation';
-import { signup } from '@/domain/auth/signup';
+import { signup } from '@/app/[locale]/signup/actions';
 
 function formDataOf(email: string, password: string): FormData {
   const fd = new FormData();

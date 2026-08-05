@@ -57,7 +57,7 @@ vi.mock('@supabase/ssr', async (importActual) => {
 });
 
 // Import DOPO i mock (vi.mock è hoisted).
-import { signup } from '@/domain/auth/signup';
+import { signup } from '@/app/[locale]/signup/actions';
 
 describe.skipIf(!SB)('T-042 signup flow (runtime, Supabase locale)', () => {
   let userId = '';
