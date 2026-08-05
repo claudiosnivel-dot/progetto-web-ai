@@ -4,6 +4,7 @@ import { parseDocument } from '@/domain/generation/document';
 import { THEMES } from '@/domain/generation/themes';
 import { SiteView } from '@/ui/site/SiteView';
 import { EditorClient } from '@/ui/editor/EditorClient';
+import { composeAddableBlocks } from './addable-blocks';
 import { enterEditor } from './guard';
 
 // T-311 (macrotask editor-core, P3) — ROTTA PROTETTA /{locale}/editor/{siteId}: l'EDITOR INLINE
@@ -75,6 +76,12 @@ export default async function EditorPage({ params }: EditorPageProps) {
       ? { generationId: generation.id, variantIndex: generation.chosen_variant }
       : undefined;
 
+  // LA LIBRERIA BLOCCHI (T-314): l'offerta dei blocchi aggiungibili alla home (la pagina che esiste
+  // sempre, P2-D13; altrimenti la prima), gia' filtrata per precondizione+ruolo ed etichettata i18n.
+  // Composta lato server (app), che puo' toccare data+domain+ui; il pannello la riceve serializzabile.
+  const offerPage = document.pages.find((candidate) => candidate.role === 'home') ?? document.pages[0];
+  const offer = await composeAddableBlocks(siteId, offerPage.slug, locale);
+
   // SiteView e' un Server Component ASINCRONO: lo si esegue e si incorpora l'albero gia' pronto, in
   // modalita EDITABLE (isole EditableText attorno agli slot di testo, T-305), poi lo si affida a
   // EditorClient come children (renderer UNICO, nessuna copia client dei blocchi).
@@ -87,6 +94,9 @@ export default async function EditorPage({ params }: EditorPageProps) {
         siteId={siteId}
         locale={locale}
         rechoose={rechoose}
+        offer={offer}
+        offerPageSlug={offerPage.slug}
+        addBlockTitle={t('addBlock')}
         labels={{
           revisionsTitle: t('revisions'),
           restore: t('restore'),

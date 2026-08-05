@@ -94,6 +94,13 @@ const { docHolder, readDocumentSpy } = vi.hoisted(() => {
 });
 vi.mock('@/data/generation-document', () => ({ readGenerationDocument: readDocumentSpy }));
 
+// getBrief e' la fonte del brief per l'offerta della libreria blocchi (composeAddableBlocks, T-314):
+// seam mockato per COERENZA come gli altri seam di dati della pagina. Un brief null -> offerta vuota,
+// pannello assente: la guardia (l'oggetto di questo oracolo) non ne e' toccata.
+vi.mock('@/data/briefs', () => ({
+  getBrief: async () => ({ ok: true, brief: null, status: null, complete: false }),
+}));
+
 // La generazione corrente per la riscelta soft (T-310): la pagina la legge (id + variante scelta)
 // per abilitare il chiamante di produzione fromEditor. Seam mockato (deferito con la rotta).
 const { getGenerationSpy, genHolder } = vi.hoisted(() => {

@@ -207,6 +207,7 @@
     "rechoose": "Cambiar propuesta",
     "rechooseConfirm": "Tus cambios permanecen guardados en el historial de revisiones y podrás restaurarlos en cualquier momento. ¿Quieres retomar el aspecto de la propuesta elegida?",
     "rechooseConfirmYes": "Sí, volver a elegir",
-    "rechooseCancel": "Cancelar"
+    "rechooseCancel": "Cancelar",
+    "addBlock": "Añadir bloque"
   }
 }

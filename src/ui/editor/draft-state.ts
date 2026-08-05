@@ -21,7 +21,8 @@
 // il futuro (il ramo redo diverge). E' lo stack in-memoria di P3-D2 ("fine, istantaneo"): la
 // persistenza a revisioni e' un'altra cosa (save-point, T-309), non questo modulo.
 
-import type { SiteDocument } from '@/domain/generation/document';
+import type { SiteBlock, SiteDocument } from '@/domain/generation/document';
+import { addBlock } from '@/domain/editor/block-ops';
 
 /**
  * Una modifica inline di uno slot di testo. `path` e' la coordinata STRUTTURATA che l'isola
@@ -51,10 +52,15 @@ type SlotEdit = {
   readonly value: string;
 };
 
-/** Le azioni del reducer: una edit inline, uno switch di tema, oppure un passo di undo/redo. */
+/**
+ * Le azioni del reducer: una edit inline, uno switch di tema, l'aggiunta di un blocco dalla libreria
+ * (T-314), oppure un passo di undo/redo. `addBlock` porta lo slug della pagina target e il blocco
+ * RISOLTO da inserire (content + data + images), sorgentato dal baseline dal chiamante (model-free).
+ */
 export type DraftAction =
   | { readonly type: 'editSlot'; readonly edit: SlotEdit }
   | { readonly type: 'setTheme'; readonly themeId: string }
+  | { readonly type: 'addBlock'; readonly pageSlug: string; readonly block: SiteBlock }
   | { readonly type: 'undo' }
   | { readonly type: 'redo' };
 
@@ -106,6 +112,16 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
       if (typeof action.themeId !== 'string') return state;
       if (action.themeId === state.document.theme_id) return state;
       const next: SiteDocument = { ...state.document, theme_id: action.themeId };
+      return { document: next, past: [...state.past, state.document], future: [] };
+    }
+    case 'addBlock': {
+      // AGGIUNTA DALLA LIBRERIA (T-314): il dominio inserisce il blocco risolto in coda, riallinea
+      // brief_fields_rendered e RI-GATE il documento. Se il gate rifiuta (oltre i limiti, pagina
+      // assente, invariante rotto) `addBlock` ritorna null -> no-op: stesso stato, nessuna voce di
+      // storia spuria e nulla che possa poi essere persistito. Altrimenti nuovo stato con push su
+      // past e futuro azzerato, la stessa disciplina di editSlot/setTheme.
+      const next = addBlock(state.document, action.pageSlug, action.block);
+      if (next === null) return state;
       return { document: next, past: [...state.past, state.document], future: [] };
     }
     case 'undo': {

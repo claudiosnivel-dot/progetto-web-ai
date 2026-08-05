@@ -42,6 +42,7 @@ import type { SiteDocument } from '@/domain/generation/document';
 import { useEditorDraft } from '@/ui/editor/useEditorDraft';
 import { ThemeSwitcher } from '@/ui/editor/ThemeSwitcher';
 import { SaveControls } from '@/ui/editor/SaveControls';
+import { BlockPanel, type AddableOffer } from '@/ui/editor/BlockPanel';
 import {
   saveRevision,
   restoreRevision,
@@ -81,6 +82,18 @@ type EditorClientProps = {
   readonly labels: EditorLabels;
   /** Presente solo quando il sito e' scelto e ha una variante: abilita la riscelta soft (T-310). */
   readonly rechoose?: RechooseConfig;
+  /**
+   * L'offerta della libreria blocchi (T-314): i blocchi aggiungibili alla pagina `offerPageSlug`,
+   * gia' filtrati per precondizione+ruolo e etichettati i18n dal server (composeAddableBlocks). Il
+   * pannello compare solo quando offerta, slug e titolo sono presenti e l'offerta non e' vuota; le
+   * rotte/test che non li passano non mostrano il pannello. Model-free: ogni voce porta l'istanza
+   * risolta dal baseline, non prosa fabbricata.
+   */
+  readonly offer?: readonly AddableOffer[];
+  /** Lo slug della pagina a cui l'offerta si applica (uguaglianza esatta lato dominio). */
+  readonly offerPageSlug?: string;
+  /** Il nome i18n del pannello blocchi (namespace 'editor'), risolto dal server. */
+  readonly addBlockTitle?: string;
   /** L'anteprima gia' resa dal RENDERER UNICO (SiteView editable). Renderer unico, nessuna copia client. */
   readonly children: ReactNode;
   /** Debounce dell'autosave (ms); opzionale, per test/tuning — il default vive in useAutosave. */
@@ -93,6 +106,9 @@ export function EditorClient({
   locale,
   labels,
   rechoose,
+  offer,
+  offerPageSlug,
+  addBlockTitle,
   children,
   debounceMs,
 }: EditorClientProps) {
@@ -212,6 +228,17 @@ export function EditorClient({
           </button>
         </div>
         <SaveControls document={draft.document} save={save} debounceMs={debounceMs} />
+
+        {/* LA LIBRERIA BLOCCHI (T-314): compare solo con un'offerta non vuota, uno slug e un titolo.
+            L'aggiunta entra nel draft (dominio: riallinea + ri-gate); il save-point la persiste. */}
+        {offer && offerPageSlug && addBlockTitle ? (
+          <BlockPanel
+            pageSlug={offerPageSlug}
+            offer={offer}
+            title={addBlockTitle}
+            onAdd={draft.addBlock}
+          />
+        ) : null}
 
         {rechoose ? (
           <div className="editor-rechoose">

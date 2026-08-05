@@ -207,6 +207,7 @@
     "rechoose": "Cambia proposta",
     "rechooseConfirm": "Le tue modifiche restano salvate nella storia delle revisioni e potrai ripristinarle in qualsiasi momento. Vuoi riprendere l'aspetto della proposta scelta?",
     "rechooseConfirmYes": "Sì, riscegli",
-    "rechooseCancel": "Annulla"
+    "rechooseCancel": "Annulla",
+    "addBlock": "Aggiungi blocco"
   }
 }

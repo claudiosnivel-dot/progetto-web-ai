@@ -11,7 +11,7 @@
 // (save-point) e' altrove (T-309): questo hook non scrive nulla.
 
 import { useReducer, useCallback } from 'react';
-import type { SiteDocument } from '@/domain/generation/document';
+import type { SiteBlock, SiteDocument } from '@/domain/generation/document';
 import { draftReducer, initialDraftState, canUndo, canRedo } from '@/ui/editor/draft-state';
 
 export function useEditorDraft(initialDocument: SiteDocument) {
@@ -25,6 +25,13 @@ export function useEditorDraft(initialDocument: SiteDocument) {
   // Lo switch tema (T-308): il chrome (ThemeSwitcher) lega `onThemeChange` a questa callback per
   // aggiornare `document.theme_id` nel draft. La persistenza a revisione e' altrove (T-309).
   const setTheme = useCallback((themeId: string) => dispatch({ type: 'setTheme', themeId }), []);
+  // L'aggiunta di un blocco dalla libreria (T-314): il pannello passa lo slug della pagina target e il
+  // blocco RISOLTO (sorgentato dal baseline lato server, model-free). Il dominio riallinea e ri-gate;
+  // un rifiuto e' un no-op nel reducer. La persistenza a revisione resta altrove (save-point, T-309).
+  const addBlock = useCallback(
+    (pageSlug: string, block: SiteBlock) => dispatch({ type: 'addBlock', pageSlug, block }),
+    [],
+  );
   const undo = useCallback(() => dispatch({ type: 'undo' }), []);
   const redo = useCallback(() => dispatch({ type: 'redo' }), []);
 
@@ -34,6 +41,7 @@ export function useEditorDraft(initialDocument: SiteDocument) {
     canRedo: canRedo(state),
     editSlot,
     setTheme,
+    addBlock,
     undo,
     redo,
   };
