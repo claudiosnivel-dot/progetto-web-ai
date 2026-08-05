@@ -25,13 +25,15 @@ export async function SitePageView({
   page,
   theme,
   locale,
+  editable,
 }: {
   page: SitePage;
   theme: SiteTheme;
   locale: string;
+  editable?: boolean;
 }) {
   const rendered = await Promise.all(
-    page.blocks.map((block) => renderBlock(block, locale)),
+    page.blocks.map((block) => renderBlock(block, locale, editable)),
   );
 
   return (
@@ -51,13 +53,21 @@ export async function SiteView({
   document: siteDocument,
   theme,
   locale,
+  editable,
 }: {
   document: SiteDocument;
   theme: SiteTheme;
   locale: string;
+  /**
+   * Modalita EDITABLE (T-305, P3): inoltrata a ogni pagina e blocco. Quando true gli slot di
+   * testo diventano isole client <EditableText>; quando falsy (default) il render e' identico a
+   * quello read-only di P2. Il TEMA e la struttura non cambiano fra le due modalita: cambia solo
+   * l'involucro attorno al testo. Renderer UNICO — nessuna copia client dei blocchi (P2-D8).
+   */
+  editable?: boolean;
 }) {
   const pages: ReactElement[] = await Promise.all(
-    siteDocument.pages.map((page) => SitePageView({ page, theme, locale })),
+    siteDocument.pages.map((page) => SitePageView({ page, theme, locale, editable })),
   );
 
   return (

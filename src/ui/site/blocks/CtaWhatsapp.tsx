@@ -9,11 +9,12 @@
 
 import { getTranslations } from 'next-intl/server';
 import { SiteSection } from '@/ui/site/SiteSection';
+import { SiteText } from '@/ui/site/SiteText';
 import { siteBlockLabel } from '@/ui/site/labels';
 import { safeWhatsappHref } from '@/ui/site/blocks/whatsapp';
 import type { SiteBlockProps } from '@/ui/site/types';
 
-export async function CtaWhatsapp({ block, locale }: SiteBlockProps) {
+export async function CtaWhatsapp({ block, locale, editable }: SiteBlockProps) {
   // `t` serve ANCHE per l'etichetta del bottone (`actions.whatsapp`), non solo per il landmark:
   // il catalogo 'site' resta caricato qui, e `siteBlockLabel` risolve la sola etichetta di sezione.
   const t = await getTranslations({ locale, namespace: 'site' });
@@ -24,7 +25,13 @@ export async function CtaWhatsapp({ block, locale }: SiteBlockProps) {
 
   return (
     <SiteSection blockId={block.id} label={label} images={block.images}>
-      {invite ? <p style={{ color: 'var(--site-color-text)' }}>{invite}</p> : null}
+      {invite ? (
+        <p style={{ color: 'var(--site-color-text)' }}>
+          <SiteText editable={editable} block={block.id} slot="content.whatsapp_cta_title">
+            {invite}
+          </SiteText>
+        </p>
+      ) : null}
       {href ? (
         <a
           className="site-cta__button"

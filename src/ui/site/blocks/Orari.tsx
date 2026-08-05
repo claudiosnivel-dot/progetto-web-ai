@@ -9,10 +9,11 @@
 // (AC-237-3): nessuna chiave e' dedotta, deduplicata o omessa dal blocco.
 
 import { SiteSection } from '@/ui/site/SiteSection';
+import { SiteText } from '@/ui/site/SiteText';
 import { siteBlockLabel } from '@/ui/site/labels';
 import type { SiteBlockProps } from '@/ui/site/types';
 
-export async function Orari({ block, locale }: SiteBlockProps) {
+export async function Orari({ block, locale, editable }: SiteBlockProps) {
   const label = await siteBlockLabel(block, locale);
 
   const title = block.content.hours_title;
@@ -26,23 +27,37 @@ export async function Orari({ block, locale }: SiteBlockProps) {
           className="site-hours__title"
           style={{ color: 'var(--site-color-text)', fontFamily: 'var(--site-font-heading)' }}
         >
-          {title}
+          <SiteText editable={editable} block={block.id} slot="content.hours_title">
+            {title}
+          </SiteText>
         </h2>
       ) : null}
       {intro ? (
         <p className="site-hours__intro" style={{ color: 'var(--site-color-text-muted)' }}>
-          {intro}
+          <SiteText editable={editable} block={block.id} slot="content.hours_intro">
+            {intro}
+          </SiteText>
         </p>
       ) : null}
       {entries.length > 0 ? (
         <dl className="site-hours">
           {entries.map(([day, value]) => (
             <div key={day} className="site-hours__row" data-hours-key={day}>
+              {/* Il giorno e' la CHIAVE della mappa (un'operazione strutturale, non uno slot di
+                  testo): resta children puri, comunque escaped da React. Il VALORE e' lo slot
+                  editabile, instradato per la chiave del giorno. */}
               <dt className="site-hours__day" style={{ color: 'var(--site-color-text)' }}>
                 {day}
               </dt>
               <dd className="site-hours__value" style={{ color: 'var(--site-color-text-muted)' }}>
-                {value}
+                <SiteText
+                  editable={editable}
+                  block={block.id}
+                  slot={`data.hours.${day}`}
+                  path={['data', 'hours', day]}
+                >
+                  {value}
+                </SiteText>
               </dd>
             </div>
           ))}

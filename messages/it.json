@@ -199,5 +199,14 @@
   },
   "preview": {
     "unavailable": "L'anteprima non è ancora disponibile per questo sito."
+  },
+  "editor": {
+    "unavailable": "Questo sito non ha ancora un contenuto da modificare: genera prima una proposta.",
+    "revisions": "Storia delle revisioni",
+    "restore": "Ripristina",
+    "rechoose": "Cambia proposta",
+    "rechooseConfirm": "Le tue modifiche restano salvate nella storia delle revisioni e potrai ripristinarle in qualsiasi momento. Vuoi riprendere l'aspetto della proposta scelta?",
+    "rechooseConfirmYes": "Sì, riscegli",
+    "rechooseCancel": "Annulla"
   }
 }

@@ -1,6 +1,6 @@
 import { applyBriefUpdate, emptyBrief } from '@/domain/onboarding/brief';
 import { RECIPES } from '@/domain/generation/recipes';
-import { resolveVariantHome } from '@/ui/generation/variant-document';
+import { resolveVariantHome } from '@/domain/generation/variant-document';
 import type { SiteDocument } from '@/domain/generation/document';
 import { innocuousHomePool } from './innocuous-document';
 

@@ -1,3 +1,13 @@
+// FX-CHOOSE(D1) — RIALLOCATO da src/ui/generation/ al DOMINIO. `poolForVariant` e
+// `resolveVariantHome` sono TRASFORMAZIONI PURE di documento (pool + ricetta + brief -> documento
+// della sola home, dietro `parseDocument`): nessun React, nessun I/O, nessun accesso al DB, e le
+// sole dipendenze sono altri moduli di dominio (document/gate/pages/pool/resolve/recipes/themes) e
+// il brief. Vivevano in src/ui/ solo perche' la card (VariantCard, T-232) fu il primo consumatore;
+// ma la SCELTA & CONGELA lato dato (selectVariant, src/data/generation-choose.ts) le importava, e
+// un import data->ui viola il contratto di layering. Portandole nel dominio, data->dominio e
+// ui->dominio sono entrambi leciti e il renderer resta UNICO (la card e la scrittura passano dallo
+// STESSO compositore, mai un secondo albero).
+//
 // T-232 (macrotask generation-ui, P2) — LA COMPOSIZIONE PURA di una card del selettore: da
 // pool + ricetta + brief al DOCUMENTO della sola home, pronto per lo STESSO renderer che
 // l'anteprima (T-235) usera' (SiteView, T-231). Nessun accesso al DB, nessun I/O, nessun

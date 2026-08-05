@@ -104,7 +104,7 @@ vi.mock('@/data/generation-document', () => ({ readGenerationDocument: readDocum
 // Import DOPO i mock (vi.mock e' hoisted).
 import PreviewPage from '@/app/[locale]/preview/[siteId]/page';
 import { VariantCard } from '@/ui/generation/VariantCard';
-import { resolveVariantHome } from '@/ui/generation/variant-document';
+import { resolveVariantHome } from '@/domain/generation/variant-document';
 
 // ── fixture di dominio (le stesse di generation-chooser.test, verbatim) ───────
 // Brief RICCO: sette blocchi di home esistono, quindi la direzione compone una home di piu' blocchi.

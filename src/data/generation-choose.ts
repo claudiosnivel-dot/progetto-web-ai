@@ -11,7 +11,7 @@ import { createServerSupabaseClient } from '@/data/supabase-ssr';
 import { parseDocument } from '@/domain/generation/document';
 import { RECIPES } from '@/domain/generation/recipes';
 import { routing } from '@/i18n/routing';
-import { poolForVariant, resolveVariantHome } from '@/ui/generation/variant-document';
+import { poolForVariant, resolveVariantHome } from '@/domain/generation/variant-document';
 
 // T-233 (macrotask generation-ui, P2) — SCEGLI & CONGELA. L'azione con cui l'utente ferma UNA
 // delle cinque direzioni: costruisce il documento della SOLA home dalla variante scelta
@@ -123,12 +123,27 @@ type StatoRiscelta = Extract<GenerationStatus, 'chosen' | 'complete'>;
  * Cio' che si scrive e' `parsed.document`, la COPIA di `parseDocument`, mai l'input (A05:2025). La
  * home unica e' ri-verificata qui come in `chooseVariant` (T-204, decisione (i)): stessa
  * invariante, cosi' una riscelta non puo' congelare un documento che salta la fase 2.
+ *
+ * T-310 / FX-CHOOSE(D3) — RISCELTA SOFT NON DISTRUTTIVA. `site_generations.document` e' la baseline
+ * CONGELATA (P3-D9); introdotto l'editing (site_document_revisions, T-301/T-302) il documento
+ * CORRENTE e' l'ULTIMA revisione (read-path T-304), NON la baseline. Percio' la riscelta dall'EDITOR
+ * (`snapshot`) NON sovrascrive la baseline — la renderebbe solo fresca ma SCHERMATA da una revisione
+ * 'edited' precedente, e un insert della 'rechosen' poi fallito lascerebbe uno stato mezzo-cambiato
+ * (baseline fresca e invisibile, contro P3-D9) — e appende invece, dopo il CAS, una revisione
+ * `source='rechosen'` dal documento fresco (seq = max+1): diventa il corrente, mentre le 'edited'
+ * precedenti restano LEGGIBILI in storia (append-only, mai mutate ne eliminate — ripristinabili da
+ * T-318). Con `snapshot=false` (la riscelta del selettore pre-editing, T-233) non c'e' lavoro
+ * editoriale da preservare e non esistono revisioni: la baseline E' il documento corrente, quindi il
+ * CAS la congela col nuovo documento (semantica P2 invariata) e resta PURO, zero I/O sulle revisioni.
+ * account_id NON arriva dal client: e' DERIVATO dalla riga aggiornata sotto RLS, cosi' la WITH CHECK
+ * e la FK composita della tabella vedono solo l'account proprio.
  */
 async function applyRechoose(
   generationId: string,
   index: number,
   document: unknown,
   fromStatus: StatoRiscelta,
+  snapshot: boolean,
 ): Promise<{ ok: true } | { ok: false; status: 400 | 401 | 409 | 500 }> {
   const supabase: SupabaseClient = await createServerSupabaseClient();
 
@@ -139,7 +154,9 @@ async function applyRechoose(
 
   // NIENTE E' SCRITTO GREZZO: il documento arriva gia' da `resolveVariantHome` (che passa da
   // `parseDocument`), ma la scrittura scrive comunque la copia validata — la stessa disciplina
-  // con cui T-204 non fida dell'ingresso.
+  // con cui T-204 non fida dell'ingresso. Il gate e l'invariante home-unica valgono per ENTRAMBI
+  // gli esiti (baseline e revisione 'rechosen'): cio' che raggiunge il jsonb e' sempre
+  // `parsed.document`, mai `document` grezzo (security_note di T-310).
   const parsed = parseDocument(document);
   if (!parsed.ok) return { ok: false, status: 400 };
   const pagine = parsed.document.pages;
@@ -147,21 +164,82 @@ async function applyRechoose(
     return { ok: false, status: 400 };
   }
 
+  // FX-CHOOSE(D3) / P3-D9 — `document` ENTRA nel CAS solo per la riscelta del SELETTORE
+  // pre-editing (`snapshot=false`): li' non ci sono revisioni, la baseline E' il documento
+  // corrente e va congelata col nuovo documento (semantica P2 invariata; i test P2 pretendono
+  // `payload.document`). La riscelta dall'EDITOR (`snapshot=true`) NON tocca la baseline congelata
+  // (P3-D9): il design fresco viaggia per la SOLA revisione 'rechosen' (read-path T-304), cosi' un
+  // fallimento parziale dopo il CAS non lascia mai una baseline fresca ma schermata.
+  const casPayload: Record<string, unknown> = {
+    status: 'chosen',
+    chosen_variant: index,
+    updated_at: new Date().toISOString(),
+  };
+  if (!snapshot) casPayload.document = parsed.document;
+
+  // ORDINE — il CAS resta il PRIMO e unico gate atomico. Anticipare la revisione 'rechosen'
+  // significherebbe o derivare l'account_id da una lettura fuori dal CAS (una lettura-poi-scrittura
+  // che RIAPRE la finestra TOCTOU che il CAS `.eq(status, fromStatus)` chiude, contro il
+  // security_note) o appenderla su un CAS che poi tocca 0 righe (un RESET SILENZIOSO di un sito
+  // avanzato, vietato da AC-310-3). Percio' il CAS aggancia PRIMA la riga (account_id + guardia di
+  // conflitto), e SOLO allora si appende la revisione.
   const { data, error } = await supabase
     .from('site_generations')
-    .update({
-      status: 'chosen',
-      chosen_variant: index,
-      document: parsed.document,
-      updated_at: new Date().toISOString(),
-    })
+    .update(casPayload)
     .eq('id', generationId)
     // IL VINCOLO DI PARTENZA, valutato dal DB insieme alla scrittura (decisione (f) di T-204):
     // ESATTAMENTE lo stato letto, non un insieme, cosi' la conferma non e' aggirabile per corsa.
     .eq('status', fromStatus)
-    .select('id');
+    // account_id: DERIVATO dalla riga (sotto RLS) per l'eventuale snapshot rechosen — mai dal client.
+    .select('id, account_id');
   if (error) return { ok: false, status: 500 };
   if (!data || data.length === 0) return { ok: false, status: 409 };
+
+  // Solo la riscelta dall'EDITOR appende la revisione 'rechosen' (non distruttiva): la riscelta del
+  // selettore pre-editing non ha revisioni e resta un CAS puro. La baseline congelata NON e' stata
+  // toccata (P3-D9); un guasto qui e' un errore riconoscibile che lascia il read-path sull'ultima
+  // revisione REALE dell'utente, mai un reset silenzioso ne una baseline fantasma.
+  if (snapshot) {
+    const { account_id: accountId } = data[0] as { account_id: string };
+    return snapshotRechosen(supabase, generationId, accountId, parsed.document);
+  }
+  return { ok: true };
+}
+
+/**
+ * APPENDE una revisione `source='rechosen'` del documento fresco alla storia della generazione, cosi'
+ * il design riscelto diventa il CORRENTE (read-path "ultima revisione else baseline", T-304) SENZA
+ * distruggere le revisioni 'edited' precedenti (tabella append-only, T-301). E' la STESSA disciplina
+ * di `saveRevision` (T-302): seq = max(seq)+1 letto sotto RLS, e lo UNIQUE (site_generation_id, seq)
+ * a rendere la corsa sicura — due scritture concorrenti che calcolano lo stesso seq collidono e la
+ * perdente prende 23505 (409). Il documento e' la COPIA gia' validata da `parseDocument` a monte
+ * (mai l'input); `source` e' fissato a 'rechosen', account_id DERIVATO dalla riga della generazione.
+ */
+async function snapshotRechosen(
+  supabase: SupabaseClient,
+  siteGenerationId: string,
+  accountId: string,
+  document: unknown,
+): Promise<{ ok: true } | { ok: false; status: 409 | 500 }> {
+  const { data: ultima, error: seqErr } = await supabase
+    .from('site_document_revisions')
+    .select('seq')
+    .eq('site_generation_id', siteGenerationId)
+    .order('seq', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (seqErr) return { ok: false, status: 500 };
+  const seq = (ultima ? Number((ultima as { seq: number | string }).seq) : 0) + 1;
+
+  const { error: insErr } = await supabase.from('site_document_revisions').insert({
+    account_id: accountId,
+    site_generation_id: siteGenerationId,
+    source: 'rechosen',
+    seq,
+    document,
+  });
+  // 23505 = corsa persa sullo UNIQUE (un altro save ha preso questo seq): conflitto, non guasto.
+  if (insErr) return { ok: false, status: (insErr as { code?: string }).code === '23505' ? 409 : 500 };
   return { ok: true };
 }
 
@@ -174,7 +252,13 @@ async function applyRechoose(
  *
  * @param input `siteId` per leggere brief e stato (RLS), `generationId` per la scrittura, `locale`
  *   per la destinazione (allowlist, mai grezzo), `variantIndex` 0..4, `confirm` per la riscelta
- *   dopo la fase 2 (AC-233-4). Gli id e il locale sono derivati server-side, non dal browser.
+ *   dopo la fase 2 (AC-233-4), `fromEditor` per la RISCELTA SOFT NON DISTRUTTIVA (T-310): quando la
+ *   riscelta parte dall'editor (dove il lavoro editoriale vive come revisioni), appende una
+ *   revisione `source='rechosen'` dal design fresco cosi' che diventi il documento corrente lasciando
+ *   leggibili in storia le 'edited' precedenti. Assente per il selettore pre-editing (T-233), dove
+ *   non ci sono revisioni e il CAS resta puro. Gli id e il locale sono derivati server-side, non dal
+ *   browser; `fromEditor` non e' un confine di sicurezza (lo snapshot e' server-composto, validato da
+ *   `parseDocument` e scritto sotto RLS): al piu' decide SE appendere la revisione.
  */
 export async function selectVariant(input: {
   readonly siteId: string;
@@ -182,6 +266,7 @@ export async function selectVariant(input: {
   readonly locale: string;
   readonly variantIndex: number;
   readonly confirm?: boolean;
+  readonly fromEditor?: boolean;
 }): Promise<SelectVariantResult> {
   // AC-233-5: indice fuori 0..4 respinto PRIMA di ogni round-trip; `chosen_variant` resta intatto
   // perche' nessuna scrittura parte.
@@ -222,6 +307,10 @@ export async function selectVariant(input: {
   const locale = hasLocale(routing.locales, input.locale) ? input.locale : routing.defaultLocale;
   const previewPath = `/${locale}/preview/${encodeURIComponent(input.siteId)}`;
 
+  // T-310: la riscelta dall'EDITOR e' non distruttiva — appende una revisione 'rechosen'. Quella del
+  // selettore pre-editing (T-233) no: nessuna revisione da preservare, il CAS resta puro.
+  const snapshot = input.fromEditor === true;
+
   if (status === 'ready') {
     // LA PRIMA SCELTA: la transizione che gia' esiste (T-204, CAS ready->chosen). Pretende il pool
     // e congela la sola home.
@@ -231,8 +320,9 @@ export async function selectVariant(input: {
   }
 
   if (status === 'chosen') {
-    // RISCELTA PRIMA DELLA FASE 2 (AC-233-3): pura, ZERO confine. Si sostituisce il documento.
-    const written = await applyRechoose(input.generationId, index, resolved.document, 'chosen');
+    // RISCELTA PRIMA DELLA FASE 2 (AC-233-3): pura, ZERO confine. Si sostituisce il documento; se la
+    // riscelta viene dall'editor, si appende anche la revisione 'rechosen' (T-310).
+    const written = await applyRechoose(input.generationId, index, resolved.document, 'chosen', snapshot);
     if (!written.ok) return { ok: false, reason: esitoTransizione(written.status) };
     return redirect(previewPath);
   }
@@ -242,8 +332,9 @@ export async function selectVariant(input: {
     // ESPLICITA l'azione non procede e NON scrive nulla.
     if (input.confirm !== true) return { ok: false, reason: 'conferma_richiesta' };
     // Con la conferma: la generazione torna a 'chosen' con la sola home della nuova variante — lo
-    // stato da cui la fase 2 (T-234) verra' rifatta. La rimessa in moto della fase 2 e' di T-234.
-    const written = await applyRechoose(input.generationId, index, resolved.document, 'complete');
+    // stato da cui la fase 2 (T-234) verra' rifatta. La rimessa in moto della fase 2 e' di T-234. Dal
+    // l'editor la riscelta e' non distruttiva: si appende la revisione 'rechosen' (T-310).
+    const written = await applyRechoose(input.generationId, index, resolved.document, 'complete', snapshot);
     if (!written.ok) return { ok: false, reason: esitoTransizione(written.status) };
     return redirect(previewPath);
   }

@@ -1,6 +1,6 @@
 import { applyBriefUpdate, emptyBrief } from '@/domain/onboarding/brief';
 import { RECIPES } from '@/domain/generation/recipes';
-import { resolveVariantHome } from '@/ui/generation/variant-document';
+import { resolveVariantHome } from '@/domain/generation/variant-document';
 import type { SiteDocument } from '@/domain/generation/document';
 
 // T-240 (macrotask generation-e2e, P2) — IL DOCUMENTO-FIXTURE INNOCUO per AC-240-1. Non e' scritto

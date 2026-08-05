@@ -10,10 +10,11 @@
 // cambiera' a monte e questo componente sara' gia' pronto a renderla, senza inventare nulla.
 
 import { SiteSection } from '@/ui/site/SiteSection';
+import { SiteText } from '@/ui/site/SiteText';
 import { siteBlockLabel } from '@/ui/site/labels';
 import type { SiteBlockProps } from '@/ui/site/types';
 
-export async function Recensioni({ block, locale }: SiteBlockProps) {
+export async function Recensioni({ block, locale, editable }: SiteBlockProps) {
   const label = await siteBlockLabel(block, locale);
 
   const title = block.content.reviews_title;
@@ -26,12 +27,16 @@ export async function Recensioni({ block, locale }: SiteBlockProps) {
           className="site-reviews__title"
           style={{ color: 'var(--site-color-text)', fontFamily: 'var(--site-font-heading)' }}
         >
-          {title}
+          <SiteText editable={editable} block={block.id} slot="content.reviews_title">
+            {title}
+          </SiteText>
         </h2>
       ) : null}
       {intro ? (
         <p className="site-reviews__intro" style={{ color: 'var(--site-color-text-muted)' }}>
-          {intro}
+          <SiteText editable={editable} block={block.id} slot="content.reviews_intro">
+            {intro}
+          </SiteText>
         </p>
       ) : null}
     </SiteSection>

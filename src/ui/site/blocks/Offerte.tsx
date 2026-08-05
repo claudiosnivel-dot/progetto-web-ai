@@ -17,6 +17,7 @@
 
 import { getTranslations } from 'next-intl/server';
 import { SiteSection } from '@/ui/site/SiteSection';
+import { SiteText } from '@/ui/site/SiteText';
 import { siteBlockLabel } from '@/ui/site/labels';
 import { resolveOfferings } from '@/domain/generation/blocks';
 import type { Brief } from '@/domain/onboarding/brief';
@@ -39,7 +40,7 @@ const OFFERINGS_LABEL: Record<
   'site.offerings.generic': 'offerings.generic',
 };
 
-export async function Offerte({ block, locale }: SiteBlockProps) {
+export async function Offerte({ block, locale, editable }: SiteBlockProps) {
   // `t` serve ANCHE per l'etichetta di variante (`OFFERINGS_LABEL[...]`), non solo per il landmark:
   // il catalogo 'site' resta caricato qui, e `siteBlockLabel` risolve la sola etichetta di sezione.
   const t = await getTranslations({ locale, namespace: 'site' });
@@ -66,9 +67,13 @@ export async function Offerte({ block, locale }: SiteBlockProps) {
           className="site-offerings__title"
           style={{ color: 'var(--site-color-text)', fontFamily: 'var(--site-font-heading)' }}
         >
-          {title}
+          <SiteText editable={editable} block={block.id} slot="content.offerings_title">
+            {title}
+          </SiteText>
         </h2>
       ) : null}
+      {/* L'etichetta di variante e' una CHIAVE i18n del catalogo (AC-237-5), non testo del
+          modello: NON e' uno slot editabile, resta com'era. */}
       <p
         className="site-offerings__variant"
         style={{ color: 'var(--site-color-accent)', fontFamily: 'var(--site-font-heading)' }}
@@ -77,7 +82,9 @@ export async function Offerte({ block, locale }: SiteBlockProps) {
       </p>
       {intro ? (
         <p className="site-offerings__intro" style={{ color: 'var(--site-color-text-muted)' }}>
-          {intro}
+          <SiteText editable={editable} block={block.id} slot="content.offerings_intro">
+            {intro}
+          </SiteText>
         </p>
       ) : null}
       <ul className="site-offerings__items" data-offerings-layout={variant.layout}>
@@ -89,21 +96,29 @@ export async function Offerte({ block, locale }: SiteBlockProps) {
             style={{ color: 'var(--site-color-text)' }}
           >
             <span className="site-offerings__name" style={{ fontFamily: 'var(--site-font-heading)' }}>
-              {item.name}
+              <SiteText editable={editable} block={block.id} slot={`data.offerings.${index}.name`}>
+                {item.name}
+              </SiteText>
             </span>
             {item.description ? (
               <span className="site-offerings__description" style={{ color: 'var(--site-color-text-muted)' }}>
-                {item.description}
+                <SiteText editable={editable} block={block.id} slot={`data.offerings.${index}.description`}>
+                  {item.description}
+                </SiteText>
               </span>
             ) : null}
             {variant.show_price && item.price ? (
               <span className="site-offerings__price" style={{ color: 'var(--site-color-accent)' }}>
-                {item.price}
+                <SiteText editable={editable} block={block.id} slot={`data.offerings.${index}.price`}>
+                  {item.price}
+                </SiteText>
               </span>
             ) : null}
             {item.section ? (
               <span className="site-offerings__section" style={{ color: 'var(--site-color-text-muted)' }}>
-                {item.section}
+                <SiteText editable={editable} block={block.id} slot={`data.offerings.${index}.section`}>
+                  {item.section}
+                </SiteText>
               </span>
             ) : null}
           </li>

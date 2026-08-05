@@ -116,7 +116,7 @@ vi.mock('@/data/generation-document', () => ({ readGenerationDocument: readDocum
 
 // Import DOPO i mock (vi.mock e' hoisted).
 import { selectVariant } from '@/data/generation-choose';
-import { resolveVariantHome } from '@/ui/generation/variant-document';
+import { resolveVariantHome } from '@/domain/generation/variant-document';
 import PreviewPage from '@/app/[locale]/preview/[siteId]/page';
 
 // getTranslations REALE dal catalogo it, namespace 'site': una chiave assente ricade sul suo path,

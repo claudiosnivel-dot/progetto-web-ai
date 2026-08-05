@@ -7,10 +7,11 @@
 // del landmark) vengono dal catalogo del locale (P2-D10), i colori da `var(--site-...)`.
 
 import { SiteSection } from '@/ui/site/SiteSection';
+import { SiteText } from '@/ui/site/SiteText';
 import { siteBlockLabel } from '@/ui/site/labels';
 import type { SiteBlockProps } from '@/ui/site/types';
 
-export async function Hero({ block, locale }: SiteBlockProps) {
+export async function Hero({ block, locale, editable }: SiteBlockProps) {
   const label = await siteBlockLabel(block, locale);
 
   const kicker = block.content.hero_title_kicker;
@@ -25,12 +26,16 @@ export async function Hero({ block, locale }: SiteBlockProps) {
           className="site-hero__brand"
           style={{ color: 'var(--site-color-accent)', fontFamily: 'var(--site-font-heading)' }}
         >
-          {businessName}
+          <SiteText editable={editable} block={block.id} slot="data.business_name">
+            {businessName}
+          </SiteText>
         </p>
       ) : null}
       {kicker ? (
         <p className="site-hero__kicker" style={{ color: 'var(--site-color-text-muted)' }}>
-          {kicker}
+          <SiteText editable={editable} block={block.id} slot="content.hero_title_kicker">
+            {kicker}
+          </SiteText>
         </p>
       ) : null}
       {title ? (
@@ -38,12 +43,16 @@ export async function Hero({ block, locale }: SiteBlockProps) {
           className="site-hero__title"
           style={{ color: 'var(--site-color-text)', fontFamily: 'var(--site-font-heading)' }}
         >
-          {title}
+          <SiteText editable={editable} block={block.id} slot="content.hero_title">
+            {title}
+          </SiteText>
         </h1>
       ) : null}
       {subtitle ? (
         <p className="site-hero__subtitle" style={{ color: 'var(--site-color-text-muted)' }}>
-          {subtitle}
+          <SiteText editable={editable} block={block.id} slot="content.hero_subtitle">
+            {subtitle}
+          </SiteText>
         </p>
       ) : null}
     </SiteSection>

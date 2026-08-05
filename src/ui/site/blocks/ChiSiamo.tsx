@@ -7,10 +7,11 @@
 // blocco non legge `block.data`.
 
 import { SiteSection } from '@/ui/site/SiteSection';
+import { SiteText } from '@/ui/site/SiteText';
 import { siteBlockLabel } from '@/ui/site/labels';
 import type { SiteBlockProps } from '@/ui/site/types';
 
-export async function ChiSiamo({ block, locale }: SiteBlockProps) {
+export async function ChiSiamo({ block, locale, editable }: SiteBlockProps) {
   const label = await siteBlockLabel(block, locale);
 
   const title = block.content.about_title;
@@ -21,15 +22,25 @@ export async function ChiSiamo({ block, locale }: SiteBlockProps) {
     <SiteSection blockId={block.id} label={label} images={block.images}>
       {title ? (
         <h2 style={{ color: 'var(--site-color-text)', fontFamily: 'var(--site-font-heading)' }}>
-          {title}
+          <SiteText editable={editable} block={block.id} slot="content.about_title">
+            {title}
+          </SiteText>
         </h2>
       ) : null}
-      {body ? <p style={{ color: 'var(--site-color-text)' }}>{body}</p> : null}
+      {body ? (
+        <p style={{ color: 'var(--site-color-text)' }}>
+          <SiteText editable={editable} block={block.id} slot="content.about_body">
+            {body}
+          </SiteText>
+        </p>
+      ) : null}
       {points && points.length > 0 ? (
         <ul className="site-about__points">
           {points.map((point, index) => (
             <li key={index} style={{ color: 'var(--site-color-text-muted)' }}>
-              {point}
+              <SiteText editable={editable} block={block.id} slot={`content.about_points.${index}`}>
+                {point}
+              </SiteText>
             </li>
           ))}
         </ul>

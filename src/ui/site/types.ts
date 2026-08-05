@@ -18,6 +18,15 @@ import type { SiteBlock } from '@/domain/generation/document';
 export type SiteBlockProps = {
   readonly block: SiteBlock;
   readonly locale: string;
+  /**
+   * Modalita EDITABLE (T-305, P3): quando true, gli slot di testo del blocco sono resi dentro
+   * l'isola client <EditableText> (via `SiteText`) invece che come children puri. Opzionale e
+   * falsy di default, cosi' il render di P2 (read-only) resta identico e i consumatori esistenti
+   * non cambiano. La prop viaggia da `SiteView` attraverso `renderBlock` fino al blocco; nessun
+   * blocco legge il TEMA (resta a `var(--site-...)` alla radice), ma la modalita si', perche' e'
+   * il blocco a sapere QUALI dei suoi campi sono slot di testo editabili.
+   */
+  readonly editable?: boolean;
 };
 
 /**

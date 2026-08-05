@@ -52,7 +52,7 @@ vi.mock('@/data/anthropic', () => ({ runGenerationTurn: boundarySpy }));
 import { GenerationChooser } from '@/ui/generation/GenerationChooser';
 import { VariantCard } from '@/ui/generation/VariantCard';
 import { SiteView } from '@/ui/site/SiteView';
-import { resolveVariantHome } from '@/ui/generation/variant-document';
+import { resolveVariantHome } from '@/domain/generation/variant-document';
 
 // getTranslations REALE dal catalogo it, namespace 'site': una chiave assente ricade sul suo
 // path, cosi' un blocco senza etichetta non fa cadere il render.

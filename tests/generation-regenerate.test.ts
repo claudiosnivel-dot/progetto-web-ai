@@ -59,7 +59,7 @@ vi.mock('@/data/anthropic', () => ({ runGenerationTurn: boundarySpy }));
 
 // Import DOPO i mock (vi.mock e' hoisted).
 import { regenerateVariant } from '@/data/generation-regenerate';
-import { poolForVariant } from '@/ui/generation/variant-document';
+import { poolForVariant } from '@/domain/generation/variant-document';
 
 // Brief RICCO, dominio REALE: l'assemblaggio del turno di fase 1 (proiezione, tool, pagine) gira
 // per davvero. Valori DISCORDANTI: due chiavi orario, tre offerte di cui una PREFISSO dell'altra.

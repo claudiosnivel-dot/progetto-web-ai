@@ -19,7 +19,7 @@ import type { ReactElement } from 'react';
 import { SiteView } from '@/ui/site/SiteView';
 import type { SiteRecipe } from '@/domain/generation/recipes';
 import type { Brief } from '@/domain/onboarding/brief';
-import { resolveVariantHome } from '@/ui/generation/variant-document';
+import { resolveVariantHome } from '@/domain/generation/variant-document';
 
 type VariantCardProps = {
   /** Il pool GIA' SELEZIONATO per questa variante (P2-D3, `poolForVariant`): condiviso o proprio. */

@@ -41,9 +41,17 @@ export const SITE_BLOCK_COMPONENTS: Readonly<Record<string, SiteBlockComponent>>
  * Rende UN blocco col componente registrato per il suo id, o `null` se nessuno lo copre. La
  * lettura del registry e' su proprieta' PROPRIE (`Object.hasOwn`): un id come 'constructor'
  * non deve risolvere un membro di Object.prototype al posto di "nessun componente".
+ *
+ * `editable` (T-305, P3) e' inoltrato tale e quale al componente: e' il blocco a decidere quali
+ * suoi campi sono slot di testo editabili. Opzionale e falsy di default — il registry resta la
+ * sola sede id-blocco -> componente e non si sdoppia per la modalita.
  */
-export function renderBlock(block: SiteBlock, locale: string): Promise<ReactElement> | null {
+export function renderBlock(
+  block: SiteBlock,
+  locale: string,
+  editable?: boolean,
+): Promise<ReactElement> | null {
   if (!Object.hasOwn(SITE_BLOCK_COMPONENTS, block.id)) return null;
   const Component = SITE_BLOCK_COMPONENTS[block.id];
-  return Component({ block, locale });
+  return Component({ block, locale, editable });
 }

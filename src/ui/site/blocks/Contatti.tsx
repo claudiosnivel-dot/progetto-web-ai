@@ -14,6 +14,7 @@
 // di terzi (AC-237-2; la prova sull'EFFETTO e' T-241).
 
 import { SiteSection } from '@/ui/site/SiteSection';
+import { SiteText } from '@/ui/site/SiteText';
 import { siteBlockLabel } from '@/ui/site/labels';
 import { safeWhatsappHref } from '@/ui/site/blocks/whatsapp';
 import { safeTelHref, safeMailtoHref, safeHttpsHref } from '@/ui/site/blocks/contact-links';
@@ -22,22 +23,45 @@ import type { SiteBlockProps } from '@/ui/site/types';
 /**
  * UN CANALE: il valore visibile e, se e' valido, il suo href sicuro. Con `href` non nullo si
  * rende un <a>; con `href` null si rende il solo testo (nessun link da un valore non validato).
+ *
+ * In modalita editable il VALORE VISIBILE diventa un'isola di testo (via `SiteText`), portando
+ * block id + slot id; l'HREF resta invariato — nasce sempre dai costruttori validati
+ * (safeTel/Mailto/Https/Whatsapp), MAI dal testo dell'isola (disciplina T-241, P3-D6).
  */
-function Channel({ kind, value, href }: { kind: string; value: string; href: string | null }) {
+function Channel({
+  kind,
+  value,
+  href,
+  block,
+  slot,
+  editable,
+}: {
+  kind: string;
+  value: string;
+  href: string | null;
+  block: string;
+  slot: string;
+  editable?: boolean;
+}) {
+  const text = (
+    <SiteText editable={editable} block={block} slot={slot}>
+      {value}
+    </SiteText>
+  );
   return (
     <li className={`site-contact__channel site-contact__${kind}`}>
       {href ? (
         <a href={href} style={{ color: 'var(--site-color-accent)' }}>
-          {value}
+          {text}
         </a>
       ) : (
-        <span style={{ color: 'var(--site-color-text)' }}>{value}</span>
+        <span style={{ color: 'var(--site-color-text)' }}>{text}</span>
       )}
     </li>
   );
 }
 
-export async function Contatti({ block, locale }: SiteBlockProps) {
+export async function Contatti({ block, locale, editable }: SiteBlockProps) {
   const label = await siteBlockLabel(block, locale);
 
   const title = block.content.contact_title;
@@ -53,17 +77,23 @@ export async function Contatti({ block, locale }: SiteBlockProps) {
           className="site-contact__title"
           style={{ color: 'var(--site-color-text)', fontFamily: 'var(--site-font-heading)' }}
         >
-          {title}
+          <SiteText editable={editable} block={block.id} slot="content.contact_title">
+            {title}
+          </SiteText>
         </h2>
       ) : null}
       {intro ? (
         <p className="site-contact__intro" style={{ color: 'var(--site-color-text-muted)' }}>
-          {intro}
+          <SiteText editable={editable} block={block.id} slot="content.contact_intro">
+            {intro}
+          </SiteText>
         </p>
       ) : null}
       {address ? (
         <address className="site-contact__address" style={{ color: 'var(--site-color-text)' }}>
-          {address}
+          <SiteText editable={editable} block={block.id} slot="data.address">
+            {address}
+          </SiteText>
         </address>
       ) : null}
       {geo ? (
@@ -76,11 +106,46 @@ export async function Contatti({ block, locale }: SiteBlockProps) {
         />
       ) : null}
       <ul className="site-contact__channels">
-        {phone ? <Channel kind="phone" value={phone} href={safeTelHref(phone)} /> : null}
-        {email ? <Channel kind="email" value={email} href={safeMailtoHref(email)} /> : null}
-        {whatsapp ? <Channel kind="whatsapp" value={whatsapp} href={safeWhatsappHref(whatsapp)} /> : null}
+        {phone ? (
+          <Channel
+            kind="phone"
+            value={phone}
+            href={safeTelHref(phone)}
+            block={block.id}
+            slot="data.phone"
+            editable={editable}
+          />
+        ) : null}
+        {email ? (
+          <Channel
+            kind="email"
+            value={email}
+            href={safeMailtoHref(email)}
+            block={block.id}
+            slot="data.email"
+            editable={editable}
+          />
+        ) : null}
+        {whatsapp ? (
+          <Channel
+            kind="whatsapp"
+            value={whatsapp}
+            href={safeWhatsappHref(whatsapp)}
+            block={block.id}
+            slot="data.whatsapp"
+            editable={editable}
+          />
+        ) : null}
         {socials.map((social, index) => (
-          <Channel key={index} kind="social" value={social} href={safeHttpsHref(social)} />
+          <Channel
+            key={index}
+            kind="social"
+            value={social}
+            href={safeHttpsHref(social)}
+            block={block.id}
+            slot={`data.social_links.${index}`}
+            editable={editable}
+          />
         ))}
       </ul>
     </SiteSection>

@@ -21,7 +21,7 @@ import type { GenerationStatus } from '@/data/generations';
 import { VariantCard } from '@/ui/generation/VariantCard';
 import { RegenerateButton } from '@/ui/generation/RegenerateButton';
 import { ChooseVariantButton } from '@/ui/generation/ChooseVariantButton';
-import { poolForVariant } from '@/ui/generation/variant-document';
+import { poolForVariant } from '@/domain/generation/variant-document';
 import type { Brief } from '@/domain/onboarding/brief';
 
 type GenerationChooserLabels = {
