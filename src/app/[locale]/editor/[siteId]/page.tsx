@@ -100,6 +100,7 @@ export default async function EditorPage({ params }: EditorPageProps) {
         reorderTitle={t('reorderBlocks')}
         moveUpLabel={t('moveBlockUp')}
         moveDownLabel={t('moveBlockDown')}
+        replaceTitle={t('replaceBlock')}
         labels={{
           revisionsTitle: t('revisions'),
           restore: t('restore'),

@@ -39,6 +39,14 @@ export function useEditorDraft(initialDocument: SiteDocument) {
       dispatch({ type: 'reorderBlock', pageSlug, fromIndex, toIndex }),
     [],
   );
+  // La sostituzione di un blocco con un altro dalla libreria (T-316): l'affordance passa lo slug della
+  // pagina, l'indice del blocco da rimpiazzare e il blocco RISOLTO sostitutivo (model-free, sorgentato
+  // lato server). Il dominio riconcilia e ri-gate; un rifiuto e' un no-op nel reducer.
+  const replaceBlock = useCallback(
+    (pageSlug: string, blockIndex: number, block: SiteBlock) =>
+      dispatch({ type: 'replaceBlock', pageSlug, blockIndex, block }),
+    [],
+  );
   const undo = useCallback(() => dispatch({ type: 'undo' }), []);
   const redo = useCallback(() => dispatch({ type: 'redo' }), []);
 
@@ -50,6 +58,7 @@ export function useEditorDraft(initialDocument: SiteDocument) {
     setTheme,
     addBlock,
     reorderBlock,
+    replaceBlock,
     undo,
     redo,
   };

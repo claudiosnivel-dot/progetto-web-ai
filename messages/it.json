@@ -211,6 +211,7 @@
     "addBlock": "Aggiungi blocco",
     "reorderBlocks": "Riordina i blocchi",
     "moveBlockUp": "Sposta su",
-    "moveBlockDown": "Sposta giù"
+    "moveBlockDown": "Sposta giù",
+    "replaceBlock": "Sostituisci blocco"
   }
 }

@@ -22,7 +22,7 @@
 // persistenza a revisioni e' un'altra cosa (save-point, T-309), non questo modulo.
 
 import type { SiteBlock, SiteDocument } from '@/domain/generation/document';
-import { addBlock, reorderBlock } from '@/domain/editor/block-ops';
+import { addBlock, reorderBlock, replaceBlock } from '@/domain/editor/block-ops';
 
 /**
  * Una modifica inline di uno slot di testo. `path` e' la coordinata STRUTTURATA che l'isola
@@ -54,10 +54,12 @@ type SlotEdit = {
 
 /**
  * Le azioni del reducer: una edit inline, uno switch di tema, l'aggiunta di un blocco dalla libreria
- * (T-314), il RIORDINO di un blocco entro una pagina (T-315), oppure un passo di undo/redo.
- * `addBlock` porta lo slug della pagina target e il blocco RISOLTO da inserire (content + data +
- * images), sorgentato dal baseline dal chiamante (model-free). `reorderBlock` porta lo slug della
- * pagina e gli indici sorgente/destinazione dello spostamento (lista ordinabile, nessun drag).
+ * (T-314), il RIORDINO di un blocco entro una pagina (T-315), la SOSTITUZIONE di un blocco con un
+ * altro dalla libreria (T-316), oppure un passo di undo/redo. `addBlock` porta lo slug della pagina
+ * target e il blocco RISOLTO da inserire (content + data + images), sorgentato dal baseline dal
+ * chiamante (model-free). `reorderBlock` porta lo slug della pagina e gli indici sorgente/destinazione
+ * dello spostamento (lista ordinabile, nessun drag). `replaceBlock` porta lo slug della pagina,
+ * l'indice del blocco da rimpiazzare e il blocco RISOLTO sostitutivo (anch'esso model-free).
  */
 export type DraftAction =
   | { readonly type: 'editSlot'; readonly edit: SlotEdit }
@@ -68,6 +70,12 @@ export type DraftAction =
       readonly pageSlug: string;
       readonly fromIndex: number;
       readonly toIndex: number;
+    }
+  | {
+      readonly type: 'replaceBlock';
+      readonly pageSlug: string;
+      readonly blockIndex: number;
+      readonly block: SiteBlock;
     }
   | { readonly type: 'undo' }
   | { readonly type: 'redo' };
@@ -138,6 +146,16 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
       // stessa posizione, pagina assente) e' null -> no-op: stesso stato, nessuna voce di storia
       // spuria. Altrimenti nuovo stato con push su past e futuro azzerato, come editSlot/addBlock.
       const next = reorderBlock(state.document, action.pageSlug, action.fromIndex, action.toIndex);
+      if (next === null) return state;
+      return { document: next, past: [...state.past, state.document], future: [] };
+    }
+    case 'replaceBlock': {
+      // SOSTITUZIONE DALLA LIBRERIA (T-316): il dominio rimpiazza il blocco all'indice dato col
+      // blocco risolto, riconcilia brief_fields_rendered e RI-GATE il documento. Un rifiuto (indice
+      // invalido/fuori range, pagina assente, id duplicato con un altro blocco, invariante rotto) e'
+      // null -> no-op: stesso stato, nessuna voce di storia spuria. Altrimenti nuovo stato con push su
+      // past e futuro azzerato, la stessa disciplina di editSlot/addBlock/reorderBlock.
+      const next = replaceBlock(state.document, action.pageSlug, action.blockIndex, action.block);
       if (next === null) return state;
       return { document: next, past: [...state.past, state.document], future: [] };
     }

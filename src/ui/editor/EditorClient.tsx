@@ -44,6 +44,7 @@ import { ThemeSwitcher } from '@/ui/editor/ThemeSwitcher';
 import { SaveControls } from '@/ui/editor/SaveControls';
 import { BlockPanel, type AddableOffer } from '@/ui/editor/BlockPanel';
 import { BlockReorderList } from '@/ui/editor/BlockReorderList';
+import { BlockReplaceList } from '@/ui/editor/BlockReplaceList';
 import {
   saveRevision,
   restoreRevision,
@@ -103,6 +104,13 @@ type EditorClientProps = {
   readonly reorderTitle?: string;
   readonly moveUpLabel?: string;
   readonly moveDownLabel?: string;
+  /**
+   * Il nome i18n del controllo di SOSTITUZIONE (T-316), risolto dal server (namespace 'editor'). Il
+   * controllo compare solo quando il titolo e' presente E l'offerta della libreria non e' vuota (gli
+   * stessi candidati del pannello di aggiunta); le rotte/test che non lo passano non lo mostrano —
+   * stessa disciplina del pannello blocchi e del controllo di riordino.
+   */
+  readonly replaceTitle?: string;
   /** L'anteprima gia' resa dal RENDERER UNICO (SiteView editable). Renderer unico, nessuna copia client. */
   readonly children: ReactNode;
   /** Debounce dell'autosave (ms); opzionale, per test/tuning — il default vive in useAutosave. */
@@ -121,6 +129,7 @@ export function EditorClient({
   reorderTitle,
   moveUpLabel,
   moveDownLabel,
+  replaceTitle,
   children,
   debounceMs,
 }: EditorClientProps) {
@@ -270,6 +279,20 @@ export function EditorClient({
             moveUpLabel={moveUpLabel}
             moveDownLabel={moveDownLabel}
             onReorder={draft.reorderBlock}
+          />
+        ) : null}
+
+        {/* LA SOSTITUZIONE DEI BLOCCHI (T-316): per ogni blocco della pagina corrente, i candidati con
+            cui rimpiazzarlo — la STESSA offerta della libreria (precondizione+ruolo, non presenti).
+            La sostituzione entra nel draft (dominio: riconcilia + ri-gate) e si riflette nell'anteprima;
+            il save-point la persiste. Compare solo col titolo i18n e un'offerta non vuota. */}
+        {offer && replaceTitle ? (
+          <BlockReplaceList
+            pageSlug={reorderPage.slug}
+            items={reorderItems}
+            offer={offer}
+            title={replaceTitle}
+            onReplace={draft.replaceBlock}
           />
         ) : null}
 

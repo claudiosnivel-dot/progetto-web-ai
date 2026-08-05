@@ -119,6 +119,66 @@ export function addBlock(
   return parsed.ok ? parsed.document : null;
 }
 
+/**
+ * SOSTITUISCE (T-316) il blocco all'indice `blockIndex` di una pagina con `newBlock` (un'istanza
+ * RISOLTA, come l'aggiunta) e ritorna la COPIA VALIDATA del documento, oppure `null` se la
+ * sostituzione e' rifiutata (pagina assente, indice non canonico o fuori range, id duplicato con un
+ * altro blocco, o qualunque invariante rotto dal gate). Puro: non muta il documento in ingresso.
+ *
+ * Due passi, nell'ordine (gli stessi di `addBlock`, applicati a una posizione esistente invece che
+ * alla coda):
+ *  1. RIALLINEA `newBlock.brief_fields_rendered = Object.keys(newBlock.data)` — la stessa
+ *     riconciliazione del contratto dei campi non fidati (OWASP A05:2025) che `resolve`/`saveRevision`
+ *     mantengono: il blocco entrante dichiara ESATTAMENTE i campi del brief che rende davvero.
+ *  2. GATE `parseDocument` sul documento risultante. Passa -> ritorna `parsed.document` (la copia che
+ *     lo schema ha benedetto, mai l'input); non passa -> `null`, rifiuto e nulla di mutato.
+ *
+ * DIFESA IN PROFONDITA' (come `addBlock`): `parseDocument` NON impone l'unicita' degli id di blocco
+ * in una pagina, quindi sostituire un blocco con l'id di un ALTRO gia' presente lascerebbe due sezioni
+ * con lo stesso `data-block-id`. Si rifiuta percio' un id gia' presente ALTROVE sulla pagina, per
+ * UGUAGLIANZA ESATTA — escludendo pero' il blocco che si sta sostituendo, cosi' rimpiazzarlo con una
+ * nuova istanza dello stesso id resta lecito. L'offerta esclude gia' i presenti (addableBlocks), ma
+ * delegarle tutto l'invariante lascerebbe un varco a un chiamante che dispacciasse `replaceBlock`
+ * fuori dall'offerta.
+ */
+export function replaceBlock(
+  document: SiteDocument,
+  pageSlug: string,
+  blockIndex: number,
+  newBlock: SiteBlock,
+): SiteDocument | null {
+  const pageIndex = document.pages.findIndex((candidate) => candidate.slug === pageSlug);
+  if (pageIndex === -1) return null;
+
+  const page = document.pages[pageIndex];
+  // Indice VALIDATO: intero canonico entro il range di `page.blocks`. Fuori range o non intero ->
+  // rifiuto, nulla di mutato.
+  if (!isCanonicalIndex(blockIndex, page.blocks.length)) return null;
+
+  // Nessun id duplicato con un ALTRO blocco (uguaglianza esatta, mai per prefisso): il blocco a
+  // `blockIndex` e' escluso, cosi' una sostituzione con lo stesso id e' ammessa.
+  if (page.blocks.some((existing, index) => index !== blockIndex && existing.id === newBlock.id)) {
+    return null;
+  }
+
+  // Il blocco entrante porta il contratto dei campi resi RIALLINEATO ai `data` realmente presenti,
+  // come in `addBlock`; il gate lo riverifica.
+  const realigned: SiteBlock = {
+    ...newBlock,
+    brief_fields_rendered: Object.keys(newBlock.data) as SiteBlock['brief_fields_rendered'],
+  };
+
+  const nextBlocks = page.blocks.map((current, index) => (index === blockIndex ? realigned : current));
+  const nextPage = { ...page, blocks: nextBlocks };
+  const candidate: SiteDocument = {
+    ...document,
+    pages: document.pages.map((current, index) => (index === pageIndex ? nextPage : current)),
+  };
+
+  const parsed = parseDocument(candidate);
+  return parsed.ok ? parsed.document : null;
+}
+
 /** Un indice di posizione CANONICO: un intero non negativo entro `[0, count)`. */
 function isCanonicalIndex(value: number, count: number): boolean {
   return Number.isInteger(value) && value >= 0 && value < count;
