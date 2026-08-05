@@ -31,6 +31,12 @@ Restano da chiudere qui le **7 `domain→data`** (tutte via alias `@/`, tutte in
 
 ## 2. Le 7 violazioni `domain→data` (misurate, esatte)
 
+> **BONIFICATE (T-AH1…T-AH5).** Tutte e 7 chiuse: Gruppo A (`setLocale`, `auth/login`, `auth/signup`)
+> relayer → `src/app`; Gruppo B (`onboarding/interview`, `import/fromUrl`) DI porta LLM; Gruppo C
+> (`generation/phase1`, `generation/phase2`) relayer I/O → `src/data`. Il gate
+> `tests/architecture-contract.test.ts` è ora **repo-wide** (0 archi vietati su tutti i sorgenti) —
+> T-AH6. La tabella sotto resta come misura storica dello stato pre-bonifica.
+
 | # | Modulo (from = `domain`) | Import (to = `data`) |
 |---|---|---|
 | 1 | `src/domain/setLocale.ts` | `@/data/updateProfileLocale` |
