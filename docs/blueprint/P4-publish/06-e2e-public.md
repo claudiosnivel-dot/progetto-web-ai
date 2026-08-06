@@ -43,7 +43,7 @@ sul canary insicuro, sa diventare **ROSSO**.
     - "Tutti e sei i payload ostili di HOSTILE_PAYLOADS compaiono come CONTENUTO TESTUALE della pagina pubblica (anti-placebo); la risposta è 200 servita ad anon"
     - "L'<img> dello slot 'uploaded' ha src verso il nostro host Storage costruito da asset_id (P2-D12), mai verso ATTACKER_HOST né testo libero; la fixture asset ha >1 elemento con asset_id DISCORDANTI e un asset_id PREFISSO di un altro, e l'src reso corrisponde all'asset_id ESATTO"
     - "Il <script type=\"application/ld+json\"> del LocalBusiness è reso con i campi brief ostili escaped (nessun breakout dal tag: nessun secondo script eseguito, JSON.parse del contenuto riesce come singolo oggetto)"
-    - "Il canary insicuro (e2e/canary/insecure-canary.ts, montato via page.setContent, mai una rotta app) fa FALLIRE lo STESSO assertNoInjectionEffect con la STESSA allowlist; canary confinato (marker letterale BELORA_CANARY_INSECURE mai in src/ né nel bundle .next, Chromium-only, suite vitest/e2e disgiunte)"
+    - "Il canary insicuro (e2e/canary/insecure-canary.ts, montato via page.setContent, mai una rotta app) fa FALLIRE lo STESSO assertNoInjectionEffect con la STESSA allowlist; canary confinato (il suo marker letterale mai in src/ né nel bundle .next, presente solo sotto e2e/, Chromium-only, suite vitest/e2e disgiunte)"
 
   acceptance_criteria:
     - id: AC-417-1
@@ -78,7 +78,7 @@ sul canary insicuro, sa diventare **ROSSO**.
     - "OWASP A01:2025 (RLS anon-published): il documento è servito ad anon solo perché is_published=true; account_id/source_generation_id non sono nel document reso (colonne private mai esposte); service_role mai nel browser — il render pubblico usa il client anon"
     - "gate parseDocument (A05:2025) su ciò che è pubblicato e reso: la fixture del documento ostile passa dal percorso reale (parseDocument) o il seed fallisce — così i payload provati sono quelli che il gate lascia passare, non ne più permissivi"
     - "Allowlist degli host DICHIARATA nel test (non implicita): include l'app host e l'host Storage pubblico, esclude ATTACKER_HOST; la raccolta delle richieste è non vacua (anon ha chiesto almeno il documento e l'asset), così 'nessun host esterno' non è vero per raccolta vuota"
-    - "Canary confinato (L-COL-006): marker letterale BELORA_CANARY_INSECURE mai in src/ né nel bundle .next (tests/e2e-canary-confinement.test.ts), montato SOLO via page.setContent mai una rotta app, Chromium-only, suite vitest/e2e disgiunte — un canary in produzione sarebbe una vulnerabilità introdotta per provarne l'assenza"
+    - "Canary confinato (L-COL-006): il suo marker letterale mai in src/ né nel bundle .next, presente solo sotto e2e/ (garanzia in tests/e2e-canary-confinement.test.ts), montato SOLO via page.setContent mai una rotta app, Chromium-only, suite vitest/e2e disgiunte — un canary in produzione sarebbe una vulnerabilità introdotta per provarne l'assenza"
 
   out_of_scope:
     - "notFound anti-enumerazione per slug ignoto/non pubblicato (T-405) e prova RLS runtime che anon non legge il non-pubblicato né di altri tenant (T-407)"
