@@ -9,8 +9,8 @@
 |---|---|
 | **Progetto** | Belora |
 | **Ecosistema** | supabase-jsts (Next.js 16 App Router + TypeScript + Supabase) |
-| **Ultimo aggiornamento** | 2026-08-06 (BOOTSTRAP: blueprint P4 generato; **nessun macrotask costruito**) |
-| **Sessione corrente** | — (blueprint pronto; primo macrotask eseguibile: **`publish-core`**; attende via umano per aprire BUILD) |
+| **Ultimo aggiornamento** | 2026-08-06 (BOOTSTRAP: blueprint P4 generato, **validato** (`validate_blueprint` exit 0, 17 task, 6/6) e committato `c7dd6e7`; **nessun macrotask costruito**) |
+| **Sessione corrente** | — (blueprint pronto e validato; **prossima sessione: aprire BUILD di `publish-core`** via `prompts/session-start.md`) |
 
 ---
 
@@ -44,7 +44,7 @@
 | Campo | Valore |
 |---|---|
 | Branch di lavoro | (da creare a inizio BUILD, es. `trueline/build/publish-core`). `main` = P3 + `architecture-hardening` mergiati |
-| Ultimo commit | — (nessun commit di BUILD P4; solo il commit del blueprint in BOOTSTRAP) |
+| Ultimo commit | `c7dd6e7` docs(P4): bootstrap blueprint (su `main`, pushato). Nessun commit di BUILD P4 ancora |
 | Stato merge su `main` | **NESSUNO** (nessun macrotask P4 costruito) |
 | Deploy-coupling | **`coupled` — CONFERMATO in P3, ancora valido in P4**. P4 aggiunge una **rotta pubblica** `/s/<slug>`, tabelle nuove e un bucket Storage: il merge di ogni macrotask resta **human-gated anche sul verde** (mergiare può innescare il deploy dell'hosting pubblico). Deploy non supervisionato BLOCCATO |
 
@@ -67,19 +67,22 @@
 
 - Blueprint P4 **generato** (BOOTSTRAP): `00-INDEX`, `VISION-AND-CONSTRAINTS`, questa `SESSION-STATE`,
   i 3 prompt di lifecycle, e i moduli `01-publish-core` … `06-e2e-public` (17 task, T-401…T-417).
-- **Oracolo strutturale** `validate_blueprint.mjs` su `docs/blueprint/P4-publish`: da eseguire come
-  primo gate (atteso exit 0 — campi obbligatori, copertura AC→test, DAG aciclico, id univoci,
-  ownership del macrotask, contratto `architecture:` ben formato). Nessun codice prodotto.
-- **Self-check semantico** (punti 6–10): da svolgere su ogni task; rilievi → human-in-the-loop.
+- **Oracolo strutturale** `validate_blueprint.mjs` su `docs/blueprint/P4-publish`: **eseguito, exit 0**
+  — 17 task, 6/6 controlli (campi obbligatori, copertura AC→test, DAG aciclico, id univoci, ownership
+  del macrotask, contratto `architecture:` ben formato). Nessun codice prodotto.
+- **Self-check semantico** (punti 6–10): **svolto** sui moduli a più alto rischio (00-INDEX,
+  public-serving, media-storage, e2e-public) — misurabilità/atomicità/copertura/baseline-per-nome OK,
+  **nessun rilievo bloccante** (il blueprint aggiunge difesa-in-profondità: GRANT column-level ad anon,
+  confine-cartella su storage.objects, guardia decompression-bomb, canary sulla RLS pubblica).
 
 ## 6. Copertura dichiarata (cosa è verificato, cosa NO)
 
 > In BOOTSTRAP l'unico oracolo è `validate_blueprint` (strutturale). Il resto è **piano**,
 > non ancora provato: si chiude solo in BUILD con gli oracoli del checkpoint.
 
-- **Verificato ora**: (dopo l'esecuzione di `validate_blueprint`) la forma strutturale del blueprint
-  — campi obbligatori, copertura AC→test, DAG aciclico, id univoci, ownership del macrotask, contratto
-  `architecture:` ben formato.
+- **Verificato ora** (`validate_blueprint` **exit 0**): la forma strutturale del blueprint — campi
+  obbligatori, copertura AC→test, DAG aciclico, id univoci, ownership del macrotask, contratto
+  `architecture:` ben formato. Più il self-check semantico (nessun rilievo bloccante).
 - **NON ancora coperto** (attende BUILD): la **RLS pubblica** a runtime (anon legge il pubblicato,
   non il non-pubblicato né di altri tenant; colonne private non esposte); il **gate `parseDocument`**
   sul percorso reale di publish e di render; l'**escaping del JSON-LD** contro il breakout dal tag
@@ -116,11 +119,12 @@
 
 ## 8. Prossimi passi
 
-1. **Eseguire `validate_blueprint`** su `docs/blueprint/P4-publish` (primo gate strutturale) e il
-   self-check semantico (punti 6–10); rilievi → human-in-the-loop.
-2. **Aprire BUILD sul macrotask `publish-core`** (T-401…T-404): creare il branch
-   `trueline/build/publish-core`, ricatturare la baseline di sicurezza (`rls` da riconquistare), poi
-   il dynamic workflow builder+verifier BLIND per task.
+1. **`validate_blueprint` eseguito (exit 0) + self-check semantico svolto** (nessun rilievo bloccante):
+   il blueprint è la fonte di verità approvata. Si costruisce secondo i task, non si ridiscute il design.
+2. **Aprire BUILD sul macrotask `publish-core`** (T-401…T-404) — il PRIMO passo della prossima sessione:
+   `prompts/session-start.md` → creare il branch `trueline/build/publish-core`, ricatturare la baseline
+   di sicurezza (`rls` da riconquistare), poi **UN dynamic workflow per l'intero macrotask** (builder +
+   verifier BLIND per task).
 3. **Deploy-coupling = `coupled` CONFERMATO** (§3): il merge di ogni macrotask resta human-gated
    anche sul verde (P4 apre l'hosting pubblico).
 4. Disciplina invariata: **1 dynamic workflow di build PER MACROTASK** (builder + verifier BLIND per
