@@ -31,6 +31,17 @@ export const protectedRoute = new RegExp(
   `^/(${routing.locales.join('|')})/(?:${PROTECTED_SEGMENTS.join('|')})(?:/.*)?$`,
 );
 
+// P4-D4 — /s/<slug> è la rotta pubblica STANDALONE, servita FUORI dal segmento
+// [locale]. 's' è uno slug RISERVATO, MAI un locale: il routing per locale di
+// next-intl NON deve toccare questo prefisso (niente redirect da Accept-Language,
+// niente prefisso /it|/es aggiunto). Cattura ESATTAMENTE `/s` e i suoi sotto-path
+// (`/s/...`), non un path qualsiasi che inizia per 's' (es. /support, /services).
+// ESPORTATA per rendere OSSERVABILE la decisione nei test (T-406), come protectedRoute.
+export const PUBLIC_STANDALONE_PREFIX = '/s';
+export const isPublicStandalonePath = (pathname: string): boolean =>
+  pathname === PUBLIC_STANDALONE_PREFIX ||
+  pathname.startsWith(`${PUBLIC_STANDALONE_PREFIX}/`);
+
 // La funzione NON è async: per le route non protette ritorna in modo SINCRONO la
 // response di next-intl (preserva il comportamento verificato in T-080). Solo per
 // le route protette delega alla guardia asincrona, che legge la sessione
@@ -38,7 +49,17 @@ export const protectedRoute = new RegExp(
 export default function middleware(
   request: NextRequest,
 ): NextResponse | Promise<NextResponse> {
-  const match = request.nextUrl.pathname.match(protectedRoute);
+  const { pathname } = request.nextUrl;
+  // P4-D4: /s/* è pubblica e standalone → ESCLUSA dal routing per locale
+  // (handleI18n NON viene invocato: nessun prefisso di locale, nessuna
+  // negoziazione Accept-Language, nessun rewrite verso segmenti autenticati).
+  // Il middleware CONTINUA comunque a girare su questo path (NextResponse.next())
+  // per non perdere le protezioni globali: si esclude SOLO il locale, non la
+  // sicurezza (A05:2025). Va PRIMA della guardia auth: /s/* non tocca /{locale}.
+  if (isPublicStandalonePath(pathname)) {
+    return NextResponse.next();
+  }
+  const match = pathname.match(protectedRoute);
   if (match) {
     return guardProtectedRoute(request, match[1]);
   }

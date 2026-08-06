@@ -155,7 +155,8 @@
     },
     "actions": {
       "whatsapp": "Scrivici su WhatsApp"
-    }
+    },
+    "badge": "Fatto con Belora"
   },
   "generate": {
     "title": "Genera il tuo sito",
