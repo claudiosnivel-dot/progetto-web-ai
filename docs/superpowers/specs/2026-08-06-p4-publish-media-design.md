@@ -69,6 +69,10 @@ mirata sulla lettura pubblicata.
   - **RLS**: solo il proprietario inserisce/legge/cancella le proprie righe.
   - Storage: **bucket a lettura pubblica**, oggetti `<account_id>/<site_id>/<asset_id>.<ext>`;
     **RLS di scrittura** su `storage.objects` vincolata al path del proprio account.
+    > **SUPERATO da `P4-D6a`** (2026-08-06, ledger in `docs/blueprint/P4-publish/00-INDEX.md` §4): in build si è
+    > adottata la **chiave piatta `<asset_id>`** con **RLS a confine-OWNER** (`owner = auth.uid()`), perché lo schema
+    > documento congelato (P2-D12) porta solo `asset_id` e il renderer/SEO anon costruisce l'URL da quello — coerente con
+    > `assetPublicUrl` già VERDE in M3. Il folder-path qui descritto resta la motivazione storica, non il layout costruito.
 
 ## 5 · Flussi & azioni
 

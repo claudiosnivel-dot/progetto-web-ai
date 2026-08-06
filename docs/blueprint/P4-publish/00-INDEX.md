@@ -160,6 +160,29 @@ dell'utente** (foto). Tre superfici nuove, ognuna con oracolo (P4-D9); la baseli
 | `P4-D8` | SEO base | Metadata per pagina (`title`, description), **Open Graph** + Twitter card, **canonical** a `/s/<slug>`, `<html lang>`; **JSON-LD `LocalBusiness`** dai dati brief resi, serializzato con escaping di `< > &` + `U+2028/2029` (anti-breakout script); **sitemap.xml** per-sito + **robots.txt** (indicizza `/s/*`; editor/preview `noindex`). hreflang minimo (mono-locale) | chiusa |
 | `P4-D9` | Postura di sicurezza/testing | Le 3 superfici nuove ognuna con oracolo: **RLS pubblica** provata a runtime; **upload** provato sull'effetto (payload ostili → raster pulito o rifiuto); **serving pubblico** e2e ostile su `/s/<slug>` (effetto nullo + canary rosso, incl. asset caricato); **JSON-LD** escaping provato; checkpoint 4/4 + e2e per confine di macrotask, batteria di mutazione per task | chiusa |
 
+### Emendamenti al ledger
+
+- **`P4-D6a` — Layout Storage: chiave PIATTA `<asset_id>` + RLS scrittura a confine-OWNER** (registrato 2026-08-06,
+  all'apertura di BUILD `media-storage`, su **assenso esplicito dell'utente**). Raffina `P4-D6`/`P4-D7` risolvendo un
+  conflitto emerso fra il design §4 e ciò che M3 (`seo-base`) ha già shippato e provato VERDE su `main` (`47d6885`).
+  - **Conflitto:** il design (spec §4, `04-media-storage` T-412) prevedeva l'oggetto Storage a path
+    `<account_id>/<site_id>/<asset_id>.<ext>` (per una RLS di scrittura a confine di cartella). Ma lo **schema documento
+    congelato** (`ImageSlot source:'uploaded'`, P2-D12) porta **solo `asset_id`**, e il **renderer/SEO anon** deve
+    costruire l'URL pubblico dal solo `asset_id` (la tabella `assets` è owner-only → anon non può risolvere
+    account/site/ext). M3 ha già committato `assetPublicUrl(assetId)` → `.../public/site-assets/<asset_id>` (piatto),
+    VERDE, e la sua og:image/JSON-LD image ne dipende. I due path non possono essere entrambi veri.
+  - **Decisione (Opzione A):** l'oggetto vive alla **chiave piatta `<asset_id>`** (uuid v4 opaco, generato server-side,
+    non enumerabile); `assets.storage_path = <asset_id>`. La **RLS di scrittura** su `storage.objects` è a
+    **confine-OWNER** (`owner = auth.uid()` sul bucket `site-assets`), non a confine di cartella. `assetPublicUrl` **resta
+    in `src/config/storage.ts` e prende `asset_id`** (invariata da M3). La lezione-prefisso P1/P2 è onorata *diversamente*
+    (chiavi uuid non predicibili + modifica owner-bound).
+  - **Perché A e non il folder-path:** blast-radius minimo (0 regressioni cross-macrotask; **non** riapre M1/M3 congelati),
+    coerente con la realtà P2-D12 asset-id-only già shippata; il folder-path avrebbe richiesto di esporre account_id/site_id
+    ad anon (riaprendo M1) o una mappa asset→path nello snapshot, e di cambiare codice+test SEO di M3.
+  - **Supera:** spec §4 (path oggetti) e la formulazione originale di **T-412** (DoD path + AC-412-3 + security_notes) e
+    **T-414** (DoD src/domain + AC-414-1/2 + security_notes), aggiornate in `04-media-storage.md`. `assets` (colonne, FK
+    composita, RLS owner-only, AC-412-1/2/4/5) e il re-encode di T-413 restano invariati.
+
 ## 5. Fonti di verità
 
 - **Piano**: questo blueprint (`00-INDEX` + moduli `01-publish-core` … `06-e2e-public`).

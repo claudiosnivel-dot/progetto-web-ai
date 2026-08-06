@@ -39,22 +39,22 @@ qui: `SiteImage` e l'affordance editor sono M5.
     - "Migration che crea la tabella assets (id uuid, account_id, site_id, storage_path, mime, width, height, created_at) con RLS ON"
     - "Policy RLS su assets: i membri dell'account fanno INSERT/SELECT/DELETE SOLO sulle proprie righe (account_id = account della sessione); nessuna policy USING(true)"
     - "FK composita (site_id, account_id) verso sites come difesa in profondità (lezione P2-D19)"
-    - "Bucket Storage creato a lettura pubblica; convenzione di path oggetti <account_id>/<site_id>/<asset_id>.<ext>"
-    - "Policy RLS di scrittura su storage.objects (INSERT/UPDATE/DELETE) vincolata alla cartella del proprio account, con confronto a CONFINE di cartella (mai prefisso naive)"
+    - "Bucket Storage creato a lettura pubblica; convenzione di path oggetti PIATTA <asset_id> (uuid v4 opaco, generato server-side, non enumerabile) — EMENDAMENTO P4-D6a (vedi 00-INDEX §4): la chiave e' l'asset_id, cosi' il renderer/SEO anon costruisce l'URL dal SOLO asset_id (schema documento P2-D12), coerente con assetPublicUrl gia' VERDE in M3; storage_path della riga assets = <asset_id>"
+    - "Policy RLS di scrittura su storage.objects (INSERT/UPDATE/DELETE) a CONFINE-OWNER: owner = auth.uid() sul bucket site-assets — EMENDAMENTO P4-D6a: la chiave piatta non ha cartella di account su cui fare binding, quindi il confine e' l'OWNER dell'oggetto (Supabase valorizza objects.owner con l'uploader) + chiavi uuid generate da noi (A non puo' scegliere la chiave di B)"
 
   acceptance_criteria:
     - id: AC-412-1
       given: "un membro dell'account A"
       when: "inserisce una riga assets per un proprio sito"
-      then: "la riga è scritta con account_id = A e storage_path sotto la cartella di A"
+      then: "la riga è scritta con account_id = A e storage_path = la chiave PIATTA <asset_id> (EMENDAMENTO P4-D6a: niente cartella <account_id>/<site_id>/; la chiave e' l'asset_id opaco)"
     - id: AC-412-2
       given: "due account distinti con asset ciascuno (fixture con più di un account, valori discordanti, un account_id che è prefisso di un altro) e un lettore anon"
       when: "un membro di A e l'anon tentano di SELECT sulle righe assets di B"
       then: "ricevono insieme vuoto (RLS blocca); account_id e storage_path non sono esposti"
     - id: AC-412-3
-      given: "un membro dell'account A e la cartella Storage dell'account B (fixture con un account_id prefisso di un altro, es. 10 e 100)"
-      when: "A tenta di scrivere un oggetto sotto il path di B (o sotto una cartella il cui nome ha A come prefisso)"
-      then: "la scrittura è rifiutata dalla policy storage (binding a confine di cartella, non prefisso)"
+      given: "un oggetto nel bucket posseduto dall'account B, e un membro dell'account A (fixture con >1 account, owner discordanti) — EMENDAMENTO P4-D6a: confine-OWNER, non confine-cartella"
+      when: "A tenta di UPDATE/DELETE l'oggetto di B, o di scrivere sulla chiave (asset_id) di B"
+      then: "la scrittura e' rifiutata dalla policy storage (binding a objects.owner = auth.uid(), non prefisso di path); e la chiave e' un uuid generato server-side che A non puo' predire/scegliere"
     - id: AC-412-4
       given: "un oggetto esistente nel bucket e un client anon"
       when: "anon esegue GET sull'URL pubblico dell'oggetto"
@@ -72,7 +72,7 @@ qui: `SiteImage` e l'affordance editor sono M5.
 
   security_notes:
     - "RLS per-tenant sulla tabella assets RICONQUISTATA (OWASP A01:2025, categoria killer Supabase): policy owner-only INSERT/SELECT/DELETE ancorate a account_id della sessione; nessuna policy USING(true)"
-    - "RLS di scrittura su storage.objects vincolata al prefisso <account_id>/ con confronto a CONFINE di cartella: l'account 10 non deve poter scrivere nella cartella di 100 (lezione prefisso P1/P2)"
+    - "RLS di scrittura su storage.objects a CONFINE-OWNER (owner = auth.uid()) — EMENDAMENTO P4-D6a: con chiave piatta <asset_id> non c'e' cartella di account su cui fare binding; la lezione-prefisso P1/P2 e' onorata DIVERSAMENTE (chiavi uuid v4 generate server-side, non predicibili → A non puo' scegliere la chiave di B) e la modifica e' owner-bound (A non modifica/cancella l'oggetto di B)"
     - "Bucket a lettura pubblica = trade-off dichiarato P4-D6: l'oggetto è raggiungibile per uuid (v4, non enumerabile), ma le colonne della riga assets (account_id, storage_path) restano private — anon SELECT su assets = vuoto (A01:2025)"
     - "FK composita (site_id, account_id) verso sites come difesa in profondità (P2-D19): un asset non può legarsi a un sito di un altro tenant"
     - "service_role mai nel browser: la migrazione e le policy vivono lato DB; l'accesso runtime è client di sessione (RLS attiva)"
@@ -155,21 +155,21 @@ qui: `SiteImage` e l'affordance editor sono M5.
     src/href da testo di terzi) e mantiene significativa l'asserzione end-to-end di T-241.
 
   definition_of_done:
-    - "Funzione pura assetPublicUrl(asset) in src/domain che deriva l'URL pubblico del bucket dagli identificatori uuid + estensione (storage_path canonico), senza I/O"
-    - "L'URL è costruito SOLO da account_id/site_id/asset_id/ext; nessun campo di testo (filename originale, caption) partecipa"
-    - "Output ben formato verso il nostro bucket pubblico; nessun campo url/src/href letto dall'input"
+    - "Funzione pura assetPublicUrl(assetId) in src/config/storage.ts (GIA' esistente da M3, VERDE) che deriva l'URL pubblico del bucket dal SOLO asset_id, senza I/O — EMENDAMENTO P4-D6a: resta in src/config (unica sede del nome bucket + template URL, gia' importata da page.tsx), NON si sposta in src/domain (eviterebbe churn cross-macrotask su M3); T-414 aggiunge i test falsificanti + eventuale guard uuid"
+    - "L'URL è costruito SOLO dall'asset_id (uuid opaco); nessun campo di testo (filename originale, caption) partecipa — per FIRMA la funzione prende solo l'asset_id, quindi il testo libero e' strutturalmente escluso"
+    - "Output ben formato verso il nostro bucket pubblico (SITE_ASSETS_BUCKET); nessun campo url/src/href letto dall'input"
 
   acceptance_criteria:
     - id: AC-414-1
-      given: "una riga asset con account_id/site_id/asset_id/ext"
-      when: "si chiama assetPublicUrl"
-      then: "ritorna l'URL pubblico canonico ESATTO di quell'oggetto nel nostro bucket"
+      given: "un asset_id (uuid)"
+      when: "si chiama assetPublicUrl(assetId)"
+      then: "ritorna l'URL pubblico canonico ESATTO di quell'oggetto nel nostro bucket (<origin>/storage/v1/object/public/site-assets/<assetId>)"
     - id: AC-414-2
-      given: "un asset i cui metadati di testo (filename originale o caption) contengono un URL assoluto, javascript: o ../ path traversal"
-      when: "si chiama assetPublicUrl"
-      then: "l'URL prodotto IGNORA quel testo ed è derivato solo dal path uuid (prova P2-D12: nessun src da testo libero)"
+      given: "un contesto in cui esistono metadati di testo dell'asset (filename originale o caption) che contengono un URL assoluto, javascript: o ../ path traversal — EMENDAMENTO P4-D6a: la funzione prende SOLO l'asset_id"
+      when: "si chiama assetPublicUrl(assetId)"
+      then: "l'URL prodotto e' derivato solo dall'asset_id e non c'e' alcun parametro in cui quel testo possa entrare (prova P2-D12 per FIRMA: nessun src da testo libero)"
     - id: AC-414-3
-      given: "una fixture con più di un asset (id discordanti, un asset_id che è prefisso di un altro)"
+      given: "una fixture con più di un asset (asset_id discordanti, un asset_id che è prefisso di un altro — near-collision, un prefisso proprio non passa z.string().uuid())"
       when: "si costruisce l'URL di ciascuno"
       then: "ogni asset mappa al proprio URL distinto (nessuna collisione da prefisso; identità esatta)"
     - id: AC-414-4
@@ -182,9 +182,9 @@ qui: `SiteImage` e l'affordance editor sono M5.
       covers: [AC-414-1, AC-414-2, AC-414-3, AC-414-4]
 
   security_notes:
-    - "P2-D12 preservata: l'URL è costruito da noi dagli uuid (account_id/site_id/asset_id/ext), MAI da un campo di testo libero; nessun campo url/src/href dell'input partecipa"
+    - "P2-D12 preservata: l'URL è costruito da noi dal SOLO asset_id (uuid), MAI da un campo di testo libero; per FIRMA nessun campo url/src/href/testo dell'input partecipa (EMENDAMENTO P4-D6a)"
     - "Irrappresentabilità per tipo: un testo di terzi (filename, caption) non può diventare un attributo di rete src — conserva VERA e SIGNIFICATIVA l'asserzione end-to-end T-241 (nessuna richiesta verso host fuori allowlist)"
-    - "Path traversal impossibile: i componenti del path sono uuid opachi (nessun / o .. iniettabile), nessun input libero entra nel path (OWASP A03:2025 injection)"
+    - "Path traversal impossibile: il singolo componente del path e' un uuid opaco (nessun / o .. iniettabile), nessun input libero entra nel path (OWASP A03:2025 injection)"
     - "Funzione PURA in src/domain, nessun I/O (gate di altitudine repo-wide T-AH6/T-312, OWASP A05:2025): il dominio non raggiunge data"
 
   out_of_scope:
