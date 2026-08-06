@@ -9,8 +9,8 @@
 |---|---|
 | **Progetto** | Belora |
 | **Ecosistema** | supabase-jsts (Next.js 16 App Router + TypeScript + Supabase) |
-| **Ultimo aggiornamento** | 2026-08-05 (BUILD `editor-core` CHIUSO; checkpoint VERDE 4/4; mergiato su `main` `7844d8e`) |
-| **Sessione corrente** | — (editor-core costruito, verde e mergiato; prossime: **`architecture-hardening`** poi **`editor-blocks`**) |
+| **Ultimo aggiornamento** | 2026-08-06 (BUILD `editor-blocks` CHIUSO; checkpoint VERDE 4/4 + e2e Chromium 7/7; mergiato su `main` `11a6c13`) → **P3 COMPLETO** |
+| **Sessione corrente** | — (P3 chiuso: editor-core + architecture-hardening + editor-blocks tutti verdi e mergiati su `main`; prossimo sotto-progetto: **P4 pubblicazione**, richiede bootstrap trueline) |
 
 ---
 
@@ -21,19 +21,19 @@
 | Macrotask | Stato | Checkpoint | Note |
 |---|---|---|---|
 | `editor-core` | done | **VERDE 4/4** | Commit `7844d8e`, mergiato su `main`. 13 task; batteria mutazione 4/4; suite 1214/1214 |
-| `editor-blocks` | todo | — | 5 task (T-313…T-317). Dipendenze ora VERDI (usa renderer editabile, persistenza, rotta di editor-core) |
+| `editor-blocks` | **done** | **VERDE 4/4 + e2e 7/7** | Commit `11a6c13`, mergiato ff su `main` (`67ea444→11a6c13`). 5 task (T-313…T-317, 1 workflow/task builder+verifier BLIND); mutazione per-task (sha256); suite 1266/1266; e2e Chromium `editor-hostile` + canary rosso. hygiene R-04 ri-baselinata 103→107 |
 
 ## 2. Macrotask corrente
 
-- **`editor-core`**: **DONE** — costruito, checkpoint VERDE 4/4, mergiato su `main` (`7844d8e`).
-- **Prossimo (dispatch trueline → BUILD)**, due macrotask eseguibili:
-  1. **`architecture-hardening`** (dalla decisione D1/split): i **7 `domain→data`** (auth/onboarding/
-     generation, già in `main`) via dependency-inversion + gate `architecture:` reso **alias-aware
-     repo-wide**. Il gate T-312 di editor-core è oggi alias-aware ma **scoped alla superficie P3**;
-     questo pass lo estende a tutto il repo e bonifica gli archi legacy. NON è ancora un modulo del
-     blueprint P3 → va bootstrappato/eseguito come pass dedicato (branch/checkpoint propri).
-  2. **`editor-blocks`** (T-313…T-317): l'altro modulo P3, dipendenze ora verdi. Modulo `02-editor-blocks.md`.
-- **Criteri/test di riferimento**: i `target_tests` dei task sono l'oracolo del controllo 4 in BUILD.
+- **P3 COMPLETO**: entrambi i macrotask del blueprint (`editor-core` `7844d8e`, `editor-blocks` `11a6c13`)
+  costruiti, checkpoint VERDE 4/4, mergiati su `main`. Più il pass dedicato `architecture-hardening`
+  (`7dd614f`, gate `architecture:` reso repo-wide). Nessun macrotask P3 aperto.
+- **`editor-blocks`**: **DONE** — 5 task (T-313 renderDraftPage nel layer app · T-314 aggiungi blocco
+  model-free · T-315 riordina · T-316 sostituisci · T-317 e2e ostile su editor). Checkpoint VERDE 4/4
+  (suite 1266/1266) + e2e Chromium 7/7 (editor-hostile + canary che rende ROSSO lo stesso oracolo).
+- **Follow-up potenziali non bloccanti** (polish, fuori dagli AC): T-319 (chrome cablato in `/editor`,
+  deciso in editor-core); label i18n al posto degli id grezzi nei controlli-lista riordina/sostituisci;
+  swap in loco dell'anteprima strutturale via `renderDraftPage` (oggi riflessa solo a save+refresh).
 
 ## 3. Stato git
 
@@ -104,9 +104,11 @@
 
 ## 8. Prossimi passi
 
-1. **`editor-core` chiuso e mergiato** (§1/§3). Baseline ri-attribuite (§4).
-2. **Prossimo macrotask** (§2): `architecture-hardening` (7 domain→data DI + gate arch alias-aware
-   repo-wide) e/o `editor-blocks` (T-313…T-317). Aprire con `prompts/session-start.md`.
+1. **P3 COMPLETO** (§1/§2/§3): `editor-core`, `architecture-hardening` ed `editor-blocks` tutti verdi e
+   mergiati su `main`. hygiene-baseline ri-attribuita 103→107 (§4).
+2. **Prossimo sotto-progetto: P4 (pubblicazione/hosting)** — non ancora bootstrappato: richiede
+   design→blueprint via skill trueline (come P0..P3). Nessun macrotask P3 residuo (solo follow-up di
+   polish opzionali, §2).
 3. **Deploy-coupling = `coupled` CONFERMATO** (§3): il merge di ogni macrotask resta human-gated.
 4. Disciplina invariata: 1 workflow build (builder + verifier BLIND per task) → 1 fermata umana →
    1 workflow fixer; checkpoint `run_checkpoint.mjs --in-place --mode build --baseline <sicurezza>`
