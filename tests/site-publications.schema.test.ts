@@ -317,11 +317,15 @@ describe.skipIf(!DB)('T-401 site_publications — schema, RLS, vincoli (catalogo
     expect(privsOf('anon')).toEqual([]); // covers: AC-401-2
   });
 
-  // covers: AC-401-4 (GRANT column-level: anon legge ESATTAMENTE public_slug, document,
-  // locale — mai account_id / site_id / source_generation_id). information_schema.
-  // column_privileges riflette il GRANT column-level di anon; per authenticated (che ha il
-  // grant di TABELLA) riflette invece OGNI colonna — per questo si interroga anon.
-  it('concede ad anon SELECT column-level ESATTAMENTE su {public_slug, document, locale}, su nessun\'altra colonna', async () => {
+  // covers: AC-401-4 (GRANT column-level: anon legge le SOLE colonne pubbliche — mai
+  // account_id / site_id / source_generation_id). Colonne pubbliche: public_slug, document,
+  // locale (T-401) + published_at, aggiunta ad anon da T-411 (seo-base, M3) per il <lastmod>
+  // della sitemap — informazione pubblica di un sito pubblicato, NON una colonna privata; la
+  // RLS anon-published resta il gate sulle RIGHE, e le colonne private restano negate (sotto).
+  // information_schema.column_privileges riflette il GRANT column-level di anon; per
+  // authenticated (che ha il grant di TABELLA) riflette invece OGNI colonna — per questo si
+  // interroga anon.
+  it('concede ad anon SELECT column-level su {public_slug, document, locale, published_at}, su nessun\'altra colonna (published_at aggiunta da T-411)', async () => {
     const cp = await pgQuery<{ column_name: string; privilege_type: string }>(
       `select column_name, privilege_type
          from information_schema.column_privileges
@@ -334,8 +338,8 @@ describe.skipIf(!DB)('T-401 site_publications — schema, RLS, vincoli (catalogo
       expect(r.privilege_type).toBe('SELECT'); // covers: AC-401-4
     }
     const cols = cp.map((r) => r.column_name).sort();
-    // Insieme ESATTO delle colonne leggibili da anon.
-    expect(cols).toEqual(['document', 'locale', 'public_slug']); // covers: AC-401-4
+    // Insieme ESATTO delle colonne leggibili da anon: le 3 pubbliche di T-401 + published_at (T-411).
+    expect(cols).toEqual(['document', 'locale', 'public_slug', 'published_at']); // covers: AC-401-4 (+ published_at, T-411)
     // Le colonne private NON compaiono — asserito nominalmente, non solo per assenza dal set.
     expect(cols).not.toContain('account_id'); // covers: AC-401-4
     expect(cols).not.toContain('site_id'); // covers: AC-401-4

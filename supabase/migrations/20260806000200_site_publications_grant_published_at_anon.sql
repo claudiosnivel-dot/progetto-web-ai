@@ -1,0 +1,23 @@
+-- T-411 (macrotask seo-base, P4) — ALLARGAMENTO del GRANT column-level ad anon: aggiunge
+-- published_at alla superficie leggibile senza sessione su public.site_publications.
+--
+-- PERCHE'. La sitemap per-sito (T-411) porta <lastmod> = published_at della publication, e la
+-- rotta la legge col client ANON (RLS anon-published). Ma M1/T-401 ha concesso ad anon SOLO
+-- (public_slug, document, locale): interrogare published_at come ruolo anon prenderebbe un
+-- permission denied (42501). Questa migrazione concede ad anon la SOLA colonna published_at, cosi'
+-- che la sitemap possa leggerne il valore per una riga pubblicata.
+--
+-- COSA NON SI CONCEDE, ed e' il punto: SOLO published_at. account_id / site_id /
+-- source_generation_id NON sono concessi ad anon e restano irreferenziabili in lettura (42501),
+-- esattamente come prima (difesa a livello DB oltre la SELECT mirata della rotta, A01:2025). La RLS
+-- anon-published (using is_published = true) resta il gate FINE su quali RIGHE anon vede: published_at
+-- e' leggibile solo per una riga gia' pubblicata.
+--
+-- SICURA per M2/T-407 (tests/public-rls-runtime.test.ts): quell'oracolo pinna che le colonne PRIVATE
+-- siano negate e che la proiezione a 3 colonne che seleziona esponga esattamente {public_slug,
+-- document, locale}; NON pinna published_at come negato, quindi concederlo non lo rende rosso.
+--
+-- Additivo e idempotente nell'effetto: un GRANT column-level si somma alle colonne gia' concesse,
+-- non le sostituisce. Confine del task: SOLO privilegi Postgres — nessuna modifica a RLS ne schema.
+
+grant select (published_at) on public.site_publications to anon;

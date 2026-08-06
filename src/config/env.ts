@@ -93,3 +93,22 @@ export function getAnthropicGenerationModel(
   const value = source.ANTHROPIC_MODEL_GENERATION;
   return value !== undefined && value.trim() !== '' ? value : DEFAULT_ANTHROPIC_MODEL_GENERATION;
 }
+
+// T-409 (macrotask seo-base, P4) — LA BASE URL PUBBLICA del sito, la radice assoluta da cui la
+// serving compone canonical, og:url e ogni indirizzo che deve uscire ASSOLUTO (un canonical
+// relativo non e' un canonical). NEXT_PUBLIC_SITE_URL e' CONFIG PUBBLICA, non un segreto: e'
+// l'origine con cui il sito e' servito, la stessa che il browser gia' vede. Non entra in
+// REQUIRED_KEYS perche' in sviluppo il default locale basta; in produzione la si valorizza.
+const DEFAULT_SITE_BASE_URL = 'http://localhost:3000';
+
+/**
+ * La base URL pubblica SENZA slash finale (cosi' `${base}/s/<slug>` non produce mai `//`): il valore
+ * configurato, ripulito da spazi e da eventuali slash in coda, altrimenti il default di sviluppo.
+ * Vuota/whitespace = non impostata (come loadEnv e gli accessor dei modelli).
+ * @param source sorgente delle variabili (default: process.env) — parametrizzato per i test.
+ */
+export function getSiteBaseUrl(source: Record<string, string | undefined> = process.env): string {
+  const trimmed = source.NEXT_PUBLIC_SITE_URL?.trim();
+  if (trimmed === undefined || trimmed === '') return DEFAULT_SITE_BASE_URL;
+  return trimmed.replace(/\/+$/, '');
+}

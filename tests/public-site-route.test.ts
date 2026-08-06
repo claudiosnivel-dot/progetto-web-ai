@@ -377,9 +377,14 @@ describe('AC-405-5 — payload ostile reso come testo, nessun markup attivo, nes
     expect(container.textContent).toContain(IMG_PAYLOAD); // covers: AC-405-5
     expect(container.textContent).toContain(JS_URL); // covers: AC-405-5
 
-    // Nessun elemento attivo nasce dal testo: zero <script>, zero <iframe>, zero <img> (il documento
-    // non ha immagini reali), nessun attributo di evento onerror.
-    expect(container.querySelectorAll('script')).toHaveLength(0); // covers: AC-405-5
+    // Nessun elemento attivo nasce dal testo: l'UNICO <script> ammesso e' il JSON-LD del serving
+    // (T-410, type application/ld+json — NON eseguibile dal browser, contenuto GIA' ESCAPED da
+    // serializeJsonLdSafe: < > & U+2028/9 -> \uXXXX), mai uno script eseguibile dal testo libero del
+    // brief; zero <iframe>, zero <img> (il documento non ha immagini reali), nessun onerror.
+    for (const s of [...container.querySelectorAll('script')]) {
+      expect(s.getAttribute('type')).toBe('application/ld+json'); // covers: AC-405-5 — solo JSON-LD, nessuno script eseguibile
+      expect(s.textContent ?? '').not.toContain('</script'); // covers: AC-405-5 — tag non richiudibile (contenuto escaped)
+    }
     expect(container.querySelectorAll('iframe')).toHaveLength(0); // covers: AC-405-5
     expect(container.querySelectorAll('img')).toHaveLength(0); // covers: AC-405-5
     expect(container.querySelector('[onerror]')).toBeNull(); // covers: AC-405-5

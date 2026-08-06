@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { readGenerationDocument } from '@/data/generation-document';
 import { getGeneration } from '@/data/generations';
 import { parseDocument } from '@/domain/generation/document';
@@ -6,6 +7,15 @@ import { SiteView } from '@/ui/site/SiteView';
 import { EditorClient } from '@/ui/editor/EditorClient';
 import { composeAddableBlocks } from './addable-blocks';
 import { enterEditor } from './guard';
+
+// T-411 (macrotask seo-base, P4) — NOINDEX. L'editor e' una superficie protetta dell'app, non una
+// pagina pubblica: non deve MAI finire nell'indice di un motore di ricerca. `robots: noindex`
+// (index=false, follow=false) e' difesa in profondita' col Disallow di robots.txt (src/app/robots.ts):
+// il robots scoraggia il crawl, questo meta lo impedisce anche se la rotta viene raggiunta. Statico
+// (non dipende dai params): la direttiva vale per ogni siteId/locale.
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 // T-311 (macrotask editor-core, P3) — ROTTA PROTETTA /{locale}/editor/{siteId}: l'EDITOR INLINE
 // che rende a PIENA PAGINA il DOCUMENTO CORRENTE in modalita EDITABLE, avvolto dal chrome client.
