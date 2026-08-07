@@ -30,11 +30,18 @@ export async function signup(
     return { status: 'error', message: 'Dati di registrazione non validi.' };
   }
 
-  // (deploy pass) — MURO DEI SIGNUP: pre-lancio le registrazioni sono chiuse a chiunque
-  // tranne l'allowlist (getSignupAllowlist da config). L'email non autorizzata riceve lo
-  // STESSO messaggio generico di un fallimento qualsiasi (anti user-enumeration: non si
-  // rivela "registrazioni chiuse" vs "email gia' presente"), e supabase.auth.signUp NON
-  // viene mai invocato. In sviluppo l'allowlist e' vuota => aperto (nessun cambiamento).
+  // (deploy pass) — MURO DEI SIGNUP, DIFESA IN PROFONDITA' (non il muro unico). Questo gate
+  // chiude SOLO questa via (la Server Action email/password): un'email non in allowlist riceve
+  // lo STESSO messaggio generico di un fallimento qualsiasi (anti user-enumeration) e
+  // supabase.auth.signUp NON viene mai invocato. In sviluppo l'allowlist e' vuota => aperto.
+  //
+  // LIMITE DICHIARATO (rilievo verifier B1): un account nasce da QUALSIASI insert in auth.users,
+  // e questa Server Action non e' l'unico percorso — l'endpoint Supabase /auth/v1/signup (anon key
+  // pubblica) e l'OAuth la scavalcano. Il MURO VERO del pre-lancio e' a livello PIATTAFORMA e va
+  // configurato nel deploy: (1) Supabase Auth `enable_signup = false` + invito del founder dalla
+  // dashboard (chiude l'endpoint diretto e l'auto-provisioning); OAuth esterni disabilitati fino al
+  // lancio; (2) Cloudflare Access sull'app (chiude la UI/API su ulaba.net). Questa allowlist resta
+  // come cintura per il giorno in cui i signup verranno riaperti con gating (P5).
   if (!isSignupAllowed(parsed.data.email, getSignupAllowlist())) {
     return { status: 'error', message: 'Registrazione non riuscita. Riprova.' };
   }

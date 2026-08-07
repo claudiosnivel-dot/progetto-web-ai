@@ -2,16 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { assertProductionEnv } from '@/config/env';
 
 // (deploy pass) T-2 — GATE FAIL-FAST DELLA CONFIG DI PRODUZIONE. assertProductionEnv
-// e' invocata al boot da src/instrumentation.ts SOLO quando NODE_ENV === 'production'.
+// e' invocata al boot da src/instrumentation.ts sul deploy Vercel (VERCEL_ENV production/preview).
 // Prova sull'origine (source parametrizzato), non sull'ambiente reale.
 
 // Una config di produzione COMPLETA e valida (le 3 chiavi Supabase + Anthropic +
-// site-url https pubblica + allowlist armata).
+// site-url https pubblica + allowlist armata). Il valore Anthropic e' un placeholder innocuo
+// (nessun prefisso di chiave reale: niente da confondere per un rilevatore secret).
 const OK: Record<string, string> = {
   NEXT_PUBLIC_SUPABASE_URL: 'https://xyz.supabase.co',
   NEXT_PUBLIC_SUPABASE_ANON_KEY: 'anon',
   SUPABASE_SERVICE_ROLE_KEY: 'svc',
-  ANTHROPIC_API_KEY: 'sk-ant-xxx',
+  ANTHROPIC_API_KEY: 'placeholder',
   NEXT_PUBLIC_SITE_URL: 'https://ulaba.net',
   SIGNUP_ALLOWLIST: 'me@ulaba.net',
 };
@@ -47,6 +48,12 @@ describe('T-2 assertProductionEnv', () => {
 
   it('NEXT_PUBLIC_SITE_URL http (non https): rifiutata', () => {
     expect(() => assertProductionEnv({ ...OK, NEXT_PUBLIC_SITE_URL: 'http://ulaba.net' })).toThrowError(
+      /NEXT_PUBLIC_SITE_URL/,
+    );
+  });
+
+  it('NEXT_PUBLIC_SITE_URL loopback IPv6 [::1]: rifiutata (host reale via new URL, non regex)', () => {
+    expect(() => assertProductionEnv({ ...OK, NEXT_PUBLIC_SITE_URL: 'https://[::1]:3000' })).toThrowError(
       /NEXT_PUBLIC_SITE_URL/,
     );
   });

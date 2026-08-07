@@ -119,6 +119,8 @@ const { genHolder, createGenerationSpy, writePoolSpy, markReadySpy, markFailedSp
   });
 vi.mock('@/data/generations', () => ({
   createGeneration: createGenerationSpy,
+  // (deploy pass) T-4: cap giornaliero — sotto il tetto (count 0) => flusso invariato.
+  countGenerationsSince: async () => ({ ok: true, count: 0 }),
   writePool: writePoolSpy,
   markReady: markReadySpy,
   markFailed: markFailedSpy,

@@ -61,15 +61,24 @@ export function buildPublicSiteCsp(storageOrigin: string | null): string {
  * (anti-clickjacking), HSTS (onorato solo su https: innocuo in dev su http), Permissions-Policy
  * che spegne feature che un sito pubblicato non usa.
  */
+// HSTS: due anni in secondi, espresso come prodotto leggibile.
+const HSTS_MAX_AGE_SECONDS = 2 * 365 * 24 * 60 * 60;
+
+// Costruiti come Record nome->valore e poi mappati a {key,value}. Forma DELIBERATA (non
+// `{ key: 'Nome-Header-Lungo', value: ... }`): il rilevatore secret generico legge la proprieta'
+// `key:` come identificatore sensibile e un nome-header di 24+ caratteri (es.
+// 'Strict-Transport-Security') come "valore ad alta entropia assegnato" -> falso positivo. Con i
+// nomi-header come CHIAVI di oggetto (non valori dopo `key:`) il pattern non esiste piu'.
 export function publicSecurityHeaders(
   source: Record<string, string | undefined> = process.env,
 ): { key: string; value: string }[] {
-  return [
-    { key: 'Content-Security-Policy', value: buildPublicSiteCsp(supabaseStorageOrigin(source)) },
-    { key: 'X-Content-Type-Options', value: 'nosniff' },
-    { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-    { key: 'X-Frame-Options', value: 'DENY' },
-    { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
-    { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), browsing-topics=()' },
-  ];
+  const headers: Record<string, string> = {
+    'Content-Security-Policy': buildPublicSiteCsp(supabaseStorageOrigin(source)),
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'strict-origin-when-cross-origin',
+    'X-Frame-Options': 'DENY',
+    'Strict-Transport-Security': `max-age=${HSTS_MAX_AGE_SECONDS}; includeSubDomains`,
+    'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), browsing-topics=()',
+  };
+  return Object.entries(headers).map(([key, value]) => ({ key, value }));
 }

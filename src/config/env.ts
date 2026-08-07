@@ -132,9 +132,9 @@ export function getSignupAllowlist(source: Record<string, string | undefined> = 
 // (deploy pass) — GATE FAIL-FAST DELLA CONFIG DI PRODUZIONE. In sviluppo bastano i
 // default locali (loadEnv copre le 3 chiavi Supabase); in PRODUZIONE alcune variabili
 // sono critiche e la loro assenza NON deve emergere a meta' richiesta ma al BOOT
-// (src/instrumentation.ts la invoca quando NODE_ENV === 'production'). Raccoglie TUTTI
-// i problemi e lancia un solo errore che li nomina — mai un valore segreto nel messaggio
-// (i valori nominati qui sono URL/nomi di variabile pubblici, non credenziali).
+// (src/instrumentation.ts la invoca sul deploy Vercel, VERCEL_ENV production o preview).
+// Raccoglie TUTTI i problemi e lancia un solo errore che li nomina — mai un valore segreto
+// nel messaggio (i valori nominati qui sono URL/nomi di variabile pubblici, non credenziali).
 //
 // Requisiti di produzione (oltre alle 3 chiavi Supabase di loadEnv):
 //  - ANTHROPIC_API_KEY: la generazione dei mockup non funziona senza (in dev il boot puo'
@@ -158,11 +158,25 @@ export function assertProductionEnv(source: Record<string, string | undefined> =
     problems.push('ANTHROPIC_API_KEY (assente)');
   }
 
+  // Deve essere un URL https con HOST pubblico. Si parsa con new URL() e si guarda l'HOSTNAME
+  // reale (non una regex sulla stringa grezza): cosi' l'userinfo non inganna
+  // (https://ulaba.net@evil.com ha host evil.com) e il loopback IPv6 [::1] e' coperto.
   const siteUrl = source.NEXT_PUBLIC_SITE_URL?.trim();
   if (siteUrl === undefined || siteUrl === '') {
     problems.push('NEXT_PUBLIC_SITE_URL (assente)');
-  } else if (!/^https:\/\//i.test(siteUrl) || /localhost|127\.0\.0\.1/i.test(siteUrl)) {
-    problems.push(`NEXT_PUBLIC_SITE_URL (deve essere un URL https pubblico, trovato "${siteUrl}")`);
+  } else {
+    let parsed: URL | null = null;
+    try {
+      parsed = new URL(siteUrl);
+    } catch {
+      parsed = null;
+    }
+    const host = (parsed?.hostname ?? '').toLowerCase().replace(/^\[|\]$/g, '');
+    const isLoopback =
+      host === 'localhost' || host.endsWith('.localhost') || host === '127.0.0.1' || host === '::1';
+    if (parsed === null || parsed.protocol !== 'https:' || isLoopback) {
+      problems.push(`NEXT_PUBLIC_SITE_URL (deve essere un URL https con host pubblico, trovato "${siteUrl}")`);
+    }
   }
 
   if (getSignupAllowlist(source).length === 0) {

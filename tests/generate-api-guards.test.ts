@@ -38,8 +38,15 @@ const { createGenerationSpy, writePoolSpy, markReadySpy, markFailedSpy } = vi.ho
   markReadySpy: vi.fn(async () => ({ ok: true })),
   markFailedSpy: vi.fn(async () => ({ ok: true })),
 }));
+// (deploy pass) T-4: il seam del conteggio del cap giornaliero. Un holder controllabile per
+// provare il wiring nella rotta (429 PRIMA della spesa; fail-open su errore).
+const { genCapHolder, countGenerationsSinceSpy } = vi.hoisted(() => {
+  const holder = { count: { ok: true, count: 0 } as unknown };
+  return { genCapHolder: holder, countGenerationsSinceSpy: vi.fn(async () => holder.count) };
+});
 vi.mock('@/data/generations', () => ({
   createGeneration: createGenerationSpy,
+  countGenerationsSince: countGenerationsSinceSpy,
   writePool: writePoolSpy,
   markReady: markReadySpy,
   markFailed: markFailedSpy,
@@ -115,7 +122,9 @@ beforeEach(() => {
   authHolder.user = { id: 'user-a' };
   sitesHolder.list = { ok: true, sites: OWNED_SITES };
   briefsHolder.get = { ok: true, brief: RICH_BRIEF, status: 'confirmed', complete: true };
+  genCapHolder.count = { ok: true, count: 0 }; // sotto qualunque tetto: flusso invariato
   createGenerationSpy.mockClear();
+  countGenerationsSinceSpy.mockClear();
   writePoolSpy.mockClear();
   markReadySpy.mockClear();
   markFailedSpy.mockClear();
@@ -179,5 +188,32 @@ describe('T-230 POST /api/generate — catena di guardie same-origin e tetto sui
     const noLength = await POST(chunked);
     expect(noLength.status).toBe(200); // covers: AC-230-6
     await drain(noLength);
+  });
+});
+
+// (deploy pass) T-4 — WIRING del cap giornaliero nella rotta: prova che il 429 arriva PRIMA di
+// qualunque spesa (nessuna riga creata, nessuna chiamata al confine/modello) e il fail-open.
+describe('T-4 (deploy pass) POST /api/generate — cap giornaliero delle generazioni', () => {
+  it('conteggio OLTRE il tetto: 429 PRIMA di createGeneration e del confine (nessuna spesa)', async () => {
+    genCapHolder.count = { ok: true, count: 100000 }; // >= qualunque tetto configurato
+    const res = await run({ fetchSite: 'same-origin' });
+    expect(res.status).toBe(429);
+    expect(createGenerationSpy).not.toHaveBeenCalled(); // nessuna riga
+    expect(boundarySpy).not.toHaveBeenCalled(); // nessuna chiamata al modello
+  });
+
+  it('conteggio SOTTO il tetto: prosegue (200) e conta prima di creare', async () => {
+    genCapHolder.count = { ok: true, count: 0 };
+    const res = await run({ fetchSite: 'same-origin' });
+    expect(res.status).toBe(200);
+    expect(countGenerationsSinceSpy).toHaveBeenCalled(); // il conteggio E' avvenuto
+    await drain(res);
+  });
+
+  it('errore di conteggio: FAIL-OPEN (prosegue 200) — il backstop e lo spending cap Anthropic', async () => {
+    genCapHolder.count = { ok: false, status: 500 };
+    const res = await run({ fetchSite: 'same-origin' });
+    expect(res.status).toBe(200);
+    await drain(res);
   });
 });
