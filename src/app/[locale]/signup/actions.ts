@@ -1,6 +1,7 @@
 'use server';
 
-import { signupSchema, type SignupState } from '@/domain/auth/validation';
+import { signupSchema, isSignupAllowed, type SignupState } from '@/domain/auth/validation';
+import { getSignupAllowlist } from '@/config/env';
 import { createServerSupabaseClient } from '@/data/supabase-ssr';
 
 // Server Action di signup email/password. Vive nel layer `app` (co-locata con
@@ -27,6 +28,15 @@ export async function signup(
 
   if (!parsed.success) {
     return { status: 'error', message: 'Dati di registrazione non validi.' };
+  }
+
+  // (deploy pass) — MURO DEI SIGNUP: pre-lancio le registrazioni sono chiuse a chiunque
+  // tranne l'allowlist (getSignupAllowlist da config). L'email non autorizzata riceve lo
+  // STESSO messaggio generico di un fallimento qualsiasi (anti user-enumeration: non si
+  // rivela "registrazioni chiuse" vs "email gia' presente"), e supabase.auth.signUp NON
+  // viene mai invocato. In sviluppo l'allowlist e' vuota => aperto (nessun cambiamento).
+  if (!isSignupAllowed(parsed.data.email, getSignupAllowlist())) {
+    return { status: 'error', message: 'Registrazione non riuscita. Riprova.' };
   }
 
   const supabase = await createServerSupabaseClient();

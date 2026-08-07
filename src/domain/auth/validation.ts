@@ -45,3 +45,22 @@ export type LoginState = {
   status: 'idle' | 'error';
   message?: string;
 };
+
+// (deploy pass) — POLICY PURA di allowlist dei signup: il muro applicativo del
+// pre-lancio. Pre-lancio si tengono le registrazioni CHIUSE a chiunque tranne gli
+// indirizzi in allowlist (P4-D5 gating a pagamento = P5; qui e' solo il gate di accesso).
+// Dominio PURO: nessun accesso all'ambiente — l'allowlist gliela passa il chiamante
+// (la Server Action, che la legge da config/env). La lista si assume gia' NORMALIZZATA
+// (trim + lowercase) da chi la costruisce (getSignupAllowlist).
+//
+//  - Allowlist VUOTA => `true` (registrazioni APERTE): il default di sviluppo/test/locale,
+//    cosi' il flusso esistente e i test non si rompono. In PRODUZIONE l'allowlist e'
+//    OBBLIGATORIA e non vuota (assertProductionEnv la impone al boot), quindi prod = muro armato.
+//  - Allowlist NON vuota => `true` SOLO se l'email normalizzata e' nella lista, per
+//    UGUAGLIANZA ESATTA (mai prefisso/sottostringa: `me@ulaba.net` non ammette
+//    `me@ulaba.net.attacker.com` ne `notme@ulaba.net`).
+export function isSignupAllowed(email: string, allowlist: readonly string[]): boolean {
+  if (allowlist.length === 0) return true;
+  const normalized = email.trim().toLowerCase();
+  return allowlist.includes(normalized);
+}
