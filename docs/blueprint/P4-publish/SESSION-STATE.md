@@ -9,8 +9,8 @@
 |---|---|
 | **Progetto** | Belora |
 | **Ecosistema** | supabase-jsts (Next.js 16 App Router + TypeScript + Supabase) |
-| **Ultimo aggiornamento** | 2026-08-07 (**BUILD M4 `media-storage` COMPLETO E MERGIATO su `main` `2878a54`**, checkpoint VERDE 4/4 eseguito DECOMPOSTO) |
-| **Sessione corrente** | — (`media-storage` CHIUSO; **prossima sessione: BUILD di `media-editor-render`** via `prompts/session-start.md`) |
+| **Ultimo aggiornamento** | 2026-08-07 (**BUILD M5 `media-editor-render` COMPLETO E MERGIATO su `main` `9b30c6f`**, checkpoint VERDE 4/4 eseguito DECOMPOSTO) |
+| **Sessione corrente** | — (`media-editor-render` CHIUSO; **prossima sessione: BUILD di `e2e-public`** via `prompts/session-start.md`) |
 
 ---
 
@@ -24,20 +24,15 @@
 | `public-serving` | **done** | **VERDE 4/4 (`c624d0e`)** | 4 task (T-405…T-408): rotta `/s/<slug>` standalone (lettura anon RLS + gate + SiteView), middleware esclude `/s/*`, RLS pubblica a RUNTIME + canary, badge. `vitest fileParallelism:false`; hygiene 120→123 |
 | `seo-base` | **done** | **VERDE 4/4 (`47d6885`)** | 3 task (T-409…T-411): `generateMetadata`, JSON-LD `LocalBusiness` escaped, sitemap + robots + noindex, grant `published_at` ad anon. Helper condivisi: `getSiteBaseUrl`, `assetPublicUrl`+`SITE_ASSETS_BUCKET`, `extractBusinessInfo`, `buildLocalBusinessJsonLd`/`serializeJsonLdSafe` |
 | `media-storage` | **done** | **VERDE 4/4 (`2878a54`, decomposto)** | 3 task (T-412…T-414): tabella `assets` + RLS owner-only + FK composita + `unique(storage_path)`; bucket `site-assets` public + policy `storage.objects` **confine-OWNER**; `uploadAsset` (magic-bytes + re-encode `sharp`); `assetPublicUrl` invariata. **Emendamento `P4-D6a`: chiave Storage PIATTA `<asset_id>`** (00-INDEX §4). `sharp`→`dependencies` |
-| `media-editor-render` | todo | — | 2 task (T-415…T-416): `SiteImage` uploaded, affordance upload nell'editor |
-| `e2e-public` | todo | — | 1 task (T-417): e2e ostile Chromium su `/s/<slug>` + canary rosso |
+| `media-editor-render` | **done** | **VERDE 4/4 (`9b30c6f`, decomposto)** | 2 task (T-415…T-416): `SiteImage` rende `ImageSlot 'uploaded'` come `<img src={assetPublicUrl(asset_id)}>` (theme-placeholder invariato); pura `setUploadedImage` in `block-ops` (blockId esatto + indice canonico, re-gate parseDocument, ritorna candidate a structural-sharing per AC-416-2, no-op→null) + reducer action + `ImageUploadPanel` (upload via server action `uploadAsset` → dispatch, non-ok=no-op, persistenza SOLO via save-point). **R-04 hygiene ri-baselinata 123→125**; 1 dead-code (ImageSlotRef un-exported) fixato |
+| `e2e-public` | todo | — | 1 task (T-417): e2e ostile Chromium su `/s/<slug>` + asset caricato + canary rosso |
 
 ## 2. Macrotask corrente
 
-- **Nessuno aperto**: `media-storage` (M4) è CHIUSO (checkpoint VERDE 4/4, mergiato ff su `main` `2878a54`).
-- **Primo macrotask eseguibile ora: `media-editor-render`** (M5) — le dipendenze P4 sono verdi: T-415 `depends_on: [T-414]`✔;
-  T-416 `depends_on: [T-413, T-415]` (T-413✔, T-415 nello stesso macrotask). Ordine del piano: M4✔ → **`media-editor-render`**;
-  `e2e-public` (M6) alla fine (richiede rotta pubblica + SEO + media, §2 di `00-INDEX`).
-- **AGGANCIO M4→M5 (riuso, evita duplicazione):** M5/T-415 rende `ImageSlot source:'uploaded'` in `SiteImage`
-  costruendo il `src` da **`assetPublicUrl(image.asset_id)`** (`src/config/storage.ts`, invariata) — **mai da testo libero**
-  (P2-D12); l'`asset_id` viene dal documento (unico handle, schema T-202). M5/T-416 (affordance editor) chiama la server
-  action **`uploadAsset(siteId, file)`** (`src/data/media/uploadAsset.ts`, M4/T-413) → ritorna `asset_id` → sostituisce lo
-  slot placeholder con `{ source:'uploaded', asset_id }` nel draft → `saveRevision` (ripassa `parseDocument`).
+- **Nessuno aperto**: `media-editor-render` (M5) è CHIUSO (checkpoint VERDE 4/4 decomposto, mergiato ff su `main` `9b30c6f`).
+- **Primo (e unico) macrotask eseguibile ora: `e2e-public`** (M6) — le dipendenze P4 sono verdi:
+  T-417 `depends_on: [T-405✔, T-409✔, T-410✔, T-416✔]`. È l'ultimo del piano (§2 di `00-INDEX`): richiede rotta pubblica + SEO + media.
+- **AGGANCIO M5→M6:** T-417 estende `assertNoInjectionEffect` (T-241/T-317) alla superficie pubblica `/s/<slug>` con un documento pubblicato **ostile** E un **asset caricato** (il render `SiteImage 'uploaded'` di T-415 in produzione). Il **CANARY** viene prima del verde: un componente deliberatamente insicuro deve rendere ROSSO lo stesso oracolo, o l'e2e non prova nulla. Chromium-only (carry-over §7).
 
 ## 3. Stato git
 
@@ -45,122 +40,126 @@
 
 | Campo | Valore |
 |---|---|
-| Branch di lavoro | `trueline/build/media-storage` (commit atomico `2878a54`, cita T-412..T-414 + P4-D6a + esito gate decomposto + fix lint + batteria di mutazione; pushato origin). `main` = P3 + `architecture-hardening` + **P4 M1+M2+M3+M4** mergiati |
-| Ultimo commit | `2878a54` build(media-storage): P4 M4 (su `main`, pushato origin) |
-| Stato merge su `main` | **`media-storage` mergiato ff** (`11eabf6→2878a54`) + push origin, su **autorizzazione esplicita** dell'utente (deploy-coupling coupled, human-gated anche sul verde) |
-| Deploy-coupling | **`coupled` — RICONFERMATO**. Il merge di ogni macrotask resta **human-gated anche sul verde**; deploy non supervisionato BLOCCATO |
+| Branch di lavoro | `trueline/build/media-editor-render` (commit atomico `9b30c6f`, cita T-415..T-416 + esito gate decomposto 4/4 + R-04 hygiene 123→125 + fix dead-code + batteria di mutazione; pushato origin). `main` = P3 + `architecture-hardening` + **P4 M1+M2+M3+M4+M5** mergiati |
+| Ultimo commit | `9b30c6f` build(media-editor-render): P4 M5 (su `main`, pushato origin) |
+| Stato merge su `main` | **`media-editor-render` mergiato ff** (`e148a33→9b30c6f`) + push origin, su **autorizzazione esplicita** dell'utente (deploy-coupling coupled, human-gated anche sul verde). Nessun deploy innescato dall'agente (solo merge; deploy non supervisionato BLOCCATO) |
+| Deploy-coupling | **`coupled` — RICONFERMATO** in questa sessione. Il merge di ogni macrotask resta **human-gated anche sul verde**; deploy non supervisionato BLOCCATO |
 
 ## 4. Baseline & budget
 
 - **Baseline di sicurezza**: `.trueline/checkpoint-baseline.json` (**formato ARRAY**, gitignored) — **INVARIATA a 2 finding**:
-  `postcss@8.5.22` OSV **MEDIUM** + **RLS004 HIGH accepted-FP** sulla policy anon. In M4 il control 2 ha dato
-  `gitleaks:0 osv:1 semgrep:0 rls:1` → **0 finding NUOVI** (le nuove RLS `assets`/storage a confine-owner referenziano
-  `account_id`/`owner`+`auth.uid()`: nessun RLS004/RLS005; **nessuna nuova voce di baseline richiesta**).
-- **Baseline d'igiene**: `.trueline/hygiene-baseline.json` (versionata) **INVARIATA a 123**: in M4 il controllo 1 è
-  **verde senza re-attribuzione** (`dead-code:0 dup:124 cycle:0 twin:0`, 0 NUOVI — i file M4, incluse le fixture di test
-  che riusano il pattern near-collision, non hanno introdotto cloni-fingerprint fuori baseline; nessun R-04).
-- **Budget consumato**: **4 macrotask** (`publish-core` M1, `public-serving` M2, `seo-base` M3, `media-storage` M4) su 6.
+  `postcss@8.5.22` OSV **MEDIUM** + **RLS004 HIGH accepted-FP** sulla policy anon. In M5 il control 2 ha dato
+  `gitleaks:0 osv:1 semgrep:0 rls:1` → **0 finding NUOVI** (M5 non aggiunge migrazioni/RLS/segreti; solo render UI +
+  reducer puro + affordance client che chiama `uploadAsset`/`saveRevision` esistenti).
+- **Baseline d'igiene**: `.trueline/hygiene-baseline.json` (versionata) **RI-BASELINATA 123→125 (R-04)**: l'aggiunta di
+  `ImageUploadPanel.tsx` (e i 2 file di test, ignorati da jscpd) ha **ri-fingerprintato** cloni PRE-ESISTENTI su file
+  **NON toccati da M5** (`uploadAsset.ts`↔`site-publications.ts`/`site-document-revisions.ts` = boilerplate `getAuthedClient`;
+  `P4-publish/VISION-AND-CONSTRAINTS.md` = header-table dei blueprint) + il pattern **idiomatico** di `setUploadedImage`
+  (stesso page-walk immutabile di `applySlotEdit`/`addBlock`, già baselinati). **Attribuzione fatta PRIMA della ricattura**
+  (nessun clone genuinamente nuovo mascherato). Ricattura: `baseline.mjs capture … --hygiene --out .trueline/hygiene-baseline.json`.
+  Il **dead-code** genuino (`ImageSlotRef` export orfano in `ImageUploadPanel`) è stato **fixato** (un-exported), non baselinato
+  (knip non è coperto dalla baseline d'igiene).
+- **Budget consumato**: **5 macrotask** (`publish-core` M1, `public-serving` M2, `seo-base` M3, `media-storage` M4,
+  `media-editor-render` M5) su 6.
 
 ## 5. Esiti dell'ultima sessione (framing onesto)
 
 > Solo fatti: "checkpoint VERDE 4/4 sui target_test", mai "P4 è pronto/sicuro" (`L-COL-006`).
 
-- **BUILD M4 `media-storage`** (T-412…T-414) costruito con **1 dynamic workflow** (builder + verifier BLIND per task,
-  sequenziale). **Emendamento `P4-D6a`** (assenso esplicito dell'utente, registrato in `00-INDEX` §4): chiave Storage
-  **PIATTA `<asset_id>`** + RLS scrittura a **confine-OWNER** (non a confine-cartella) + `assetPublicUrl` **invariata**
-  in `src/config` — risolve il conflitto fra il design §4 (path cartella) e la realtà già shippata da M3 (schema documento
-  P2-D12 asset-id-only + renderer/SEO anon che costruiscono l'URL dal solo `asset_id`; la tabella `assets` è owner-only,
-  anon non risolve account/site/ext). Blast-radius **zero** su M1/M3 (nessuna riapertura). Mergiato ff su `main`
-  (`2878a54`) + push, su via esplicito.
-- **Nuovi artefatti**: migrazione `20260806000300_assets_and_storage.sql` (tabella `assets` RLS owner-only con
-  `account_id` esplicito + FK composita `(account_id,site_id)→sites` + `unique(storage_path)`; bucket `site-assets`
-  `public=true` con `file_size_limit`/`allowed_mime_types`; policy `storage.objects` owner-boundary); `src/domain/media/`
-  (`limits.ts` cap byte/pixel puri; `sniff.ts` magic-bytes puro, SVG→null a monte di sharp); `src/data/media/uploadAsset.ts`
-  (server action, client di sessione, ownership-first 404, re-encode `sharp` strip-EXIF/resize/anti-bomb → chiave piatta
-  + riga `assets`); test `assets-rls`/`storage-rls`/`upload-asset.effect`/`asset-public-url`; `sharp`→`dependencies`.
-- **Percorso del gate (onesto, imperfetto — 2 attriti d'ambiente, NON di codice):**
-  1. **Il workflow di build è morto una volta** su `StructuredOutput retry cap (5)` del verifier T-412 (schema troppo
-     rigido per l'output ricco del verifier). Fix: **rimosso lo `schema` dai verifier** (ritorno prosa) mantenendo il
-     builder T-412 identico (cache) → **resume** (`resumeFromRunId`): b412 da cache, tutto il resto live. Completato 6/6,
-     0 blocker/major dai verifier BLIND.
-  2. **Il checkpoint MONOLITICO non gira in questo ambiente**: in **background** gli oracoli non spawnano i sottoprocessi
-     (`exit 0xC0000142` STATUS_DLL_INIT_FAILED — window-station/desktop-heap del processo detached); in **foreground**
-     supera il cap di 10 min (2× suite ~11 min + security ~8 min). **Eseguito DECOMPOSTO con gli oracoli REALI**:
-     `control1Hygiene`/`control2Security` invocati via un driver (`scratchpad/c1c2-driver.mjs`) che ricalca **byte-per-byte**
-     la wiring di `runCheckpoint` (baseline ARRAY + `loadHygieneBaseline` + `resolveManifest`=`classify`→`loadManifest`,
-     manifest `supabase-jsts`); controlli 3+4 = **suite reale** (`npm test`) in **2 shard** (`--shard=1/2` + `2/2`) per
-     stare sotto il cap. Fedele a ciò che il monolite calcolerebbe, ma **non** una singola invocazione di `run_checkpoint.mjs`.
-  3. **Fix di gate colto dall'oracolo**: `createClient` importato ma inutilizzato in `storage-rls.test.ts` → `eslint .`
-     rosso → scaffold meta-test `npm run lint` rosso (control 3/4). Rimosso l'import → verde.
-- **Batteria di mutazione (le due difese sanno diventare rosse):** (a) upload — `new Uint8Array(clean)`→`input` (byte
-  grezzi) → `upload-asset.effect` ROSSO (EXIF+payload sopravvivono) → ripristino **sha256** byte-identico → VERDE 6/6;
-  (b) RLS — `alter policy assets_select_member ... using(true)` sul DB live → `assets-rls` ROSSO (A vede le 2 righe di B)
-  → ripristino qual `is_account_member(account_id)` (verificato) → VERDE 3/3.
-- **Esito controlli (decomposto):** C1 dead-code/hygiene VERDE · C2 security VERDE · C3+C4 full suite **1381/1381**
-  (shard 774+607, 0 rate-limit). CHECKPOINT VERDE 4/4.
-- **LEZIONE (per M5–M6):** in questo ambiente il **checkpoint monolitico è non-eseguibile** — girarlo **decomposto**
-  (driver c1/c2 con gli oracoli reali + suite in 2 shard). I workflow (agenti gestiti) spawnano bene e girano lunghi;
-  il **background bash detached NO** (`0xC0000142`). Nei prompt dei verifier **niente schema rigido** (o cap StructuredOutput).
+- **BUILD M5 `media-editor-render`** (T-415…T-416) costruito con **1 dynamic workflow** (builder + verifier BLIND per task,
+  sequenziale, verifier **senza schema** StructuredOutput). 4 agenti, 0 error, 0 blocker/major dai verifier; falsificabilità
+  provata dai verifier (3 mutazioni T-415, 4 mutazioni T-416 → tutte rosse).
+- **Nuovi artefatti**: `src/ui/site/SiteImage.tsx` (ramo `uploaded` → `<img src={assetPublicUrl(image.asset_id)}>` da
+  `@/config/storage`, `ui→config` arch-legale; theme-placeholder invariato; escaping React); `src/domain/editor/block-ops.ts`
+  (`setUploadedImage` puro: blockId ESATTO + imageIndex canonico, re-gate `parseDocument`, **ritorna il candidate a
+  structural-sharing** — non `parsed.document` — per preservare `Object.is` degli slot non toccati, AC-416-2; no-op→null);
+  `src/ui/editor/draft-state.ts` + `useEditorDraft.ts` (nuova azione `setUploadedImage`, disciplina no-op di addBlock);
+  `src/ui/editor/ImageUploadPanel.tsx` (affordance 'carica foto' → `uploadAsset(siteId,file)` server action → dispatch on-ok,
+  non-ok=no-op, **nessun 2° canale di scrittura**); wiring `EditorClient.tsx` + `page.tsx` + i18n `it/es`; test
+  `site-image-uploaded.test.tsx` (4) + `editor-upload-image.test.tsx` (11).
+- **Percorso del gate (onesto):**
+  1. **Checkpoint DECOMPOSTO** (monolite non-eseguibile qui, carry-over M4 riconfermato): driver `scratchpad/c1c2-driver.mjs`
+     importa `control1Hygiene`/`control2Security` REALI e ricalca la wiring di `runCheckpoint` (baseline ARRAY + union
+     `loadHygieneBaseline`, manifest `supabase-jsts` via `classify→loadManifest`, `mode:'build'`, `blueprintDir:null`);
+     controlli 3+4 = suite reale in **2 shard** (`vitest --shard=1/2`,`2/2`) dopo `rm -rf .next` + `db:reset`.
+  2. **C1 hygiene**: prima RED (7 blocker: 1 dead-code `ImageSlotRef` + 6 duplication). Fix dead-code (un-export) +
+     **attribuzione R-04** delle 6 duplication (tutte legittime: file non toccati + pattern idiomatico) → ricattura hygiene
+     123→125 → **C1 VERDE** (`dead-code:0 dup:127 cycle:0 twin:0`, 0 blocker).
+  3. **C2 security VERDE** (`gitleaks:0 osv:1 semgrep:0 rls:1`, 0 nuovi). **C3+C4** suite reale **1396/1396** (shard 778+618,
+     0 rate-limit).
+- **Batteria di mutazione (ORCHESTRATORE, ripristino verificato con sha256):** (a) `SiteImage` `src`→costante → 
+  `site-image-uploaded` ROSSO (3 fail, theme-placeholder resta verde) → ripristino byte-identico; (b) `setUploadedImage`
+  blockId ESATTO→prefisso → `editor-upload-image` ROSSO (caso `'orar'→null`) → ripristino byte-identico. Post-batteria 15/15
+  verde, tree pristine. **0 mutazioni sopravvissute.**
+- **Esito controlli (decomposto):** C1 hygiene VERDE · C2 security VERDE · C3+C4 full suite **1396/1396**. **CHECKPOINT VERDE 4/4.**
+- **LEZIONE (per M6):** riusare la decomposizione (driver c1/c2 + suite 2 shard); verifier senza schema; **R-04 ricorrente**
+  (ogni macrotask che aggiunge file ri-fingerprinta cloni pre-esistenti → attribuisci PRIMA di ricatturare); ripristino
+  mutazioni SEMPRE via backup+sha256, **mai `git checkout`** (il change M5 era uncommitted → un `git checkout --` lo
+  cancellerebbe, come il process-incident del verifier T-415, poi ricostruito fedelmente).
 
 ## 6. Copertura dichiarata (cosa è verificato, cosa NO)
 
-- **Verificato ora** (oracoli checkpoint **VERDE 4/4**, decomposto, su M4): la **RLS `assets` owner-only** a RUNTIME
-  (membro scrive il proprio, cross-tenant SELECT/DELETE = ∅ con oracolo indipendente anti-placebo, anon = 42501); la
-  **RLS `storage.objects` a confine-OWNER** a RUNTIME (A non modifica/cancella l'oggetto di B, provata sull'EFFETTO dei
-  byte; anon GET URL pubblico = 200; near-collision); l'**upload provato sull'EFFETTO** (EXIF strippato sui byte di
-  OUTPUT, SVG/sniff-fallito/oversize/bomba rifiutati, payload appeso sparito, sito altrui→404 nulla scritto); l'**URL da
-  `asset_id`** (P2-D12 per firma, near-collision, deterministico). Suite intera verde (**1381/1381**). **Falsificabilità
-  provata** su entrambe le difese (batteria di mutazione, §5).
-- **NON ancora coperto** (attende i macrotask successivi): il **render** di `ImageSlot 'uploaded'` in `SiteImage`
-  (`src` da `assetPublicUrl(asset_id)`) e l'**affordance upload nell'editor** (T-415/T-416, **M5**); l'**e2e ostile
-  Chromium** su `/s/<slug>` incl. asset caricato + JSON-LD (T-417, **M6**). Note minori dichiarate: `uploadAsset` è un
-  export senza chiamante finché M5 non lo cabla (knip non lo flagga come morto — dead-code:0); il gate del cap-pixel usa
-  i metadati header + `limitInputPixels` (non un decode completo preventivo). Carry-over invariati: osv 2 MODERATE, CI
-  mai girata da run reale, e2e solo Chromium, assenza CSP (difesa = sanificazione/escaping/re-encode).
+- **Verificato ora** (oracoli checkpoint **VERDE 4/4**, decomposto, su M5): il **render** di `ImageSlot 'uploaded'` in
+  `SiteImage` come `<img>` col `src` costruito da `assetPublicUrl(asset_id)` (mai da testo libero, P2-D12; near-collision
+  uuid; theme-placeholder invariato; escaping React, no `dangerouslySetInnerHTML`); l'**affordance upload nell'editor**
+  (upload SOLO via server action `uploadAsset`; su ok → `{source:'uploaded',asset_id}` nel draft via reducer puro dietro gate
+  `parseDocument`; **esito non-ok = no-op** provato; persistenza SOLO via save-point esistente/`saveRevision`, nessun 2°
+  canale; targeting per blockId ESATTO con fixture prefisso `orari`/`orari-estivi`; anteprima dal renderer UNICO). Suite
+  intera verde (**1396/1396**). **Falsificabilità provata** su entrambe le difese (batteria di mutazione, §5).
+- **NON ancora coperto** (attende M6): l'**e2e ostile Chromium** su `/s/<slug>` con documento pubblicato ostile **e asset
+  caricato** + `assertNoInjectionEffect` + **canary ROSSO** (T-417). Note minori dichiarate: il render dell'`<img>` uploaded
+  non è ancora esercitato E2E in un browser reale sulla rotta pubblica (solo unit jsdom finché M6 non lo caba); la
+  riflessione dell'anteprima dei cambi strutturali nell'editor segue il modello P3 esistente (server-rendered `children`),
+  non live-DOM per lo slot uploaded (asserito via `renderDraftPage`/renderer unico, non via mutazione DOM client). Carry-over
+  invariati: osv 2 MODERATE, CI mai girata da run reale, e2e solo Chromium, assenza CSP (difesa = sanificazione/escaping/re-encode).
 
 ## 7. Carry-over ereditati (rilevanti per P4)
 
 **Aperti:**
-- **CHECKPOINT MONOLITICO NON-ESEGUIBILE in questo ambiente (NUOVO, M4):** background bash detached → `0xC0000142`
-  (gli oracoli non spawnano i sottoprocessi); foreground → cap 10 min < ~20 min del monolite. **Rimedio provato:
-  decomposizione** — `control1Hygiene`/`control2Security` via `scratchpad/c1c2-driver.mjs` (wiring di `runCheckpoint`,
-  manifest `supabase-jsts`, baseline ARRAY + hygiene) + suite in **2 shard** (`vitest --shard=1/2`,`2/2`). Riusare in M5/M6.
-- **Workflow (NUOVO, M4):** i verifier con `schema` StructuredOutput rigido possono sfondare il retry cap (5) su output
-  ricco → **verifier senza schema** (prosa). Il resume (`resumeFromRunId`) ricicla i builder invariati da cache.
+- **CHECKPOINT MONOLITICO NON-ESEGUIBILE in questo ambiente (M4, RICONFERMATO M5):** background bash detached → `0xC0000142`;
+  foreground → cap 10 min < ~20 min del monolite. **Rimedio in uso**: decomposizione — `control1Hygiene`/`control2Security`
+  via `scratchpad/c1c2-driver.mjs` (wiring di `runCheckpoint`, manifest `supabase-jsts`, baseline ARRAY + union hygiene) +
+  suite in **2 shard** (`vitest --shard`). Riusare in M6 (ma T-417 aggiunge un e2e Playwright/Chromium: girarlo separatamente).
+- **R-04 ricorrente (M5):** ogni macrotask che aggiunge file ri-fingerprinta cloni pre-esistenti (jscpd position-sensitive) →
+  il control 1 li segna NUOVI. **Attribuire PRIMA di ricatturare**; ricattura con `baseline.mjs capture … --hygiene --out
+  .trueline/hygiene-baseline.json` (il default scrive nel path SECURITY: usare `--out`). hygiene ora **125**.
+- **Ripristino mutazioni via backup+sha256, MAI `git checkout`** (M5): il lavoro di macrotask è uncommitted finché non si
+  committa → `git checkout -- <file>` lo riporta a `main`, cancellandolo (process-incident verifier T-415, poi ricostruito).
+- **Workflow (M4):** i verifier con `schema` StructuredOutput rigido sfondano il retry cap → **verifier senza schema** (prosa).
 - `osv`: 2 advisory **MODERATE** (`next`, `postcss`) — carry-over separato.
 - **CI mai provata da una run reale** (`gh` non installato); `test:e2e` esiste ma non è cablato in `ci.yml`.
 - e2e solo **Chromium**; non percorre login/onboarding (cookie iniettati, seed via `service_role` nei test).
 - Assenza di **CSP** dichiarata: la difesa provata è la **sanificazione**/escaping (renderer unico + JSON-LD serializer +
-  **re-encode upload M4**), non una CSP. Rilevante per la rotta pubblica `/s/<slug>`.
-- **`sharp` promosso a `dependencies`** in M4 (P4-D7): `uploadAsset` lo importa a runtime.
-- **auth rate_limit** locale (`config.toml`): `sign_in_sign_ups = 30 / 5 min per IP`. La suite serializzata ci sta (M4:
-  full suite + 2 shard, **0 rate-limit**). `db reset` azzera il contatore. Se un giorno la suite supera 30 in 5 min,
-  alzare il limite in `config.toml` (config locale) è la fix legittima.
+  re-encode upload M4), non una CSP. Rilevante per la rotta pubblica `/s/<slug>` (T-417).
+- **`sharp` in `dependencies`** (M4, P4-D7): `uploadAsset` lo importa a runtime.
+- **auth rate_limit** locale (`config.toml`): `sign_in_sign_ups = 30 / 5 min per IP`. La suite serializzata
+  (`fileParallelism:false`) in 2 shard ci sta (M5: **0 rate-limit** dopo `db reset`). `db reset` azzera il contatore.
 
 **Chiusi (da onorare, non riaprire):**
-- **Renderer UNICO** `SiteView` (P2-D8); **`parseDocument` come gate** in scrittura E in render; **JSON-LD serializer**
-  come gate d'escaping in output.
-- **Nessun `src`/`href`/URL da testo libero** (P2-D12): og:image/JSON-LD image/sitemap `<loc>` e **URL asset**
-  (`assetPublicUrl`, M4) costruiti da `asset_id`/`public_slug`/base config, mai da testo del brief.
-- **Anti-enumerazione** `notFound()`/404 (P1-D21): esteso a metadata, sitemap, e **`uploadAsset` ownership-first** (M4).
-- **Contratto `architecture:` repo-wide**: rispettato in M4 (serving/route in `src/app`, logica pura media in
-  `src/domain/media`, accesso dati + `sharp` + Storage in `src/data/media`, accessor bucket in `src/config`).
-- **RLS su tabella/bucket nuovi provata A RUNTIME**: esteso ad `assets` (owner-only) e `storage.objects` (confine-owner) in M4.
-- **`P4-D6a`** (00-INDEX §4): chiave Storage PIATTA `<asset_id>` + RLS scrittura confine-OWNER; `assetPublicUrl(asset_id)`
-  invariata in `src/config`. **Non riaprire** (supera spec §4 e la formulazione originale di T-412/T-414).
+- **Renderer UNICO** `SiteView`/`SiteImage` (P2-D8): esteso in M5 al ramo `uploaded` (un solo `<img>`, un solo URL builder
+  `assetPublicUrl`, nessun renderer/URL parallelo, nessuna copia client dei blocchi).
+- **`parseDocument` come gate** in scrittura E in render; il reducer editor lo ri-attraversa anche per lo slot uploaded
+  (`setUploadedImage` re-gate; no-op→null; nessun 2° canale oltre `saveRevision`).
+- **Nessun `src`/`href`/URL da testo libero** (P2-D12): l'`<img>` uploaded costruisce il `src` dal SOLO `asset_id`
+  (`assetPublicUrl`), mai da testo del documento; il draft porta solo l'`asset_id` (uuid) restituito da `uploadAsset`.
+- **Upload SEMPRE attraverso il server** (M4/T-413): l'affordance editor (M5/T-416) manda il file solo a `uploadAsset`
+  (server action, re-encode/RLS), mai un upload diretto browser→bucket.
+- **Anti-enumerazione** `notFound()`/404 e ownership sotto RLS (P1-D21): `uploadAsset`/`saveRevision` riverificano ownership;
+  `siteId` non è un confine di sicurezza.
+- **Contratto `architecture:` repo-wide**: rispettato in M5 (render/affordance in `src/ui`, reducer/op pure in
+  `src/domain/editor`+`src/ui/editor` cablaggio, `uploadAsset` in `src/data`, `assetPublicUrl` in `src/config` layer-neutro).
+- **`P4-D6a`** (00-INDEX §4): chiave Storage PIATTA `<asset_id>` + `assetPublicUrl(asset_id)` invariata; M5 la riusa in render.
 
 ## 8. Prossimi passi
 
-1. **M4 `media-storage` CHIUSO**: checkpoint VERDE 4/4 (decomposto), mergiato su `main` (`2878a54`) + push. Il blueprint
-   resta la fonte di verità approvata: si costruisce secondo i task (con l'emendamento P4-D6a registrato), non si ridiscute.
-2. **Aprire BUILD sul macrotask `media-editor-render`** (T-415…T-416: `SiteImage` rende `ImageSlot source:'uploaded'`
-   col `src` da **`assetPublicUrl(asset_id)`** — escaping preservato, nessun `src` da testo libero; affordance di upload
-   nell'editor per slot immagine → chiama **`uploadAsset`** (M4) → `{ source:'uploaded', asset_id }` nel draft → salvato
-   via `saveRevision` (ripassa `parseDocument`)) — via `prompts/session-start.md` → branch `trueline/build/media-editor-render`,
-   **UN dynamic workflow per l'intero macrotask** (builder + verifier BLIND per task, verifier **senza schema**).
-3. **Deploy-coupling = `coupled` RICONFERMATO** (§3): merge di ogni macrotask human-gated anche sul verde.
-4. Disciplina invariata: **1 dynamic workflow per MACROTASK** → 1 fermata umana → fix; **checkpoint DECOMPOSTO**
-   (driver c1/c2 con oracoli reali + suite in 2 shard; §5/§7) — il monolite non gira qui. Verdetto dal JSON `.green` dei
-   controlli / dai conteggi delle shard. Batteria di mutazione (fatale + ripristino sha256/qual). Disciplina fixture
-   (>1 elemento, valori discordanti, un id/slug prefisso — per gli uuid la trappola è una **near-collision**). **Nei prompt
-   dei builder elencare i test prior-macrotask potenzialmente toccati** (§5) e **lintare i file nuovi** (`eslint .`, non solo `tsc`).
+1. **M5 `media-editor-render` CHIUSO**: checkpoint VERDE 4/4 (decomposto), mergiato ff su `main` (`9b30c6f`) + push. Il
+   blueprint resta la fonte di verità approvata: si costruisce secondo i task, non si ridiscute.
+2. **Aprire BUILD sul macrotask `e2e-public`** (T-417: e2e ostile Chromium su `/s/<slug>` con documento pubblicato **ostile**
+   + **asset caricato** → `assertNoInjectionEffect` effetto nullo + payload come TESTO + **canary ROSSO** confinato; estende
+   T-241/T-317 alla superficie pubblica) — via `prompts/session-start.md` → branch `trueline/build/e2e-public`, **UN dynamic
+   workflow** (builder + verifier BLIND, verifier senza schema). È l'ULTIMO macrotask di P4.
+3. **Deploy-coupling = `coupled` RICONFERMATO** (§3): merge human-gated anche sul verde.
+4. Disciplina invariata: **1 dynamic workflow per MACROTASK** → 1 fermata umana → fix; **checkpoint DECOMPOSTO** (driver c1/c2
+   + suite in 2 shard; l'e2e Playwright/Chromium di T-417 gira separatamente); verdetto dai JSON `.green`/dai conteggi shard;
+   batteria di mutazione (fatale + ripristino **sha256**, mai `git checkout`); **CANARY prima del verde** sull'e2e; attribuzione
+   **R-04** prima di ogni ricattura d'igiene; verifier senza schema; lintare i file nuovi (`eslint .`, non solo `tsc`).
