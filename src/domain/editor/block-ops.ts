@@ -29,7 +29,12 @@
 
 import type { Brief } from '@/domain/onboarding/brief';
 import { blocksFor } from '@/domain/generation/blocks';
-import { parseDocument, type SiteBlock, type SiteDocument } from '@/domain/generation/document';
+import {
+  parseDocument,
+  type ImageSlot,
+  type SiteBlock,
+  type SiteDocument,
+} from '@/domain/generation/document';
 
 /** Il tipo dell'elemento offerto: la stessa BlockDefinition che `blocksFor` restituisce. */
 type OfferedBlock = ReturnType<typeof blocksFor>[number];
@@ -177,6 +182,75 @@ export function replaceBlock(
 
   const parsed = parseDocument(candidate);
   return parsed.ok ? parsed.document : null;
+}
+
+/**
+ * SETTA (T-416, macrotask media-editor-render, P4) lo slot immagine all'indice `imageIndex` del
+ * blocco con id `blockId` (UGUAGLIANZA ESATTA, mai per prefisso: 'orari' non e' 'orari-estivi') alla
+ * variante `uploaded` che nomina l'asset caricato per `assetId`. Ritorna la COPIA del documento con
+ * il solo slot indirizzato cambiato, oppure `null` se il set e' rifiutato (blocco assente, indice non
+ * canonico o fuori range, o qualunque invariante rotto dal gate — es. `assetId` non e' un uuid).
+ * Puro: non muta il documento in ingresso.
+ *
+ * DOVE STA LA COORDINATA (come `editSlot`, T-307, non come `replaceBlock`): l'indirizzo e' (blockId
+ * esatto + imageIndex), risolto SCORRENDO le pagine — non (pageSlug + blockIndex). L'affordance
+ * dell'editor conosce lo slot per il suo blocco e la sua posizione, non per la pagina, e la libreria
+ * dei blocchi impedisce id di blocco duplicati sulla pagina (addBlock/replaceBlock), quindi l'id
+ * ESATTO indirizza un solo blocco.
+ *
+ * COSA RESTITUISCE, E PERCHE' NON `parsed.document` (differenza deliberata da addBlock/replaceBlock):
+ * `parseDocument` qui e' il GATE (un controllo booleano), non la sorgente del valore restituito. Si
+ * ritorna il CANDIDATO a structural sharing — cosi' gli slot/blocchi/rami NON toccati restano la
+ * STESSA reference (AC-416-2: nessun re-render spurio, nessuna voce di storia falsa) — mentre
+ * addBlock/replaceBlock tornano la copia dello schema perche' inseriscono un blocco RISOLTO intero
+ * (potenzialmente con chiavi da normalizzare). Qui l'unico dato nuovo e' un oggetto che COSTRUIAMO
+ * NOI con esattamente due chiavi (`source`, `asset_id`), senza spread di input non fidato: il gate
+ * verifica che `assetId` sia un uuid e che il documento resti valido; se passa, il candidato non
+ * porta alcuna chiave non ammessa. E' la stessa disciplina di `applySlotEdit`, che depone una
+ * stringa piana validata in un leaf esistente e restituisce la copia condivisa.
+ *
+ * IMMUTABILE: gli altri slot dello stesso blocco, gli altri blocchi, e content/data del blocco
+ * toccato restano la stessa reference (solo `images` del blocco indirizzato viene ricostruito, e solo
+ * allo slot `imageIndex`).
+ */
+export function setUploadedImage(
+  document: SiteDocument,
+  blockId: string,
+  imageIndex: number,
+  assetId: string,
+): SiteDocument | null {
+  // Lo slot entrante lo COSTRUIAMO noi: esattamente due chiavi, nessuno spread di input non fidato.
+  // `assetId` e' l'unico dato esterno, e il gate lo verifica (deve essere un uuid).
+  const uploaded: ImageSlot = { source: 'uploaded', asset_id: assetId };
+
+  let changed = false;
+  const pages = document.pages.map((page) => {
+    let pageChanged = false;
+    const blocks = page.blocks.map((block) => {
+      // MATCH DEL BLOCCO PER UGUAGLIANZA ESATTA, mai per prefisso.
+      if (block.id !== blockId) return block;
+      // Indice VALIDATO: intero canonico entro il range degli slot del blocco. Fuori range o non
+      // intero -> nessun tocco (il blocco resta la stessa reference); se nessun blocco cambia, il
+      // set complessivo e' un rifiuto (null piu' sotto).
+      if (!isCanonicalIndex(imageIndex, block.images.length)) return block;
+      const nextImages = block.images.map((image, index) => (index === imageIndex ? uploaded : image));
+      pageChanged = true;
+      // Solo `images` cambia; content/data e gli altri campi del blocco restano la stessa reference.
+      return { ...block, images: nextImages };
+    });
+    if (!pageChanged) return page;
+    changed = true;
+    return { ...page, blocks };
+  });
+
+  // Nessun blocco toccato (id assente o indice fuori range): rifiuto, nulla di mutato.
+  if (!changed) return null;
+
+  const candidate: SiteDocument = { ...document, pages };
+
+  // GATE: il candidato deve passare parseDocument (assetId uuid valido, invarianti intatti). Passa ->
+  // si ritorna il CANDIDATO a structural sharing (non la copia dello schema); non passa -> null.
+  return parseDocument(candidate).ok ? candidate : null;
 }
 
 /** Un indice di posizione CANONICO: un intero non negativo entro `[0, count)`. */

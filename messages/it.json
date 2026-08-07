@@ -213,6 +213,8 @@
     "reorderBlocks": "Riordina i blocchi",
     "moveBlockUp": "Sposta su",
     "moveBlockDown": "Sposta giù",
-    "replaceBlock": "Sostituisci blocco"
+    "replaceBlock": "Sostituisci blocco",
+    "uploadImage": "Foto",
+    "uploadPhoto": "Carica foto"
   }
 }

@@ -111,6 +111,8 @@ export default async function EditorPage({ params }: EditorPageProps) {
         moveUpLabel={t('moveBlockUp')}
         moveDownLabel={t('moveBlockDown')}
         replaceTitle={t('replaceBlock')}
+        uploadImageTitle={t('uploadImage')}
+        uploadImageLabel={t('uploadPhoto')}
         labels={{
           revisionsTitle: t('revisions'),
           restore: t('restore'),

@@ -22,7 +22,7 @@
 // persistenza a revisioni e' un'altra cosa (save-point, T-309), non questo modulo.
 
 import type { SiteBlock, SiteDocument } from '@/domain/generation/document';
-import { addBlock, reorderBlock, replaceBlock } from '@/domain/editor/block-ops';
+import { addBlock, reorderBlock, replaceBlock, setUploadedImage } from '@/domain/editor/block-ops';
 
 /**
  * Una modifica inline di uno slot di testo. `path` e' la coordinata STRUTTURATA che l'isola
@@ -76,6 +76,12 @@ export type DraftAction =
       readonly pageSlug: string;
       readonly blockIndex: number;
       readonly block: SiteBlock;
+    }
+  | {
+      readonly type: 'setUploadedImage';
+      readonly blockId: string;
+      readonly imageIndex: number;
+      readonly assetId: string;
     }
   | { readonly type: 'undo' }
   | { readonly type: 'redo' };
@@ -156,6 +162,17 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
       // null -> no-op: stesso stato, nessuna voce di storia spuria. Altrimenti nuovo stato con push su
       // past e futuro azzerato, la stessa disciplina di editSlot/addBlock/reorderBlock.
       const next = replaceBlock(state.document, action.pageSlug, action.blockIndex, action.block);
+      if (next === null) return state;
+      return { document: next, past: [...state.past, state.document], future: [] };
+    }
+    case 'setUploadedImage': {
+      // CARICA FOTO NELLO SLOT (T-416): il dominio setta lo slot immagine indirizzato (blockId
+      // esatto + imageIndex canonico) alla variante uploaded col nuovo asset_id e RI-GATE il
+      // documento. Un rifiuto (blocco assente, indice fuori range, asset_id non-uuid, invariante
+      // rotto) e' null -> no-op: stesso stato, nessuna voce di storia spuria. Altrimenti nuovo stato
+      // con push su past e futuro azzerato, la stessa disciplina di editSlot/addBlock/replaceBlock.
+      // La persistenza a revisione resta altrove (save-point, T-309): questo reducer non scrive.
+      const next = setUploadedImage(state.document, action.blockId, action.imageIndex, action.assetId);
       if (next === null) return state;
       return { document: next, past: [...state.past, state.document], future: [] };
     }

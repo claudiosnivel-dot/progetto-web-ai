@@ -45,6 +45,7 @@ import { SaveControls } from '@/ui/editor/SaveControls';
 import { BlockPanel, type AddableOffer } from '@/ui/editor/BlockPanel';
 import { BlockReorderList } from '@/ui/editor/BlockReorderList';
 import { BlockReplaceList } from '@/ui/editor/BlockReplaceList';
+import { ImageUploadPanel } from '@/ui/editor/ImageUploadPanel';
 import {
   saveRevision,
   restoreRevision,
@@ -111,6 +112,14 @@ type EditorClientProps = {
    * stessa disciplina del pannello blocchi e del controllo di riordino.
    */
   readonly replaceTitle?: string;
+  /**
+   * Le etichette i18n dell'affordance CARICA FOTO (T-416), risolte dal server (namespace 'editor').
+   * Il pannello compare solo quando entrambe sono presenti E il draft ha almeno uno slot immagine —
+   * stessa disciplina del pannello blocchi. `uploadImageTitle` e' il nome accessibile della sezione,
+   * `uploadImageLabel` l'etichetta del controllo ("Carica foto").
+   */
+  readonly uploadImageTitle?: string;
+  readonly uploadImageLabel?: string;
   /** L'anteprima gia' resa dal RENDERER UNICO (SiteView editable). Renderer unico, nessuna copia client. */
   readonly children: ReactNode;
   /** Debounce dell'autosave (ms); opzionale, per test/tuning — il default vive in useAutosave. */
@@ -130,10 +139,20 @@ export function EditorClient({
   moveUpLabel,
   moveDownLabel,
   replaceTitle,
+  uploadImageTitle,
+  uploadImageLabel,
   children,
   debounceMs,
 }: EditorClientProps) {
   const draft = useEditorDraft(initialDocument);
+
+  // GLI SLOT IMMAGINE del draft (T-416): la coordinata (blockId esatto + indice) di ogni slot, letta
+  // dal DRAFT cosi' che l'affordance rispecchi il documento corrente. Derivata dallo schema (forma
+  // vincolata), non da testo del modello; l'affordance manda ognuno a uploadAsset e ne dispaccia
+  // l'esito ok. La riflessione in anteprima passa dal renderer UNICO (SiteImage, T-415), non da qui.
+  const imageSlots = draft.document.pages.flatMap((page) =>
+    page.blocks.flatMap((block) => block.images.map((_image, imageIndex) => ({ blockId: block.id, imageIndex }))),
+  );
 
   // LA PAGINA DA RIORDINARE (T-315): la home (che esiste sempre, P2-D13; altrimenti la prima), letta
   // dal DRAFT — cosi' la lista rispecchia l'ordine corrente e si aggiorna dopo ogni spostamento. Gli
@@ -293,6 +312,20 @@ export function EditorClient({
             offer={offer}
             title={replaceTitle}
             onReplace={draft.replaceBlock}
+          />
+        ) : null}
+
+        {/* CARICA FOTO (T-416): per ogni slot immagine del draft, un input che manda il file al server
+            (uploadAsset, M4) e su ok deposita lo slot uploaded nel draft (dominio: setta + ri-gate);
+            il save-point lo persiste. Nessun upload diretto browser->bucket, nessun secondo canale di
+            scrittura. Compare solo con le etichette i18n presenti e almeno uno slot immagine. */}
+        {uploadImageTitle && uploadImageLabel ? (
+          <ImageUploadPanel
+            siteId={siteId}
+            slots={imageSlots}
+            title={uploadImageTitle}
+            uploadLabel={uploadImageLabel}
+            onUploaded={draft.setUploadedImage}
           />
         ) : null}
 

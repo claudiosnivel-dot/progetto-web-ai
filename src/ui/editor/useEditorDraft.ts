@@ -47,6 +47,14 @@ export function useEditorDraft(initialDocument: SiteDocument) {
       dispatch({ type: 'replaceBlock', pageSlug, blockIndex, block }),
     [],
   );
+  // La CARICA FOTO di uno slot immagine (T-416): l'affordance passa il blocco (id esatto), l'indice
+  // dello slot e l'asset_id restituito da uploadAsset (server action, M4). Il dominio setta lo slot a
+  // uploaded e ri-gate; un rifiuto e' un no-op nel reducer. La persistenza resta al save-point (T-309).
+  const setUploadedImage = useCallback(
+    (blockId: string, imageIndex: number, assetId: string) =>
+      dispatch({ type: 'setUploadedImage', blockId, imageIndex, assetId }),
+    [],
+  );
   const undo = useCallback(() => dispatch({ type: 'undo' }), []);
   const redo = useCallback(() => dispatch({ type: 'redo' }), []);
 
@@ -59,6 +67,7 @@ export function useEditorDraft(initialDocument: SiteDocument) {
     addBlock,
     reorderBlock,
     replaceBlock,
+    setUploadedImage,
     undo,
     redo,
   };
