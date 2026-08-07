@@ -461,6 +461,38 @@ export async function listGenerationStatuses(): Promise<ListGenerationStatusesRe
   return { ok: true, statuses };
 }
 
+export type CountGenerationsResult =
+  | { ok: true; count: number }
+  | { ok: false; status: 401 | 500 };
+
+/**
+ * (deploy pass) T-4 — Quante generazioni dell'account dell'utente sono state CREATE da `sinceIso`
+ * in poi. E' il conteggio del CAP GIORNALIERO di costo: la rotta /api/generate lo confronta col
+ * tetto (getDailyGenerationCap) PRIMA di creare la riga e spendere una chiamata al modello.
+ *
+ * Client di SESSIONE (RLS attiva, mai service_role — R7): la RLS di site_generations scopa gia' il
+ * conteggio agli account di cui l'utente e' membro, quindi non serve — ne' si deve — filtrare per
+ * account nel codice (un site_id/account_id dal client non entra mai qui). `count:'exact', head:true`
+ * conta senza scaricare le righe; `.gte('created_at', sinceIso)` e' un metodo TIPATO (A05:2025: mai
+ * un filtro a stringa libera). L'assenza di sessione e' 401, un guasto di lettura 500 — il chiamante
+ * tratta il 500 come fail-open (il freno hard resta lo spending cap di Anthropic).
+ */
+export async function countGenerationsSince(sinceIso: string): Promise<CountGenerationsResult> {
+  const supabase = await createServerSupabaseClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { ok: false, status: 401 };
+
+  const { count, error } = await supabase
+    .from('site_generations')
+    .select('id', { count: 'exact', head: true })
+    .gte('created_at', sinceIso);
+  if (error) return { ok: false, status: 500 };
+  return { ok: true, count: count ?? 0 };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // T-204 — LE TRE SCRITTURE. Le azioni di sopra leggono e creano; queste CONGELANO:
 // il documento che `chooseVariant` scrive e l'artefatto che P3 modifichera e P4

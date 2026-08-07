@@ -3,11 +3,13 @@ import { z } from 'zod';
 import { getUser } from '@/data/supabase-ssr';
 import {
   createGeneration,
+  countGenerationsSince,
   writePool,
   markReady,
   markFailed,
   type GenerationFailureReason,
 } from '@/data/generations';
+import { getDailyGenerationCap } from '@/config/env';
 import { guardMutatingRequest } from '@/app/api/_shared/request-guard';
 import { guardOwnedSite, loadRouteBrief } from '@/app/api/_shared/route-guards';
 import { generatable } from '@/domain/generation/generatable';
@@ -126,6 +128,17 @@ export async function POST(request: NextRequest): Promise<Response> {
   //    respinto QUI, PRIMA di creare la riga e PRIMA di spendere una chiamata a pagamento.
   if (!generatable(brief, { maxPages: MAX_PAGES }).ok) {
     return jsonError(422, 'not-generatable');
+  }
+
+  // 6b) (deploy pass) T-4 — CAP GIORNALIERO di costo: cintura oltre lo spending limit di Anthropic
+  //     (il freno hard). Conta le generazioni dell'account nelle ultime 24h e, oltre il tetto,
+  //     risponde 429 PRIMA di creare la riga e di spendere una chiamata al modello. FAIL-OPEN su
+  //     errore di conteggio: un guasto di lettura transitorio non blocca l'uso legittimo — il
+  //     backstop vero e' lo spending cap di Anthropic. Solo un conteggio RIUSCITO oltre il tetto blocca.
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const recent = await countGenerationsSince(since);
+  if (recent.ok && recent.count >= getDailyGenerationCap()) {
+    return jsonError(429, 'rate-limited');
   }
 
   // 7) LA RIGA 'generating', creata PRIMA della chiamata al confine (durabilita' dalla riga,

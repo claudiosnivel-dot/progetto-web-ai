@@ -173,3 +173,17 @@ export function assertProductionEnv(source: Record<string, string | undefined> =
     throw new Error(`Configurazione di produzione incompleta: ${problems.join(' ; ')}`);
   }
 }
+
+// (deploy pass) T-4 — CAP GIORNALIERO delle generazioni: la cintura di COSTO a livello app,
+// oltre lo spending limit di Anthropic (il freno hard). Config pubblica, non un segreto.
+// GENERATION_DAILY_CAP assente => default; un intero >= 0 valido => quel valore (0 = pausa totale,
+// scelta legittima dell'amministratore); qualunque altra cosa (negativo, non-numero) => default,
+// cosi' un valore storto non spalanca ne blocca per sbaglio.
+const DEFAULT_DAILY_GENERATION_CAP = 20;
+
+export function getDailyGenerationCap(source: Record<string, string | undefined> = process.env): number {
+  const raw = source.GENERATION_DAILY_CAP?.trim();
+  if (raw === undefined || raw === '') return DEFAULT_DAILY_GENERATION_CAP;
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : DEFAULT_DAILY_GENERATION_CAP;
+}
