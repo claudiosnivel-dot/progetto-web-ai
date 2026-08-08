@@ -34,6 +34,12 @@ jobs:
       # gate automatico. Ora lo e.
       - run: npm run lint
 
+      # (deploy pass) Il BUILD di produzione e' un gate: cattura gli errori a livello di
+      # bundle (che tsc puro non vede) PRIMA del deploy su Vercel. Non serve il DB — i dati
+      # si leggono a request-time e le rotte /s e sitemap sono dinamiche — quindi sta qui,
+      # veloce, prima di pagare l'avvio di Docker/Supabase.
+      - run: npm run build
+
       # --- Supabase locale: senza questo, 139 test su 632 si SKIPPANO in silenzio ---
       # e cioe l'INTERA superficie di sicurezza (RLS, tenancy, auth, siti, brief,
       # generazioni) non viene mai eseguita da una run di CI.
